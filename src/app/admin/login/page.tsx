@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { LegalDocModal, useLegalModal } from '@/components/legal-modal';
 
 function readErrorMessage(err: unknown, fallback: string) {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -22,6 +23,7 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { openDoc, setOpenDoc } = useLegalModal();
 
   async function signIn() {
     if (!email.trim() || !password) {
@@ -135,9 +137,12 @@ export default function AdminLoginPage() {
         <p className="mt-6 text-center text-[12px] leading-relaxed text-white/60">
           Internal staff access only, by signing in you agree to
           <br />
-          JAAD Logistics&apos; internal use policies.
+          <button onClick={() => setOpenDoc('terms-of-use')} className="underline hover:text-white">Terms of Service</button> and{' '}
+          <button onClick={() => setOpenDoc('privacy-policy')} className="underline hover:text-white">Privacy Policy</button>.
         </p>
       </div>
+
+      <LegalDocModal docKey={openDoc} onClose={() => setOpenDoc(null)} />
     </div>
   );
 }
