@@ -62,16 +62,41 @@ export default function CustomerLoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.verifyOtp({
+    const { data, error: authError } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: code.trim(),
       type: 'email',
     });
 
-    setLoading(false);
-    if (authError) {
+    if (authError || !data.user) {
+      setLoading(false);
       console.error('verifyOtp failed:', authError);
       setError(readErrorMessage(authError, 'That code did not work, please try again.'));
+      return;
+    }
+
+    // Gate: only customers with an active subscription may enter the dashboard.
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .select('subscription_status')
+      .eq('user_id', data.user.id)
+      .single();
+
+    if (customerError || !customer) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError('We could not find an account for this email. Contact support.');
+      return;
+    }
+
+    if (customer.subscription_status !== 'active') {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError(
+        customer.subscription_status === 'past_due'
+          ? 'Your subscription payment is overdue. Please renew to regain access.'
+          : 'You do not have an active subscription yet. Choose a plan to get started.'
+      );
       return;
     }
 
@@ -80,6 +105,7 @@ export default function CustomerLoginPage() {
       if (session) sessionStorage.setItem('jaad_session_only', '1');
     }
 
+    setLoading(false);
     router.push('/customer/dashboard');
   }
 
