@@ -108,6 +108,8 @@ export async function reactivateCustomer(id: string) {
 
 export async function importCustomersFromLeads() {
   const supabase = await createClient();
+
+  const { data: wonLeads, error: leadsError } = await supabase
     .from('leads')
     .select('company, contact_name, phone, value, assigned_to')
     .eq('status', 'Won');
