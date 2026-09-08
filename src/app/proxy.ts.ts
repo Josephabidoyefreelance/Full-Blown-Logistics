@@ -39,17 +39,17 @@ export async function proxy(request: NextRequest) {
   // the customer dashboard, requires a logged-in session.
   const isPublicRoute =
     request.nextUrl.pathname === '/' ||
-    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/admin/login') ||
     request.nextUrl.pathname === '/customer/login' ||
     request.nextUrl.pathname === '/customer/signup';
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = request.nextUrl.pathname.startsWith('/customer') ? '/customer/login' : '/login';
+    url.pathname = request.nextUrl.pathname.startsWith('/customer') ? '/customer/login' : '/admin/login';
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  if (user && request.nextUrl.pathname.startsWith('/admin/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);

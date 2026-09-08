@@ -35,20 +35,20 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Pages anyone can visit without being logged in: the homepage,
-  // the login page itself, and everything under the customer portal
+  // the admin login page itself, and everything under the customer portal
   // (that portal has its own separate customer login).
   const isPublicRoute =
     request.nextUrl.pathname === '/' ||
-    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/admin/login') ||
     request.nextUrl.pathname.startsWith('/customer');
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = '/admin/login';
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  if (user && request.nextUrl.pathname.startsWith('/admin/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
