@@ -1,0 +1,38 @@
+/* Sidebar nav scroll container specifically */
+.red-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.red-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.red-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #dc2626;
+  border-radius: 9999px;
+}
+.red-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #b91c1c;
+}
+.red-scrollbar {
+  scrollbar-color: #dc2626 transparent;
+}
+
+/* Red scrollbars app-wide */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #dc2626;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #b91c1c;
+}
+
+/* Firefox */
+* {
+  scrollbar-color: #dc2626 transparent;
+}
