@@ -26,7 +26,7 @@ export default function CustomerStatusSwitch({ id, status }: { id: string; statu
         });
       }}
       style={{ backgroundColor: color + '22', color }}
-      className="w-full rounded-full border-0 px-3 py-1 text-center text-xs font-semibold outline-none"
+      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
     >
       {STATUS_OPTIONS.map((s) => (
         <option key={s} value={s}>
