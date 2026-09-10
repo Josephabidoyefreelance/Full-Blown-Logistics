@@ -43,7 +43,7 @@ export default async function CustomersPage() {
 
       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <div className="min-w-[900px]">
-          <div className="grid grid-cols-[minmax(0,1.8fr)_90px_minmax(0,1.3fr)_130px_110px_80px_170px_120px] items-center gap-x-6 bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+          <div className="grid grid-cols-[minmax(0,1.9fr)_90px_minmax(0,1.3fr)_130px_110px_80px_170px_105px] items-center gap-x-6 bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
             <div>Account</div>
             <div>Type</div>
             <div>Contact</div>
@@ -57,7 +57,7 @@ export default async function CustomersPage() {
           {(customers ?? []).map((c) => (
             <div
               key={c.id}
-              className="grid grid-cols-[minmax(0,1.8fr)_90px_minmax(0,1.3fr)_130px_110px_80px_170px_120px] items-center gap-x-6 border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+              className="grid grid-cols-[minmax(0,1.9fr)_90px_minmax(0,1.3fr)_130px_110px_80px_170px_105px] items-center gap-x-6 border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
             >
               <CustomerDetailTrigger customer={c} staff={staff ?? []} />
               <div className="text-neutral-700 dark:text-neutral-300">{c.type}</div>
