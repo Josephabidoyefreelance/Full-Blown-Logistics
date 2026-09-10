@@ -158,7 +158,7 @@ export default function AirWaybill({ booking, cargoItems }: { booking: Booking; 
       </div>
 
       <div className="text-center text-xs text-neutral-500">
-        Question? Email us at info@jaadlogistics.com or call us at +234-806-147-2153
+        Question? Email us at info@jaadlogistics.com or call us at +234-707-568-8573
       </div>
       <div className="mt-2 border-t border-red-600 pt-2 text-center text-xs text-neutral-500">
         Your perfect partner to bring creativity to reality

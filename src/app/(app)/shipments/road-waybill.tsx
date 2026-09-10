@@ -64,7 +64,7 @@ export default function RoadWaybill({ booking, cargoItems }: { booking: Booking;
       <div className="mb-4 grid grid-cols-2 gap-4">
         <Row label="Company Name" value="Jaad Logistics" />
         <Row label="Address" value="64a Olushi Street, Lagos Island Lagos" />
-        <Row label="Phone" value="08061472153" />
+        <Row label="Phone" value="07075688573" />
         <Row label="Email" value="info@jaadlogistics.com" />
       </div>
 

@@ -8,6 +8,7 @@ import LeadDetailTrigger from './lead-detail-modal';
 import ImportLeadsButton from './import-leads-button';
 import DonutChart from '@/components/donut-chart';
 import SheetView from './sheet-view';
+import ConvertLeadButton from './convert-lead-button';
 
 function nairaFmt(n: number) {
   return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
@@ -215,7 +216,7 @@ export default async function CRMPage({
       {view === 'leads' && (
         <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           <div className="min-w-[980px]">
-            <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] items-center bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+            <div className="grid grid-cols-[repeat(8,minmax(0,1fr))_88px] items-center bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
               <div>Company</div>
               <div>Contact</div>
               <div>Priority</div>
@@ -223,13 +224,14 @@ export default async function CRMPage({
               <div>Assigned to</div>
               <div>Value</div>
               <div>Notes</div>
+              <div>Convert</div>
               <div className="text-right">Actions</div>
             </div>
 
             {(leads ?? []).map((l) => (
               <div
                 key={l.id}
-                className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] items-center border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+                className="grid grid-cols-[repeat(8,minmax(0,1fr))_88px] items-center border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
               >
                 <LeadDetailTrigger lead={l} staff={staff ?? []} />
                 <div className="truncate text-neutral-700 dark:text-neutral-300">{l.contact_name}</div>
@@ -243,6 +245,9 @@ export default async function CRMPage({
                 <div className="text-neutral-900 dark:text-neutral-100">{nairaFmt(l.value)}</div>
                 <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
                   {noteCounts[l.id] ? `${noteCounts[l.id]} note${noteCounts[l.id] > 1 ? 's' : ''}` : '—'}
+                </div>
+                <div>
+                  <ConvertLeadButton id={l.id} company={l.company} />
                 </div>
                 <div className="flex justify-end gap-1.5">
                   <a

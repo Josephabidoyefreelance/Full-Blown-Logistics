@@ -29,9 +29,9 @@ const QUOTE_COLS = 'grid-cols-[150px_220px_260px_170px_150px]';
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; open?: string }>;
 }) {
-  const { view = 'overview' } = await searchParams;
+  const { view = 'overview', open: openInvoiceId } = await searchParams;
   const supabase = await createClient();
 
   const [invoices, expenses, payroll, purchaseOrders, quotations] = await Promise.all([
@@ -126,7 +126,14 @@ export default async function FinancePage({
               {(invoices.data ?? []).map((i) => (
                 <div key={i.id} className={`grid ${INVOICE_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
                   <div className="truncate">
-                    <InvoiceModal invoiceNo={i.invoice_no} customerName={i.customer_name} amount={i.amount} date={i.invoice_date} status={i.status} />
+                    <InvoiceModal
+                      invoiceNo={i.invoice_no}
+                      customerName={i.customer_name}
+                      amount={i.amount}
+                      date={i.invoice_date}
+                      status={i.status}
+                      autoOpen={i.id === openInvoiceId}
+                    />
                   </div>
                   <div className="truncate text-neutral-700 dark:text-neutral-300">{i.customer_name}</div>
                   <div className="pr-8 text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(i.amount)}</div>

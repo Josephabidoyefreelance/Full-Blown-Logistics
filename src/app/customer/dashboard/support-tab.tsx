@@ -6,7 +6,7 @@ import EmailPanel from './email-panel';
 
 // Fallback only, used until the business owner sets a real number in
 // Profile. Once customer.support_phone is set, that value wins.
-const JAAD_SUPPORT_PHONE = '+2348061472153';
+const JAAD_SUPPORT_PHONE = '+2347075688573';
 
 type Message = {
   id: string;

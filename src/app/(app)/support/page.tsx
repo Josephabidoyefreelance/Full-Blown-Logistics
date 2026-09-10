@@ -192,17 +192,17 @@ function OpenTicketTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-      <table className="w-full min-w-[820px] text-sm">
+      <table className="w-full min-w-[820px] table-fixed text-sm">
         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-          <th className="px-4 py-2.5">Ticket</th><th className="px-4 py-2.5">Customer</th><th className="px-4 py-2.5">Subject</th>
-          <th className="px-4 py-2.5">Channel</th><th className="px-4 py-2.5">Priority</th><th className="px-4 py-2.5">Status</th>
+          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
+          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Priority</th><th className="w-[12%] px-4 py-2.5">Status</th>
         </tr></thead>
         <tbody>
           {rows.map((t) => (
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
               <td className="px-4 py-2.5"><PrioritySwitch id={t.id} value={t.priority} /></td>
               <td className="px-4 py-2.5"><TicketStatusSwitch id={t.id} value={t.status} /></td>
@@ -222,17 +222,17 @@ function ResolvedTicketTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-      <table className="w-full min-w-[820px] text-sm">
+      <table className="w-full min-w-[820px] table-fixed text-sm">
         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-          <th className="px-4 py-2.5">Ticket</th><th className="px-4 py-2.5">Customer</th><th className="px-4 py-2.5">Subject</th>
-          <th className="px-4 py-2.5">Channel</th><th className="px-4 py-2.5">Closed</th><th className="px-4 py-2.5">Status</th>
+          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
+          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Closed</th><th className="w-[12%] px-4 py-2.5">Status</th>
         </tr></thead>
         <tbody>
           {rows.map((t) => (
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">
                 {t.closed_at ? new Date(t.closed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}

@@ -1,17 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import LetterHeadingEditor from './letter-heading-editor';
+import { updateLeaveHeading } from './actions';
 
 export default function LeaveLetterModal({
+  id,
   employeeName,
   leaveType,
   fromDate,
   toDate,
+  leaveHeading,
 }: {
+  id: string;
   employeeName: string;
   leaveType: string;
   fromDate: string;
   toDate: string;
+  leaveHeading?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -52,9 +58,8 @@ export default function LeaveLetterModal({
                 <div className="text-xl font-bold tracking-wide text-white">LEAVE APPROVAL</div>
               </div>
 
-              <div className="p-6 text-sm leading-relaxed text-neutral-700">
-                <div className="mb-6 text-neutral-500">
-                  <div>JAAD Logistics Ltd</div>
+              <div className="px-6 pb-6 pt-3 text-sm leading-relaxed text-neutral-700">
+                <div className="mb-1 text-neutral-500">
                   <div>Lagos State, Nigeria</div>
                   <div>admin@jaadlogistics.com.ng</div>
                 </div>
@@ -62,6 +67,12 @@ export default function LeaveLetterModal({
                 <div className="mb-6 text-neutral-500">{today}</div>
 
                 <p className="mb-4">To whom it may concern,</p>
+
+                <LetterHeadingEditor
+                  initialHtml={leaveHeading ?? ''}
+                  placeholder="e.g. Confirmation of Approved Leave"
+                  onSave={(html) => updateLeaveHeading(id, html)}
+                />
 
                 <p className="mb-4">
                   This letter confirms that <strong>{employeeName}</strong> has been granted{' '}

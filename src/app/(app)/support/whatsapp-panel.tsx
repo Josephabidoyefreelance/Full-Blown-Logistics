@@ -46,7 +46,7 @@ export default function WhatsappPanel({ history }: { history: Wa[] }) {
             <input
               value={toNumber}
               onChange={(e) => setToNumber(e.target.value)}
-              placeholder="2348061472153"
+              placeholder="2347075688573"
               className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
             />
           </div>

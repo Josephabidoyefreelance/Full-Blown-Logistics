@@ -62,7 +62,7 @@ export default function ExpenseReceiptModal({
                   <div>
                     <div className="font-bold text-neutral-900">JAAD LOGISTICS</div>
                     <div className="text-neutral-500">Lagos State, Nigeria</div>
-                    <div className="text-neutral-500">+234-806-147-2153</div>
+                    <div className="text-neutral-500">+234-707-568-8573</div>
                     <div className="text-neutral-500">admin@jaadlogistics.com.ng</div>
                     <div className="text-neutral-500">www.jaadlogistics.com.ng</div>
                   </div>

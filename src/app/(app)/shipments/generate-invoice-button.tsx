@@ -28,7 +28,7 @@ export default function GenerateInvoiceButton({
   if (invoiceId) {
     return (
       <a
-        href={`/finance/invoices/${invoiceId}`}
+        href={`/finance?view=invoices&open=${invoiceId}`}
         className={`block w-full rounded-lg bg-green-600 text-center font-semibold text-white hover:bg-green-700 ${sizeClass}`}
       >
         {compact ? 'View invoice' : 'Invoice created \u2192 view it'}

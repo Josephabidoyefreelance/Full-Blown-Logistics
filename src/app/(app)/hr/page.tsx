@@ -27,7 +27,7 @@ export default async function HRPage({
     view === 'employees' || view === 'employee-of-the-year'
       ? await supabase
           .from('employees')
-          .select('id, name, department, role_title, status, votes')
+          .select('id, name, department, role_title, status, votes, offer_heading')
           .order('name')
       : null;
 
@@ -43,7 +43,7 @@ export default async function HRPage({
     view === 'leave'
       ? await supabase
           .from('leave_requests')
-          .select('id, employee_name, leave_type, from_date, to_date, status')
+          .select('id, employee_name, leave_type, from_date, to_date, status, leave_heading')
           .order('requested_on', { ascending: false })
       : null;
 
@@ -92,7 +92,7 @@ export default async function HRPage({
                 <div className="truncate font-medium text-neutral-900 dark:text-neutral-100">{e.name}</div>
                 <div className="truncate text-neutral-700 dark:text-neutral-300">{e.department}</div>
                 <div className="truncate text-neutral-700 dark:text-neutral-300">{e.role_title}</div>
-                <div><OfferLetterModal name={e.name} department={e.department} roleTitle={e.role_title} /></div>
+                <div><OfferLetterModal id={e.id} name={e.name} department={e.department} roleTitle={e.role_title} offerHeading={e.offer_heading} /></div>
                 <div className="flex justify-end">
                   <span className="rounded-full bg-green-500/15 px-3 py-1 text-xs font-semibold text-green-600">
                     {e.status}
@@ -176,10 +176,12 @@ export default async function HRPage({
                   <LeaveActions id={l.id} status={l.status} />
                   {l.status === 'Approved' && (
                     <LeaveLetterModal
+                      id={l.id}
                       employeeName={l.employee_name}
                       leaveType={l.leave_type}
                       fromDate={l.from_date}
                       toDate={l.to_date}
+                      leaveHeading={l.leave_heading}
                     />
                   )}
                 </div>

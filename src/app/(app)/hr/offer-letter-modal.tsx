@@ -1,15 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import LetterHeadingEditor from './letter-heading-editor';
+import { updateEmployeeOfferHeading } from './actions';
 
 export default function OfferLetterModal({
+  id,
   name,
   department,
   roleTitle,
+  offerHeading,
 }: {
+  id: string;
   name: string;
   department: string;
   roleTitle: string;
+  offerHeading?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -47,9 +53,8 @@ export default function OfferLetterModal({
                 <div className="text-xl font-bold tracking-wide text-white">OFFER LETTER</div>
               </div>
 
-              <div className="p-6 text-sm leading-relaxed text-neutral-700">
-                <div className="mb-6 text-neutral-500">
-                  <div>JAAD Logistics Ltd</div>
+              <div className="px-6 pb-6 pt-3 text-sm leading-relaxed text-neutral-700">
+                <div className="mb-1 text-neutral-500">
                   <div>Lagos State, Nigeria</div>
                   <div>admin@jaadlogistics.com.ng</div>
                 </div>
@@ -57,6 +62,12 @@ export default function OfferLetterModal({
                 <div className="mb-6 text-neutral-500">{today}</div>
 
                 <p className="mb-4">Dear {name},</p>
+
+                <LetterHeadingEditor
+                  initialHtml={offerHeading ?? ''}
+                  placeholder="e.g. Offer of Employment — Admin / Virtual Assistant"
+                  onSave={(html) => updateEmployeeOfferHeading(id, html)}
+                />
 
                 <p className="mb-4">
                   We are pleased to offer you the position of <strong>{roleTitle}</strong> in the{' '}

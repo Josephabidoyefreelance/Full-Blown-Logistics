@@ -61,12 +61,9 @@ export default function QuotationModal({
             </div>
 
             <div className="finance-print-area p-6">
-              <div className="mb-6 flex items-start justify-between">
+              <div className="mb-6">
                 <img src="/logo.png" alt="JAAD Logistics" className="h-9 w-9 rounded" />
-                <div className="text-right text-xs text-neutral-500">
-                  <div>JAAD Logistics Ltd</div>
-                  <div>info@jaadlogistics.com</div>
-                </div>
+                <div className="mt-1 text-xs text-neutral-500">info@jaadlogistics.com</div>
               </div>
 
               <h3 className="mb-4 text-lg font-bold text-neutral-900">Quotation</h3>

@@ -167,3 +167,40 @@ export async function importLeads(rows: ImportRow[]) {
   revalidatePath('/crm');
   return { error: null, imported: toInsert.length, skipped };
 }
+
+export async function convertLeadToCustomer(id: string) {
+  if (!id) return { error: 'Missing lead id.' };
+  const supabase = await createClient();
+
+  const { data: lead, error: fetchError } = await supabase
+    .from('leads')
+    .select('id, company, contact_name, email, phone, assigned_to, value')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !lead) {
+    return { error: fetchError?.message ?? 'Could not find that lead.' };
+  }
+
+  const { error: insertError } = await supabase.from('customers').insert({
+    name: lead.company || lead.contact_name,
+    type: 'B2B',
+    contact: lead.phone || lead.email || '',
+    credit_limit: 0,
+    balance: 0,
+    status: 'Active',
+    client_since: new Date().getFullYear(),
+    assigned_to: lead.assigned_to,
+    currency: 'NGN',
+    tax_rate: 7.5,
+  });
+
+  if (insertError) return { error: insertError.message };
+
+  const { error: deleteError } = await supabase.from('leads').delete().eq('id', id);
+  if (deleteError) return { error: deleteError.message };
+
+  revalidatePath('/crm');
+  revalidatePath('/customers');
+  return { error: null };
+}

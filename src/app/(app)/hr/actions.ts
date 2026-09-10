@@ -112,6 +112,24 @@ export async function voteEmployee(id: string, currentVotes: number) {
   return { error: null };
 }
 
+export async function updateEmployeeOfferHeading(id: string, headingHtml: string) {
+  if (!id) return { error: 'Missing employee id.' };
+  const supabase = await createClient();
+  const { error } = await supabase.from('employees').update({ offer_heading: headingHtml }).eq('id', id);
+  if (error) return { error: error.message };
+  revalidatePath('/hr');
+  return { error: null };
+}
+
+export async function updateLeaveHeading(id: string, headingHtml: string) {
+  if (!id) return { error: 'Missing leave request id.' };
+  const supabase = await createClient();
+  const { error } = await supabase.from('leave_requests').update({ leave_heading: headingHtml }).eq('id', id);
+  if (error) return { error: error.message };
+  revalidatePath('/hr');
+  return { error: null };
+}
+
 export async function uploadOfferLetter(formData: FormData) {
   const supabase = await createClient();
 
