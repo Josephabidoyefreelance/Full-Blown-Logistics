@@ -1,0 +1,1269 @@
+diff --git a/jaad-fixes-batch1.patch b/jaad-fixes-batch1.patch
+deleted file mode 100644
+index 0f17d1f..0000000
+--- a/jaad-fixes-batch1.patch
++++ /dev/null
+@@ -1,974 +0,0 @@
+-diff --git a/src/app/(app)/crm/actions.ts b/src/app/(app)/crm/actions.ts
+-index a0c464d..50f6c1f 100644
+---- a/src/app/(app)/crm/actions.ts
+-+++ b/src/app/(app)/crm/actions.ts
+-@@ -167,3 +167,40 @@ export async function importLeads(rows: ImportRow[]) {
+-   revalidatePath('/crm');
+-   return { error: null, imported: toInsert.length, skipped };
+- }
+-+
+-+export async function convertLeadToCustomer(id: string) {
+-+  if (!id) return { error: 'Missing lead id.' };
+-+  const supabase = await createClient();
+-+
+-+  const { data: lead, error: fetchError } = await supabase
+-+    .from('leads')
+-+    .select('id, company, contact_name, email, phone, assigned_to, value')
+-+    .eq('id', id)
+-+    .single();
+-+
+-+  if (fetchError || !lead) {
+-+    return { error: fetchError?.message ?? 'Could not find that lead.' };
+-+  }
+-+
+-+  const { error: insertError } = await supabase.from('customers').insert({
+-+    name: lead.company || lead.contact_name,
+-+    type: 'B2B',
+-+    contact: lead.phone || lead.email || '',
+-+    credit_limit: 0,
+-+    balance: 0,
+-+    status: 'Active',
+-+    client_since: new Date().getFullYear(),
+-+    assigned_to: lead.assigned_to,
+-+    currency: 'NGN',
+-+    tax_rate: 7.5,
+-+  });
+-+
+-+  if (insertError) return { error: insertError.message };
+-+
+-+  const { error: deleteError } = await supabase.from('leads').delete().eq('id', id);
+-+  if (deleteError) return { error: deleteError.message };
+-+
+-+  revalidatePath('/crm');
+-+  revalidatePath('/customers');
+-+  return { error: null };
+-+}
+-diff --git a/src/app/(app)/crm/convert-lead-button.tsx b/src/app/(app)/crm/convert-lead-button.tsx
+-new file mode 100644
+-index 0000000..fe9ced1
+---- /dev/null
+-+++ b/src/app/(app)/crm/convert-lead-button.tsx
+-@@ -0,0 +1,31 @@
+-+'use client';
+-+
+-+import { useState, useTransition } from 'react';
+-+import { convertLeadToCustomer } from './actions';
+-+
+-+export default function ConvertLeadButton({ id, company }: { id: string; company: string }) {
+-+  const [isPending, startTransition] = useTransition();
+-+  const [error, setError] = useState<string | null>(null);
+-+
+-+  function handleClick() {
+-+    if (!confirm(`Convert "${company}" to a customer? This moves it out of Leads.`)) return;
+-+    setError(null);
+-+    startTransition(async () => {
+-+      const res = await convertLeadToCustomer(id);
+-+      if (res?.error) setError(res.error);
+-+    });
+-+  }
+-+
+-+  return (
+-+    <div>
+-+      <button
+-+        onClick={handleClick}
+-+        disabled={isPending}
+-+        className="rounded-md border border-red-600 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 dark:text-red-500 dark:hover:bg-red-950/30"
+-+      >
+-+        {isPending ? 'Converting...' : 'Convert'}
+-+      </button>
+-+      {error && <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{error}</p>}
+-+    </div>
+-+  );
+-+}
+-diff --git a/src/app/(app)/crm/page.tsx b/src/app/(app)/crm/page.tsx
+-index 7ad6b60..8b52944 100644
+---- a/src/app/(app)/crm/page.tsx
+-+++ b/src/app/(app)/crm/page.tsx
+-@@ -8,6 +8,7 @@ import LeadDetailTrigger from './lead-detail-modal';
+- import ImportLeadsButton from './import-leads-button';
+- import DonutChart from '@/components/donut-chart';
+- import SheetView from './sheet-view';
+-+import ConvertLeadButton from './convert-lead-button';
+- 
+- function nairaFmt(n: number) {
+-   return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+-@@ -215,7 +216,7 @@ export default async function CRMPage({
+-       {view === 'leads' && (
+-         <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+-           <div className="min-w-[980px]">
+--            <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] items-center bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+-+            <div className="grid grid-cols-[repeat(8,minmax(0,1fr))_88px] items-center bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+-               <div>Company</div>
+-               <div>Contact</div>
+-               <div>Priority</div>
+-@@ -223,13 +224,14 @@ export default async function CRMPage({
+-               <div>Assigned to</div>
+-               <div>Value</div>
+-               <div>Notes</div>
+-+              <div>Convert</div>
+-               <div className="text-right">Actions</div>
+-             </div>
+- 
+-             {(leads ?? []).map((l) => (
+-               <div
+-                 key={l.id}
+--                className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] items-center border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+-+                className="grid grid-cols-[repeat(8,minmax(0,1fr))_88px] items-center border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+-               >
+-                 <LeadDetailTrigger lead={l} staff={staff ?? []} />
+-                 <div className="truncate text-neutral-700 dark:text-neutral-300">{l.contact_name}</div>
+-@@ -244,6 +246,9 @@ export default async function CRMPage({
+-                 <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">
+-                   {noteCounts[l.id] ? `${noteCounts[l.id]} note${noteCounts[l.id] > 1 ? 's' : ''}` : '—'}
+-                 </div>
+-+                <div>
+-+                  <ConvertLeadButton id={l.id} company={l.company} />
+-+                </div>
+-                 <div className="flex justify-end gap-1.5">
+-                   <a
+-                     href={l.phone ? `tel:${l.phone}` : undefined}
+-diff --git a/src/app/(app)/customers/customers-admin-page.tsx b/src/app/(app)/customers/customers-admin-page.tsx
+-index cf76889..21f68bd 100644
+---- a/src/app/(app)/customers/customers-admin-page.tsx
+-+++ b/src/app/(app)/customers/customers-admin-page.tsx
+-@@ -43,7 +43,7 @@ export default async function CustomersPage() {
+- 
+-       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+-         <div className="min-w-[900px]">
+--          <div className="grid grid-cols-[repeat(6,minmax(0,1fr))_160px_140px] items-center gap-x-6 bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+-+          <div className="grid grid-cols-[repeat(8,minmax(0,1fr))] items-center gap-x-6 bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+-             <div>Account</div>
+-             <div>Type</div>
+-             <div>Contact</div>
+-@@ -57,7 +57,7 @@ export default async function CustomersPage() {
+-           {(customers ?? []).map((c) => (
+-             <div
+-               key={c.id}
+--              className="grid grid-cols-[repeat(6,minmax(0,1fr))_160px_140px] items-center gap-x-6 border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+-+              className="grid grid-cols-[repeat(8,minmax(0,1fr))] items-center gap-x-6 border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+-             >
+-               <CustomerDetailTrigger customer={c} staff={staff ?? []} />
+-               <div className="text-neutral-700 dark:text-neutral-300">{c.type}</div>
+-diff --git a/src/app/(app)/finance/expense-receipt-modal.tsx b/src/app/(app)/finance/expense-receipt-modal.tsx
+-index 0765808..1438f5a 100644
+---- a/src/app/(app)/finance/expense-receipt-modal.tsx
+-+++ b/src/app/(app)/finance/expense-receipt-modal.tsx
+-@@ -62,7 +62,7 @@ export default function ExpenseReceiptModal({
+-                   <div>
+-                     <div className="font-bold text-neutral-900">JAAD LOGISTICS</div>
+-                     <div className="text-neutral-500">Lagos State, Nigeria</div>
+--                    <div className="text-neutral-500">+234-806-147-2153</div>
+-+                    <div className="text-neutral-500">+234-707-568-8573</div>
+-                     <div className="text-neutral-500">admin@jaadlogistics.com.ng</div>
+-                     <div className="text-neutral-500">www.jaadlogistics.com.ng</div>
+-                   </div>
+-diff --git a/src/app/(app)/finance/invoice-modal.tsx b/src/app/(app)/finance/invoice-modal.tsx
+-index a4ad950..79c3432 100644
+---- a/src/app/(app)/finance/invoice-modal.tsx
+-+++ b/src/app/(app)/finance/invoice-modal.tsx
+-@@ -18,14 +18,16 @@ export default function InvoiceModal({
+-   amount,
+-   date,
+-   status,
+-+  autoOpen = false,
+- }: {
+-   invoiceNo: string;
+-   customerName: string;
+-   amount: number;
+-   date: string;
+-   status: string;
+-+  autoOpen?: boolean;
+- }) {
+--  const [open, setOpen] = useState(false);
+-+  const [open, setOpen] = useState(autoOpen);
+-   const VAT_RATE = 0.075;
+-   const subtotal = amount;
+-   const vat = Math.round(subtotal * VAT_RATE);
+-@@ -73,7 +75,7 @@ export default function InvoiceModal({
+-                   <div>
+-                     <div className="font-bold text-neutral-900">JAAD LOGISTICS</div>
+-                     <div className="text-neutral-500">Lagos State, Nigeria</div>
+--                    <div className="text-neutral-500">+234-806-147-2153</div>
+-+                    <div className="text-neutral-500">+234-707-568-8573</div>
+-                     <div className="text-neutral-500">admin@jaadlogistics.com.ng</div>
+-                     <div className="text-neutral-500">www.jaadlogistics.com.ng</div>
+-                   </div>
+-diff --git a/src/app/(app)/finance/page.tsx b/src/app/(app)/finance/page.tsx
+-index 8a119e1..8fb6b23 100644
+---- a/src/app/(app)/finance/page.tsx
+-+++ b/src/app/(app)/finance/page.tsx
+-@@ -29,9 +29,9 @@ const QUOTE_COLS = 'grid-cols-[150px_220px_260px_170px_150px]';
+- export default async function FinancePage({
+-   searchParams,
+- }: {
+--  searchParams: Promise<{ view?: string }>;
+-+  searchParams: Promise<{ view?: string; open?: string }>;
+- }) {
+--  const { view = 'overview' } = await searchParams;
+-+  const { view = 'overview', open: openInvoiceId } = await searchParams;
+-   const supabase = await createClient();
+- 
+-   const [invoices, expenses, payroll, purchaseOrders, quotations] = await Promise.all([
+-@@ -126,7 +126,14 @@ export default async function FinancePage({
+-               {(invoices.data ?? []).map((i) => (
+-                 <div key={i.id} className={`grid ${INVOICE_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
+-                   <div className="truncate">
+--                    <InvoiceModal invoiceNo={i.invoice_no} customerName={i.customer_name} amount={i.amount} date={i.invoice_date} status={i.status} />
+-+                    <InvoiceModal
+-+                      invoiceNo={i.invoice_no}
+-+                      customerName={i.customer_name}
+-+                      amount={i.amount}
+-+                      date={i.invoice_date}
+-+                      status={i.status}
+-+                      autoOpen={i.id === openInvoiceId}
+-+                    />
+-                   </div>
+-                   <div className="truncate text-neutral-700 dark:text-neutral-300">{i.customer_name}</div>
+-                   <div className="pr-8 text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(i.amount)}</div>
+-diff --git a/src/app/(app)/finance/purchase-order-modal.tsx b/src/app/(app)/finance/purchase-order-modal.tsx
+-index 9f6da4a..0d1370f 100644
+---- a/src/app/(app)/finance/purchase-order-modal.tsx
+-+++ b/src/app/(app)/finance/purchase-order-modal.tsx
+-@@ -62,12 +62,9 @@ export default function PurchaseOrderModal({
+-             </div>
+- 
+-             <div className="finance-print-area p-6">
+--              <div className="mb-6 flex items-start justify-between">
+-+              <div className="mb-6">
+-                 <img src="/logo.png" alt="JAAD Logistics" className="h-9 w-9 rounded" />
+--                <div className="text-right text-xs text-neutral-500">
+--                  <div>JAAD Logistics Ltd</div>
+--                  <div>info@jaadlogistics.com</div>
+--                </div>
+-+                <div className="mt-1 text-xs text-neutral-500">info@jaadlogistics.com</div>
+-               </div>
+- 
+-               <h3 className="mb-4 text-lg font-bold text-neutral-900">Purchase order</h3>
+-diff --git a/src/app/(app)/finance/quotation-modal.tsx b/src/app/(app)/finance/quotation-modal.tsx
+-index e2810c6..8050e03 100644
+---- a/src/app/(app)/finance/quotation-modal.tsx
+-+++ b/src/app/(app)/finance/quotation-modal.tsx
+-@@ -61,12 +61,9 @@ export default function QuotationModal({
+-             </div>
+- 
+-             <div className="finance-print-area p-6">
+--              <div className="mb-6 flex items-start justify-between">
+-+              <div className="mb-6">
+-                 <img src="/logo.png" alt="JAAD Logistics" className="h-9 w-9 rounded" />
+--                <div className="text-right text-xs text-neutral-500">
+--                  <div>JAAD Logistics Ltd</div>
+--                  <div>info@jaadlogistics.com</div>
+--                </div>
+-+                <div className="mt-1 text-xs text-neutral-500">info@jaadlogistics.com</div>
+-               </div>
+- 
+-               <h3 className="mb-4 text-lg font-bold text-neutral-900">Quotation</h3>
+-diff --git a/src/app/(app)/fleet/actions.ts b/src/app/(app)/fleet/actions.ts
+-index 73af64c..97dd447 100644
+---- a/src/app/(app)/fleet/actions.ts
+-+++ b/src/app/(app)/fleet/actions.ts
+-@@ -7,6 +7,26 @@ export async function updateFleetStatus(id: string, status: string) {
+-   const supabase = await createClient();
+-   const { error } = await supabase.from('fleet_vehicles').update({ status }).eq('id', id);
+-   if (error) return { error: error.message };
+-+
+-+  if (status === 'Maintenance') {
+-+    const { data: openRecord } = await supabase
+-+      .from('fleet_maintenance')
+-+      .select('id')
+-+      .eq('vehicle_id', id)
+-+      .neq('status', 'Completed')
+-+      .limit(1)
+-+      .maybeSingle();
+-+
+-+    if (!openRecord) {
+-+      await supabase.from('fleet_maintenance').insert({
+-+        vehicle_id: id,
+-+        description: 'Vehicle moved to maintenance',
+-+        status: 'Scheduled',
+-+        service_date: new Date().toISOString().slice(0, 10),
+-+      });
+-+    }
+-+  }
+-+
+-   revalidatePath('/fleet');
+-   return { error: null };
+- }
+-@@ -98,8 +118,32 @@ export async function createMaintenanceRecord(formData: FormData) {
+- 
+- export async function updateMaintenanceStatus(id: string, status: string) {
+-   const supabase = await createClient();
+--  const { error } = await supabase.from('fleet_maintenance').update({ status }).eq('id', id);
+-+  const { data: record, error } = await supabase
+-+    .from('fleet_maintenance')
+-+    .update({ status })
+-+    .eq('id', id)
+-+    .select('vehicle_id')
+-+    .single();
+-+
+-   if (error) return { error: error.message };
+-+
+-+  if (status === 'Completed' && record?.vehicle_id) {
+-+    await supabase.from('fleet_vehicles').update({ status: 'Available' }).eq('id', record.vehicle_id);
+-+  }
+-+
+-   revalidatePath('/fleet');
+-   return { error: null };
+- }
+-+
+-+export async function getVehicleMaintenanceHistory(vehicleId: string) {
+-+  if (!vehicleId) return { error: 'Select a vehicle.', records: [] };
+-+  const supabase = await createClient();
+-+  const { data, error } = await supabase
+-+    .from('fleet_maintenance')
+-+    .select('id, description, cost, service_date, status')
+-+    .eq('vehicle_id', vehicleId)
+-+    .order('service_date', { ascending: false });
+-+
+-+  if (error) return { error: error.message, records: [] };
+-+  return { error: null, records: data ?? [] };
+-+}
+-diff --git a/src/app/(app)/fleet/maintenance-records-modal.tsx b/src/app/(app)/fleet/maintenance-records-modal.tsx
+-new file mode 100644
+-index 0000000..e80f9e4
+---- /dev/null
+-+++ b/src/app/(app)/fleet/maintenance-records-modal.tsx
+-@@ -0,0 +1,139 @@
+-+'use client';
+-+
+-+import { useState, useTransition } from 'react';
+-+import { getVehicleMaintenanceHistory } from './actions';
+-+
+-+type Vehicle = { id: string; plate: string };
+-+type Record = { id: string; description: string; cost: number | null; service_date: string | null; status: string };
+-+
+-+export default function MaintenanceRecordsButton({ vehicles }: { vehicles: Vehicle[] }) {
+-+  const [open, setOpen] = useState(false);
+-+  const [vehicleId, setVehicleId] = useState('');
+-+  const [records, setRecords] = useState<Record[] | null>(null);
+-+  const [error, setError] = useState<string | null>(null);
+-+  const [isPending, startTransition] = useTransition();
+-+
+-+  const selectedPlate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+-+
+-+  function handleVehicleChange(id: string) {
+-+    setVehicleId(id);
+-+    setRecords(null);
+-+    setError(null);
+-+    if (!id) return;
+-+    startTransition(async () => {
+-+      const res = await getVehicleMaintenanceHistory(id);
+-+      if (res.error) setError(res.error);
+-+      else setRecords(res.records as Record[]);
+-+    });
+-+  }
+-+
+-+  return (
+-+    <>
+-+      <button
+-+        onClick={() => setOpen(true)}
+-+        className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+      >
+-+        Records
+-+      </button>
+-+
+-+      {open && (
+-+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-8 print:bg-white">
+-+          <style>{`
+-+            @media print {
+-+              body * { visibility: hidden; }
+-+              .finance-print-area, .finance-print-area * { visibility: visible; }
+-+              .finance-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+-+            }
+-+          `}</style>
+-+          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-neutral-900">
+-+            <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 print:hidden dark:border-neutral-800">
+-+              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+-+                Vehicle maintenance records
+-+              </h2>
+-+              <button
+-+                onClick={() => setOpen(false)}
+-+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+-+              >
+-+                ✕
+-+              </button>
+-+            </div>
+-+
+-+            <div className="finance-print-area p-6">
+-+              <div className="mb-4 print:hidden">
+-+                <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+-+                  Vehicle
+-+                </label>
+-+                <select
+-+                  value={vehicleId}
+-+                  onChange={(e) => handleVehicleChange(e.target.value)}
+-+                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+-+                >
+-+                  <option value="">Select a vehicle...</option>
+-+                  {vehicles.map((v) => (
+-+                    <option key={v.id} value={v.id}>
+-+                      {v.plate}
+-+                    </option>
+-+                  ))}
+-+                </select>
+-+              </div>
+-+
+-+              {selectedPlate && (
+-+                <h3 className="mb-4 text-lg font-bold text-neutral-900">
+-+                  Maintenance history — {selectedPlate}
+-+                </h3>
+-+              )}
+-+
+-+              {isPending && <p className="text-sm text-neutral-400">Loading...</p>}
+-+              {error && <p className="text-sm text-red-600">{error}</p>}
+-+
+-+              {records && (
+-+                <div className="overflow-hidden rounded-lg border border-neutral-200">
+-+                  <div className="grid grid-cols-[110px_1fr_110px_110px] bg-neutral-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white">
+-+                    <div>Date</div>
+-+                    <div>Description</div>
+-+                    <div>Cost</div>
+-+                    <div>Status</div>
+-+                  </div>
+-+                  {records.map((r) => (
+-+                    <div
+-+                      key={r.id}
+-+                      className="grid grid-cols-[110px_1fr_110px_110px] border-t border-neutral-100 px-4 py-2 text-sm"
+-+                    >
+-+                      <div className="text-neutral-700">{r.service_date ?? '\u2014'}</div>
+-+                      <div className="text-neutral-700">{r.description}</div>
+-+                      <div className="text-neutral-700">
+-+                        {r.cost ? `\u20a6${Number(r.cost).toLocaleString()}` : '\u2014'}
+-+                      </div>
+-+                      <div className="text-neutral-700">{r.status}</div>
+-+                    </div>
+-+                  ))}
+-+                  {!records.length && (
+-+                    <div className="px-4 py-6 text-center text-sm text-neutral-400">
+-+                      No maintenance records for this vehicle yet.
+-+                    </div>
+-+                  )}
+-+                </div>
+-+              )}
+-+            </div>
+-+
+-+            <div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-4 print:hidden dark:border-neutral-800">
+-+              <button
+-+                onClick={() => setOpen(false)}
+-+                className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+              >
+-+                Close
+-+              </button>
+-+              <button
+-+                onClick={() => window.print()}
+-+                disabled={!records || !records.length}
+-+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+-+              >
+-+                Print
+-+              </button>
+-+            </div>
+-+          </div>
+-+        </div>
+-+      )}
+-+    </>
+-+  );
+-+}
+-diff --git a/src/app/(app)/fleet/page.tsx b/src/app/(app)/fleet/page.tsx
+-index e16fa62..bfd0fa8 100644
+---- a/src/app/(app)/fleet/page.tsx
+-+++ b/src/app/(app)/fleet/page.tsx
+-@@ -4,6 +4,7 @@ import NewVehicleForm from './new-vehicle-form';
+- import AddInsuranceForm from './add-insurance-form';
+- import AddMaintenanceForm from './add-maintenance-form';
+- import MaintenanceStatusSwitch from './maintenance-status-switch';
+-+import MaintenanceRecordsButton from './maintenance-records-modal';
+- 
+- const TABS = [
+-   { key: 'vehicles', label: 'Vehicles' },
+-@@ -59,7 +60,12 @@ export default async function FleetPage({
+-         </div>
+-         {view === 'vehicles' && <NewVehicleForm />}
+-         {view === 'insurance' && <AddInsuranceForm vehicles={allVehicles ?? []} />}
+--        {view === 'maintenance' && <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />}
+-+        {view === 'maintenance' && (
+-+          <div className="flex gap-2">
+-+            <MaintenanceRecordsButton vehicles={allVehicles ?? []} />
+-+            <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />
+-+          </div>
+-+        )}
+-       </div>
+- 
+-       <div className="mb-5 flex gap-6 border-b border-neutral-200 dark:border-neutral-800">
+-diff --git a/src/app/(app)/hr/actions.ts b/src/app/(app)/hr/actions.ts
+-index f4b5e48..c4d9d08 100644
+---- a/src/app/(app)/hr/actions.ts
+-+++ b/src/app/(app)/hr/actions.ts
+-@@ -112,6 +112,24 @@ export async function voteEmployee(id: string, currentVotes: number) {
+-   return { error: null };
+- }
+- 
+-+export async function updateEmployeeOfferHeading(id: string, headingHtml: string) {
+-+  if (!id) return { error: 'Missing employee id.' };
+-+  const supabase = await createClient();
+-+  const { error } = await supabase.from('employees').update({ offer_heading: headingHtml }).eq('id', id);
+-+  if (error) return { error: error.message };
+-+  revalidatePath('/hr');
+-+  return { error: null };
+-+}
+-+
+-+export async function updateLeaveHeading(id: string, headingHtml: string) {
+-+  if (!id) return { error: 'Missing leave request id.' };
+-+  const supabase = await createClient();
+-+  const { error } = await supabase.from('leave_requests').update({ leave_heading: headingHtml }).eq('id', id);
+-+  if (error) return { error: error.message };
+-+  revalidatePath('/hr');
+-+  return { error: null };
+-+}
+-+
+- export async function uploadOfferLetter(formData: FormData) {
+-   const supabase = await createClient();
+- 
+-diff --git a/src/app/(app)/hr/leave-letter-modal.tsx b/src/app/(app)/hr/leave-letter-modal.tsx
+-index 66884c9..e8d8f56 100644
+---- a/src/app/(app)/hr/leave-letter-modal.tsx
+-+++ b/src/app/(app)/hr/leave-letter-modal.tsx
+-@@ -1,17 +1,23 @@
+- 'use client';
+- 
+- import { useState } from 'react';
+-+import LetterHeadingEditor from './letter-heading-editor';
+-+import { updateLeaveHeading } from './actions';
+- 
+- export default function LeaveLetterModal({
+-+  id,
+-   employeeName,
+-   leaveType,
+-   fromDate,
+-   toDate,
+-+  leaveHeading,
+- }: {
+-+  id: string;
+-   employeeName: string;
+-   leaveType: string;
+-   fromDate: string;
+-   toDate: string;
+-+  leaveHeading?: string | null;
+- }) {
+-   const [open, setOpen] = useState(false);
+-   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+-@@ -52,9 +58,8 @@ export default function LeaveLetterModal({
+-                 <div className="text-xl font-bold tracking-wide text-white">LEAVE APPROVAL</div>
+-               </div>
+- 
+--              <div className="p-6 text-sm leading-relaxed text-neutral-700">
+--                <div className="mb-6 text-neutral-500">
+--                  <div>JAAD Logistics Ltd</div>
+-+              <div className="px-6 pb-6 pt-3 text-sm leading-relaxed text-neutral-700">
+-+                <div className="mb-1 text-neutral-500">
+-                   <div>Lagos State, Nigeria</div>
+-                   <div>admin@jaadlogistics.com.ng</div>
+-                 </div>
+-@@ -63,6 +68,12 @@ export default function LeaveLetterModal({
+- 
+-                 <p className="mb-4">To whom it may concern,</p>
+- 
+-+                <LetterHeadingEditor
+-+                  initialHtml={leaveHeading ?? ''}
+-+                  placeholder="e.g. Confirmation of Approved Leave"
+-+                  onSave={(html) => updateLeaveHeading(id, html)}
+-+                />
+-+
+-                 <p className="mb-4">
+-                   This letter confirms that <strong>{employeeName}</strong> has been granted{' '}
+-                   <strong>{leaveType}</strong> leave from <strong>{fromDate}</strong> to <strong>{toDate}</strong>,
+-diff --git a/src/app/(app)/hr/letter-heading-editor.tsx b/src/app/(app)/hr/letter-heading-editor.tsx
+-new file mode 100644
+-index 0000000..fe707bd
+---- /dev/null
+-+++ b/src/app/(app)/hr/letter-heading-editor.tsx
+-@@ -0,0 +1,135 @@
+-+'use client';
+-+
+-+import { useRef, useState } from 'react';
+-+
+-+const HIGHLIGHTS = [
+-+  { label: 'Yellow', value: '#fff3a0' },
+-+  { label: 'Green', value: '#bbf7c9' },
+-+  { label: 'Red', value: '#fecaca' },
+-+];
+-+
+-+export default function LetterHeadingEditor({
+-+  initialHtml,
+-+  placeholder,
+-+  onSave,
+-+}: {
+-+  initialHtml: string | null;
+-+  placeholder: string;
+-+  onSave: (html: string) => Promise<{ error: string | null }>;
+-+}) {
+-+  const [html, setHtml] = useState(initialHtml || '');
+-+  const [editing, setEditing] = useState(false);
+-+  const [saving, setSaving] = useState(false);
+-+  const [error, setError] = useState<string | null>(null);
+-+  const ref = useRef<HTMLDivElement>(null);
+-+
+-+  function format(command: string, value?: string) {
+-+    ref.current?.focus();
+-+    document.execCommand(command, false, value);
+-+  }
+-+
+-+  async function handleSave() {
+-+    const next = ref.current?.innerHTML ?? '';
+-+    setSaving(true);
+-+    setError(null);
+-+    const res = await onSave(next);
+-+    setSaving(false);
+-+    if (res.error) {
+-+      setError(res.error);
+-+      return;
+-+    }
+-+    setHtml(next);
+-+    setEditing(false);
+-+  }
+-+
+-+  if (!editing) {
+-+    return (
+-+      <div className="mb-4 print:mb-4">
+-+        {html ? (
+-+          <div className="text-base font-semibold text-neutral-900" dangerouslySetInnerHTML={{ __html: html }} />
+-+        ) : (
+-+          <div className="text-sm italic text-neutral-400">{placeholder}</div>
+-+        )}
+-+        <button
+-+          onClick={() => setEditing(true)}
+-+          className="mt-1 text-xs font-medium text-red-700 hover:underline print:hidden dark:text-red-500"
+-+          type="button"
+-+        >
+-+          {html ? 'Edit heading' : 'Add heading'}
+-+        </button>
+-+      </div>
+-+    );
+-+  }
+-+
+-+  return (
+-+    <div className="mb-4 rounded-lg border border-neutral-300 p-2 print:hidden dark:border-neutral-700">
+-+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+-+        <button
+-+          type="button"
+-+          onMouseDown={(e) => e.preventDefault()}
+-+          onClick={() => format('bold')}
+-+          className="rounded border border-neutral-300 px-2 py-1 text-xs font-bold text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+        >
+-+          B
+-+        </button>
+-+        <button
+-+          type="button"
+-+          onMouseDown={(e) => e.preventDefault()}
+-+          onClick={() => format('italic')}
+-+          className="rounded border border-neutral-300 px-2 py-1 text-xs italic text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+        >
+-+          I
+-+        </button>
+-+        {HIGHLIGHTS.map((h) => (
+-+          <button
+-+            key={h.value}
+-+            type="button"
+-+            title={`Highlight ${h.label}`}
+-+            onMouseDown={(e) => e.preventDefault()}
+-+            onClick={() => format('hiliteColor', h.value)}
+-+            className="h-6 w-6 rounded border border-neutral-300 dark:border-neutral-700"
+-+            style={{ backgroundColor: h.value }}
+-+          />
+-+        ))}
+-+        <button
+-+          type="button"
+-+          title="Clear highlight"
+-+          onMouseDown={(e) => e.preventDefault()}
+-+          onClick={() => format('hiliteColor', 'transparent')}
+-+          className="rounded border border-neutral-300 px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+        >
+-+          Clear
+-+        </button>
+-+      </div>
+-+
+-+      <div
+-+        ref={ref}
+-+        contentEditable
+-+        suppressContentEditableWarning
+-+        dangerouslySetInnerHTML={{ __html: html }}
+-+        className="min-h-[2.5rem] rounded border border-dashed border-neutral-300 p-2 text-base font-semibold text-neutral-900 outline-none dark:border-neutral-700"
+-+        data-placeholder={placeholder}
+-+      />
+-+
+-+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+-+
+-+      <div className="mt-2 flex justify-end gap-2">
+-+        <button
+-+          type="button"
+-+          onClick={() => setEditing(false)}
+-+          className="rounded-md border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+        >
+-+          Cancel
+-+        </button>
+-+        <button
+-+          type="button"
+-+          onClick={handleSave}
+-+          disabled={saving}
+-+          className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+-+        >
+-+          {saving ? 'Saving…' : 'Save'}
+-+        </button>
+-+      </div>
+-+    </div>
+-+  );
+-+}
+-diff --git a/src/app/(app)/hr/offer-letter-modal.tsx b/src/app/(app)/hr/offer-letter-modal.tsx
+-index 354f015..c6fa003 100644
+---- a/src/app/(app)/hr/offer-letter-modal.tsx
+-+++ b/src/app/(app)/hr/offer-letter-modal.tsx
+-@@ -1,15 +1,21 @@
+- 'use client';
+- 
+- import { useState } from 'react';
+-+import LetterHeadingEditor from './letter-heading-editor';
+-+import { updateEmployeeOfferHeading } from './actions';
+- 
+- export default function OfferLetterModal({
+-+  id,
+-   name,
+-   department,
+-   roleTitle,
+-+  offerHeading,
+- }: {
+-+  id: string;
+-   name: string;
+-   department: string;
+-   roleTitle: string;
+-+  offerHeading?: string | null;
+- }) {
+-   const [open, setOpen] = useState(false);
+-   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+-@@ -47,9 +53,8 @@ export default function OfferLetterModal({
+-                 <div className="text-xl font-bold tracking-wide text-white">OFFER LETTER</div>
+-               </div>
+- 
+--              <div className="p-6 text-sm leading-relaxed text-neutral-700">
+--                <div className="mb-6 text-neutral-500">
+--                  <div>JAAD Logistics Ltd</div>
+-+              <div className="px-6 pb-6 pt-3 text-sm leading-relaxed text-neutral-700">
+-+                <div className="mb-1 text-neutral-500">
+-                   <div>Lagos State, Nigeria</div>
+-                   <div>admin@jaadlogistics.com.ng</div>
+-                 </div>
+-@@ -58,6 +63,12 @@ export default function OfferLetterModal({
+- 
+-                 <p className="mb-4">Dear {name},</p>
+- 
+-+                <LetterHeadingEditor
+-+                  initialHtml={offerHeading ?? ''}
+-+                  placeholder="e.g. Offer of Employment — Admin / Virtual Assistant"
+-+                  onSave={(html) => updateEmployeeOfferHeading(id, html)}
+-+                />
+-+
+-                 <p className="mb-4">
+-                   We are pleased to offer you the position of <strong>{roleTitle}</strong> in the{' '}
+-                   <strong>{department}</strong> department at JAAD Logistics Ltd. This letter confirms the terms of
+-diff --git a/src/app/(app)/hr/page.tsx b/src/app/(app)/hr/page.tsx
+-index 367c9cd..2c515f0 100644
+---- a/src/app/(app)/hr/page.tsx
+-+++ b/src/app/(app)/hr/page.tsx
+-@@ -27,7 +27,7 @@ export default async function HRPage({
+-     view === 'employees' || view === 'employee-of-the-year'
+-       ? await supabase
+-           .from('employees')
+--          .select('id, name, department, role_title, status, votes')
+-+          .select('id, name, department, role_title, status, votes, offer_heading')
+-           .order('name')
+-       : null;
+- 
+-@@ -43,7 +43,7 @@ export default async function HRPage({
+-     view === 'leave'
+-       ? await supabase
+-           .from('leave_requests')
+--          .select('id, employee_name, leave_type, from_date, to_date, status')
+-+          .select('id, employee_name, leave_type, from_date, to_date, status, leave_heading')
+-           .order('requested_on', { ascending: false })
+-       : null;
+- 
+-@@ -92,7 +92,7 @@ export default async function HRPage({
+-                 <div className="truncate font-medium text-neutral-900 dark:text-neutral-100">{e.name}</div>
+-                 <div className="truncate text-neutral-700 dark:text-neutral-300">{e.department}</div>
+-                 <div className="truncate text-neutral-700 dark:text-neutral-300">{e.role_title}</div>
+--                <div><OfferLetterModal name={e.name} department={e.department} roleTitle={e.role_title} /></div>
+-+                <div><OfferLetterModal id={e.id} name={e.name} department={e.department} roleTitle={e.role_title} offerHeading={e.offer_heading} /></div>
+-                 <div className="flex justify-end">
+-                   <span className="rounded-full bg-green-500/15 px-3 py-1 text-xs font-semibold text-green-600">
+-                     {e.status}
+-@@ -176,10 +176,12 @@ export default async function HRPage({
+-                   <LeaveActions id={l.id} status={l.status} />
+-                   {l.status === 'Approved' && (
+-                     <LeaveLetterModal
+-+                      id={l.id}
+-                       employeeName={l.employee_name}
+-                       leaveType={l.leave_type}
+-                       fromDate={l.from_date}
+-                       toDate={l.to_date}
+-+                      leaveHeading={l.leave_heading}
+-                     />
+-                   )}
+-                 </div>
+-diff --git a/src/app/(app)/shipments/air-waybill.tsx b/src/app/(app)/shipments/air-waybill.tsx
+-index 98f3f37..479d367 100644
+---- a/src/app/(app)/shipments/air-waybill.tsx
+-+++ b/src/app/(app)/shipments/air-waybill.tsx
+-@@ -158,7 +158,7 @@ export default function AirWaybill({ booking, cargoItems }: { booking: Booking;
+-       </div>
+- 
+-       <div className="text-center text-xs text-neutral-500">
+--        Question? Email us at info@jaadlogistics.com or call us at +234-806-147-2153
+-+        Question? Email us at info@jaadlogistics.com or call us at +234-707-568-8573
+-       </div>
+-       <div className="mt-2 border-t border-red-600 pt-2 text-center text-xs text-neutral-500">
+-         Your perfect partner to bring creativity to reality
+-diff --git a/src/app/(app)/shipments/generate-invoice-button.tsx b/src/app/(app)/shipments/generate-invoice-button.tsx
+-index 8d48759..079e07b 100644
+---- a/src/app/(app)/shipments/generate-invoice-button.tsx
+-+++ b/src/app/(app)/shipments/generate-invoice-button.tsx
+-@@ -28,7 +28,7 @@ export default function GenerateInvoiceButton({
+-   if (invoiceId) {
+-     return (
+-       <a
+--        href={`/finance/invoices/${invoiceId}`}
+-+        href={`/finance?view=invoices&open=${invoiceId}`}
+-         className={`block w-full rounded-lg bg-green-600 text-center font-semibold text-white hover:bg-green-700 ${sizeClass}`}
+-       >
+-         {compact ? 'View invoice' : 'Invoice created \u2192 view it'}
+-diff --git a/src/app/(app)/shipments/road-waybill.tsx b/src/app/(app)/shipments/road-waybill.tsx
+-index 459c271..3bf607a 100644
+---- a/src/app/(app)/shipments/road-waybill.tsx
+-+++ b/src/app/(app)/shipments/road-waybill.tsx
+-@@ -64,7 +64,7 @@ export default function RoadWaybill({ booking, cargoItems }: { booking: Booking;
+-       <div className="mb-4 grid grid-cols-2 gap-4">
+-         <Row label="Company Name" value="Jaad Logistics" />
+-         <Row label="Address" value="64a Olushi Street, Lagos Island Lagos" />
+--        <Row label="Phone" value="08061472153" />
+-+        <Row label="Phone" value="07075688573" />
+-         <Row label="Email" value="info@jaadlogistics.com" />
+-       </div>
+- 
+-diff --git a/src/app/(app)/support/page.tsx b/src/app/(app)/support/page.tsx
+-index 2016e62..32f8112 100644
+---- a/src/app/(app)/support/page.tsx
+-+++ b/src/app/(app)/support/page.tsx
+-@@ -192,17 +192,17 @@ function OpenTicketTable({
+- }) {
+-   return (
+-     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+--      <table className="w-full min-w-[820px] text-sm">
+-+      <table className="w-full min-w-[820px] table-fixed text-sm">
+-         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+--          <th className="px-4 py-2.5">Ticket</th><th className="px-4 py-2.5">Customer</th><th className="px-4 py-2.5">Subject</th>
+--          <th className="px-4 py-2.5">Channel</th><th className="px-4 py-2.5">Priority</th><th className="px-4 py-2.5">Status</th>
+-+          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
+-+          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Priority</th><th className="w-[12%] px-4 py-2.5">Status</th>
+-         </tr></thead>
+-         <tbody>
+-           {rows.map((t) => (
+-             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
+-               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
+-               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
+--              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+-+              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+-               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
+-               <td className="px-4 py-2.5"><PrioritySwitch id={t.id} value={t.priority} /></td>
+-               <td className="px-4 py-2.5"><TicketStatusSwitch id={t.id} value={t.status} /></td>
+-@@ -222,17 +222,17 @@ function ResolvedTicketTable({
+- }) {
+-   return (
+-     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+--      <table className="w-full min-w-[820px] text-sm">
+-+      <table className="w-full min-w-[820px] table-fixed text-sm">
+-         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+--          <th className="px-4 py-2.5">Ticket</th><th className="px-4 py-2.5">Customer</th><th className="px-4 py-2.5">Subject</th>
+--          <th className="px-4 py-2.5">Channel</th><th className="px-4 py-2.5">Closed</th><th className="px-4 py-2.5">Status</th>
+-+          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
+-+          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Closed</th><th className="w-[12%] px-4 py-2.5">Status</th>
+-         </tr></thead>
+-         <tbody>
+-           {rows.map((t) => (
+-             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
+-               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
+-               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
+--              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+-+              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+-               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
+-               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">
+-                 {t.closed_at ? new Date(t.closed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}
+-diff --git a/src/app/(app)/support/whatsapp-panel.tsx b/src/app/(app)/support/whatsapp-panel.tsx
+-index 3a93b4f..4ad260b 100644
+---- a/src/app/(app)/support/whatsapp-panel.tsx
+-+++ b/src/app/(app)/support/whatsapp-panel.tsx
+-@@ -46,7 +46,7 @@ export default function WhatsappPanel({ history }: { history: Wa[] }) {
+-             <input
+-               value={toNumber}
+-               onChange={(e) => setToNumber(e.target.value)}
+--              placeholder="2348061472153"
+-+              placeholder="2347075688573"
+-               className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+-             />
+-           </div>
+-diff --git a/src/app/customer/dashboard/support-tab.tsx b/src/app/customer/dashboard/support-tab.tsx
+-index 0e4ccf9..7bb61c2 100644
+---- a/src/app/customer/dashboard/support-tab.tsx
+-+++ b/src/app/customer/dashboard/support-tab.tsx
+-@@ -6,7 +6,7 @@ import EmailPanel from './email-panel';
+- 
+- // Fallback only, used until the business owner sets a real number in
+- // Profile. Once customer.support_phone is set, that value wins.
+--const JAAD_SUPPORT_PHONE = '+2348061472153';
+-+const JAAD_SUPPORT_PHONE = '+2347075688573';
+- 
+- type Message = {
+-   id: string;
+-diff --git a/src/app/page.tsx b/src/app/page.tsx
+-index 3274791..6d5a124 100644
+---- a/src/app/page.tsx
+-+++ b/src/app/page.tsx
+-@@ -8,6 +8,19 @@ const CUSTOMER_LOGIN_URL = "/customer/login";
+- const CUSTOMER_SIGNUP_URL = "/customer/signup";
+- const WHATSAPP_URL = "https://wa.me/2347075688573";
+- 
+-+function openWhatsAppPopup(e: React.MouseEvent) {
+-+  e.preventDefault();
+-+  const width = 420;
+-+  const height = 640;
+-+  const left = window.screen.width / 2 - width / 2;
+-+  const top = window.screen.height / 2 - height / 2;
+-+  window.open(
+-+    WHATSAPP_URL,
+-+    "whatsapp_popup",
+-+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+-+  );
+-+}
+-+
+- const LOGO_URL = "/logo.png";
+- 
+- const LEGAL_DOCS: Record<string, { title: string; blocks: { type: string; text: string }[] }> = {"cookie-policy": {"title": "Cookie Policy", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. What Cookies Are"}, {"type": "p", "text": "Cookies and similar technologies are small files or identifiers stored on or associated with a browser or device. JAAD LOGISTICS may use them to operate the website, maintain sessions, remember preferences, understand usage and improve security."}, {"type": "h", "text": "2. Cookie Categories"}, {"type": "p", "text": "Strictly necessary: login, session management, authentication, security and core website functions."}, {"type": "p", "text": "Preferences: language, interface or other settings where used."}, {"type": "p", "text": "Analytics: aggregate information about website performance and usage, where permitted."}, {"type": "p", "text": "Marketing/advertising: only where used and where legally permitted, with consent where required."}, {"type": "h", "text": "3. Your Choices"}, {"type": "p", "text": "You can control cookies through browser settings and, where provided, JAAD LOGISTICS cookie preference tool. Blocking essential cookies may prevent login or core services from functioning."}, {"type": "h", "text": "4. Third Parties"}, {"type": "p", "text": "Third-party services integrated into the website may set their own cookies or similar identifiers. JAAD LOGISTICS will disclose material categories of such providers where required."}, {"type": "h", "text": "5. Updates"}, {"type": "p", "text": "JAAD LOGISTICS may update this Cookie Policy as technologies and legal requirements change."}]}, "privacy-policy": {"title": "Privacy Policy", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Purpose and Scope"}, {"type": "p", "text": "JAAD LOGISTICS (“JAAD”, “we”, “us” or “our”) respects the privacy of customers, visitors, users, merchants, business clients, delivery recipients, drivers/couriers, employees and other individuals whose personal data comes into our custody. This Privacy Policy explains what information we collect, why we collect it, how we use it, when we disclose it, how we secure it, how long we keep it, and the rights available to individuals."}, {"type": "p", "text": "This Policy applies to the JAAD LOGISTICS website, customer portal, ERP/management features, order and delivery workflows, forms, communications and other related digital services (collectively, the “Services”)."}, {"type": "h", "text": "2. Our Identity"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\nRegistered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\nNature of business: Logistics Service"}, {"type": "p", "text": "JAAD LOGISTICS is registered as a business name with the Corporate Affairs Commission of Nigeria and also trade marked with the Trademark Registry / Intellectual Property Office (IPO) Nigeria. The registration certificate supplied for this drafting identifies the business as JAAD LOGISTICS BN 2710259, with the nature of business stated as “LOGISTICS SERVICE” and the principal place of business at 64A Olushi Street, Lagos Island, Lagos. The certificate is dated 4 December 2018."}, {"type": "h", "text": "3. Information We Collect"}, {"type": "p", "text": "We may collect information you provide directly, information generated through your use of the Services, and information received from customers, business clients, delivery partners, payment providers and other lawful sources."}, {"type": "h", "text": "4. Categories of Personal Data"}, {"type": "p", "text": "Account data: username, full name, email address, telephone number, password credentials, profile information and account preferences."}, {"type": "p", "text": "Identity and contact data: name, business name, billing/delivery address, pickup and destination addresses, contact persons and other information needed to identify or reach you."}, {"type": "p", "text": "Order and logistics data: shipment/order numbers, package descriptions, delivery instructions, pickup/delivery details, recipient information, status updates, proof-of-delivery information, complaints and claims."}, {"type": "p", "text": "Transaction data: payment status, amount, currency, invoice/reference number, payment method and transaction identifiers. Where a third-party payment processor is used, JAAD will generally receive only the information necessary to confirm and reconcile the transaction, subject to the processor’s own privacy terms."}, {"type": "p", "text": "Technical data: IP address, device/browser information, operating system, approximate location derived from technical data, access logs, pages or features used, timestamps, cookies and similar technologies."}, {"type": "p", "text": "Communications data: messages, support requests, feedback, call records where lawfully recorded, and correspondence with JAAD LOGISTICS"}, {"type": "p", "text": "Business/ERP data: where a business customer uses our ERP tools, that customer may upload or otherwise process information relating to its own staff, customers, suppliers, orders, inventory, invoices and other business records. The business customer may remain the controller of such data, while JAAD LOGISTICS may act as a processor/service provider depending on the arrangement."}, {"type": "h", "text": "5. How We Collect Information"}, {"type": "p", "text": "We collect information when you create an account, request a quote, place or manage an order, make or attempt a payment, contact support, use the customer dashboard, use ERP features, submit a form, communicate with us, or interact with our website and cookies."}, {"type": "h", "text": "6. Why We Use Personal Data"}, {"type": "p", "text": "To create and administer accounts and authenticate users."}, {"type": "p", "text": "To provide logistics, delivery, tracking, customer support and ERP services."}, {"type": "p", "text": "To process orders, quotations, invoices, payments, refunds and claims."}, {"type": "p", "text": "To communicate service updates, delivery notifications, account notices and security alerts."}, {"type": "p", "text": "To prevent fraud, misuse, unauthorized access and other unlawful activity."}, {"type": "p", "text": "To maintain service reliability, security, troubleshooting and audit records."}, {"type": "p", "text": "To improve our website, products, workflows and customer experience."}, {"type": "p", "text": "To comply with legal, regulatory, tax, accounting, court or law-enforcement requirements."}, {"type": "p", "text": "To send marketing communications where permitted and, where required, after obtaining appropriate consent. You may opt out of marketing communications."}, {"type": "h", "text": "7. Lawful Bases"}, {"type": "p", "text": "Depending on the circumstances, JAAD LOGISTICS may rely on performance of a contract, compliance with legal obligations, consent, protection of vital interests, public interest where legally available, or legitimate interests where permitted by applicable law and balanced against the rights and interests of the data subject."}, {"type": "p", "text": "Where consent is the lawful basis, you may withdraw consent, but withdrawal does not affect processing already carried out lawfully before withdrawal and may not be possible where another lawful basis applies."}, {"type": "h", "text": "8. Data Sharing and Disclosure"}, {"type": "p", "text": "We do not sell personal information as a general business practice. We may disclose information to logistics/delivery partners, payment processors, hosting and cloud providers, IT/security providers, analytics providers, professional advisers, insurers, auditors, regulators, courts, law-enforcement authorities and other service providers where necessary, lawful and proportionate."}, {"type": "p", "text": "We require appropriate contractual, confidentiality and security protections from service providers that process personal data on our behalf, subject to applicable law."}, {"type": "p", "text": "We may disclose information in connection with a merger, acquisition, restructuring, financing, sale of assets or similar corporate transaction, subject to applicable confidentiality and privacy requirements."}, {"type": "h", "text": "9. International Transfers"}, {"type": "p", "text": "Some technology, cloud, payment, analytics or support providers may process information outside Nigeria. Where applicable law requires safeguards for international transfers, JAAD LOGISTICS will use appropriate safeguards and contractual or other legally recognized mechanisms."}, {"type": "h", "text": "10. Security"}, {"type": "p", "text": "JAAD LOGISTICS, uses reasonable administrative, technical and organizational safeguards appropriate to the nature of the data and the risks involved. Measures may include access controls, authentication, role-based permissions, encryption where appropriate, logging, backups, secure development practices, vulnerability management and staff confidentiality obligations."}, {"type": "p", "text": "No internet service can be guaranteed to be completely secure. Users must protect their passwords, authentication codes and devices and promptly notify JAAD LOGISTICS of suspected account compromise."}, {"type": "h", "text": "11. Data Retention"}, {"type": "p", "text": "We retain personal data only for as long as reasonably necessary for the purpose for which it was collected, to provide Services, resolve disputes, enforce agreements, prevent fraud, maintain accounting and tax records, and comply with legal obligations. Different categories may have different retention periods."}, {"type": "p", "text": "Where a specific retention period is required for a record, JAAD LOGISTICS will apply that period. Otherwise, data will be securely deleted, anonymized or de-identified when no longer required."}, {"type": "h", "text": "12. Cookies and Similar Technologies"}, {"type": "p", "text": "We may use essential cookies for login, security and session management, and optional analytics or preference cookies where permitted. See the separate JAAD LOGISTICS Cookie Policy for details and available choices."}, {"type": "h", "text": "13. Your Privacy Rights"}, {"type": "p", "text": "Subject to applicable law and lawful exceptions, you may have rights to be informed, access personal data, correct inaccurate data, object to certain processing, restrict processing, request deletion/erasure, request portability, withdraw consent, and challenge certain automated decisions. The exact rights depend on the law that applies to you."}, {"type": "p", "text": "To exercise a right, contact privacy@jaadlogistics.com We may need to verify identity before completing a request. We will not discriminate against a person for exercising a lawful privacy right."}, {"type": "h", "text": "14. Nigeria Data Protection Framework"}, {"type": "p", "text": "JAAD LOGISTICS intends this Policy to operate consistently with the Nigeria Data Protection Act 2023 and applicable guidance issued by the Nigeria Data Protection Commission (NDPC). The NDPC identifies rights including being informed, access, rectification, objection, restriction, portability, erasure, complaint to the supervisory authority and rights relating to automated decision-making."}, {"type": "p", "text": "Where a personal-data breach is likely to result in a risk to individuals’ rights and freedoms, applicable Nigerian requirements include notification to the NDPC within the legally prescribed period; JAAD LOGISTICS will maintain an incident-response process designed to meet those requirements."}, {"type": "h", "text": "15. Children"}, {"type": "p", "text": "The Services are intended for adults and business users. We do not knowingly design the Services to collect personal data from children without an appropriate lawful basis and safeguards. If you believe a child has provided personal data improperly, contact us so we can investigate."}, {"type": "h", "text": "16. Third-Party Links"}, {"type": "p", "text": "Our website may contain links to third-party websites or services. JAAD LOGISTICS is not responsible for the privacy practices of third parties. Review their privacy notices before providing personal information."}, {"type": "h", "text": "17. Changes to this Policy"}, {"type": "p", "text": "We may update this Policy from time to time. The latest version will be posted on the website with its effective date. Material changes will be communicated where required by law."}, {"type": "p", "text": "18. Contact\nWebsite: www.jaadlogistics.com\nGeneral customer support email: support@jaadlogistics.com\nPrivacy/Data Protection email: privacy@jaadlogistics.com\nPhone/WhatsApp: +2347075688573\nClaims/refunds email: claims@jaadlogistics.com"}]}, "terms-of-use": {"title": "Terms of Use", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Acceptance"}, {"type": "p", "text": "These Terms of Use (“Terms”) govern access to and use of the JAAD LOGISTICS"}, {"type": "p", "text": "website, customer portal, ERP features and related Services. By accessing the Services, creating an account, placing an order, purchasing a package, or otherwise using the Services, you agree to these Terms and any service-specific terms presented at checkout or in an order confirmation."}, {"type": "h", "text": "2. Eligibility and Authority"}, {"type": "p", "text": "You must be legally capable of entering a binding agreement. If you use the Services for a company or other organization, you represent that you have authority to bind that organization."}, {"type": "h", "text": "3. Accounts"}, {"type": "p", "text": "You must provide accurate and current registration information. You are responsible for maintaining the confidentiality of your login credentials and for activity conducted through your account, except to the extent caused by JAAD LOGISTICS failure to maintain required security."}, {"type": "p", "text": "Do not share credentials, impersonate another person, create fraudulent accounts, or attempt to gain unauthorized access to another user’s account."}, {"type": "h", "text": "4. Logistics Services"}, {"type": "p", "text": "Services may include pickup, transportation, delivery, tracking, fulfillment, shipment management and related services. Availability, routes, delivery times, prices and service levels may vary by location, package type, traffic, weather, operational capacity and other circumstances."}, {"type": "p", "text": "Delivery estimates are estimates unless JAAD LOGISTICS expressly guarantees a delivery window in writing."}, {"type": "h", "text": "5. Orders, Quotes and Payments"}, {"type": "p", "text": "An order is subject to acceptance and operational availability. Prices, fees, taxes and applicable surcharges will be displayed or otherwise communicated before the transaction where required."}, {"type": "p", "text": "Customers authorize JAAD LOGISTICS or its designated payment provider to process payments for valid charges. Customers must not use fraudulent payment methods or attempt unauthorized chargebacks."}, {"type": "p", "text": "Where a payment is made directly into a JAAD LOGISTICS designated bank account, the customer should retain proof of payment and use the correct reference. JAAD LOGISTICS may require verification before activating a package or service."}, {"type": "h", "text": "6. Prohibited Items and Activities"}, {"type": "p", "text": "Customers must not use JAAD LOGISTICS to transport, store or facilitate unlawful, dangerous, stolen, counterfeit or prohibited goods, or goods restricted by applicable law or the agreed service. Customers must accurately declare shipment contents where required."}, {"type": "p", "text": "JAAD LOGISTICS may refuse, inspect, suspend or cancel a shipment where reasonably necessary for safety, compliance, fraud prevention or operational reasons, subject to applicable law."}, {"type": "h", "text": "7. Customer Responsibilities"}, {"type": "p", "text": "Provide accurate sender/recipient information, addresses, contact numbers, package descriptions, weights/dimensions where requested, delivery instructions and any required documentation."}, {"type": "p", "text": "Package goods appropriately and disclose fragile, valuable, hazardous or regulated contents where required."}, {"type": "p", "text": "Ensure that the sender and recipient are available or that valid delivery instructions are provided."}, {"type": "p", "text": "Do not use the platform to upload unlawful, infringing, abusive, malicious or misleading content."}, {"type": "h", "text": "8. Delivery, Failed Delivery and Returns"}, {"type": "p", "text": "A delivery may be delayed or returned because of an incorrect address, recipient unavailability, refusal, access restrictions, security conditions, weather, traffic, force majeure, customs/regulatory issues or other circumstances beyond reasonable control."}, {"type": "p", "text": "Applicable redelivery, storage, return or additional-trip charges may apply where disclosed or permitted by the applicable service terms."}, {"type": "h", "text": "9. Claims, Loss and Damage"}, {"type": "p", "text": "Claims for loss, shortage or damage should be submitted through any of the official channels of communication within 48 hours after delivery or the expected delivery date, together with reasonable evidence."}, {"type": "p", "text": "Liability for a shipment may be subject to declared value, applicable service terms, exclusions and any mandatory legal rights. Nothing in these Terms excludes liability that cannot lawfully be excluded."}, {"type": "h", "text": "10. Refunds and Cancellation"}, {"type": "p", "text": "Refund eligibility depends on the service purchased, order status and applicable law. Where a cancellation or refund policy applies, it will be shown at checkout, in the package terms or in the customer agreement."}, {"type": "p", "text": "All refunds are automatically processed and you would get feed back through any of the official channel of communications."}, {"type": "h", "text": "11. ERP and Business Accounts"}, {"type": "p", "text": "Where JAAD LOGISTICS provides ERP tools to a business customer, the customer remains responsible for the accuracy, legality and authority of data it uploads. The customer must ensure it has a lawful basis and all required notices/permissions to process personal data through the platform."}, {"type": "p", "text": "JAAD LOGISTICS may process business-customer data to provide, secure, maintain and improve the platform and to comply with law, subject to the Privacy Policy and, where appropriate, a Data Processing Addendum."}, {"type": "h", "text": "12. Intellectual Property"}, {"type": "p", "text": "The JAAD LOGISTICS name, logo, website design, software, text, graphics, databases and other JAAD LOGISTICS materials are owned by or licensed to JAAD LOGISTICS and shall not be copied, modified, distributed or exploited without permission, except as permitted by law."}, {"type": "p", "text": "The JAAD logo supplied for this policy pack uses JAAD LOGISTICS red, white and black visual identity."}, {"type": "h", "text": "13. Acceptable Use"}, {"type": "p", "text": "Users must and shall not reverse engineer, scrape, overload, probe, disrupt, introduce malware, bypass security, access non-public systems, or use the Services to facilitate fraud or unlawful activity."}, {"type": "p", "text": "JAAD LOGISTICS may suspend or terminate accounts where reasonably necessary to protect users, the platform, third parties or legal compliance."}, {"type": "h", "text": "14. Availability and Third-Party Services"}, {"type": "p", "text": "JAAD LOGISTICS may modify, suspend or discontinue features. Third-party payment, mapping, communications, hosting or other integrations may have their own terms and availability limits."}, {"type": "h", "text": "15. Disclaimers"}, {"type": "p", "text": "Except where expressly stated or required by law, this Services are provided on an availability basis and JAAD LOGISTICS does not guarantee uninterrupted operation, error-free content, exact delivery times, or uninterrupted access to third-party systems."}, {"type": "h", "text": "16. LIMITATION OF LIABILITY"}, {"type": "p", "text": "To the maximum extent permitted by applicable law, JAAD LOGISTICS shall not be liable for indirect, incidental, special or consequential losses, loss of profits, loss of business, loss of goodwill or business interruption arising from or in connection with the Services."}, {"type": "p", "text": "Subject to applicable law, JAAD LOGISTICS aggregate liability arising out of or relating to a particular shipment, order or Service shall not exceed the total amount actually paid by the Customer to JAAD LOGISTICS for the specific shipment, order or Service giving rise to the claim."}, {"type": "p", "text": "Where a Customer declares a higher shipment value or purchases additional insurance or enhanced protection offered by JAAD LOGISTICS The  liability shall be determined in accordance with the applicable declared-value, insurance or enhanced-protection terms communicated to the Customer."}, {"type": "p", "text": "Nothing in these Terms shall exclude, restrict or limit any liability, right or remedy that cannot lawfully be excluded, restricted or limited under applicable Nigerian law, including applicable consumer-protection legislation."}, {"type": "p", "text": "Any limitation of liability contained in these Terms shall be brought to the Customer's attention before the relevant transaction is concluded, where required by applicable law."}, {"type": "h", "text": "17. Indemnity"}, {"type": "p", "text": "To the extent permitted by law, a user agrees to indemnify JAAD LOGISTICS for losses, claims and reasonable costs arising from the user’s unlawful use of the Services, breach of these Terms, fraudulent activity, or violation of third-party rights, except to the extent caused by JAAD LOGISTICS own unlawful conduct or negligence."}, {"type": "h", "text": "18. Suspension and Termination"}, {"type": "p", "text": "JAAD LOGISTICS may suspend or terminate access for material breach, fraud, non-payment, security risk, unlawful use, or where required by law. Users may request closure of their account, subject to outstanding obligations and lawful retention requirements."}, {"type": "h", "text": "19. GOVERNING LAW AND DISPUTE RESOLUTION"}, {"type": "h", "text": "19.1 Governing Law"}, {"type": "p", "text": "These Terms, the use of the JAAD LOGISTICS website, app and any other services provided by JAAD LOGISTICS shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria, subject to any mandatory consumer-protection, data-protection or other statutory rights applicable to the Customer."}, {"type": "h", "text": "19.2 Customer Complaints and Internal Resolution"}, {"type": "p", "text": "If a customer has a complaint, dispute or concern relating to the Services, the Customer should first contact JAAD LOGISTICS through:"}, {"type": "p", "text": "Email: info@jaadlogistics.com    Privacy matters: privacy@jaadlogistics.com"}, {"type": "p", "text": "JAAD LOGISTICS will make reasonable efforts to acknowledge and investigate the complaint and, where appropriate, resolve it through good-faith communication, negotiation or another appropriate internal resolution process."}, {"type": "p", "text": "Customers should provide their name, order or transaction reference, relevant dates, details of the complaint and the remedy sought, together with any supporting documents reasonably available."}, {"type": "h", "text": "19.3 Escalation"}, {"type": "p", "text": "Where a dispute cannot be resolved through JAAD LOGISTICS internal complaint process, the parties may, where appropriate, attempt to resolve the matter through mediation or another mutually agreed alternative dispute-resolution process before commencing formal proceedings."}, {"type": "p", "text": "Nothing in this section prevents a Customer from exercising any statutory right to seek assistance or redress from a competent regulatory authority, including the Federal Competition and Consumer Protection Commission (FCCPC), where applicable. The FCCPA expressly permits consumers to approach the undertaking, the applicable sector regulator or the FCCPC, and also preserves the consumer's right to approach a court with appropriate jurisdiction."}, {"type": "h", "text": "19.4 Court Proceedings"}, {"type": "p", "text": "Where a dispute remains unresolved and formal legal proceedings are permitted or required, the dispute may be brought before a court of competent jurisdiction in Nigeria. Nothing in these Terms shall prevent a Customer from bringing a claim before a court or competent regulatory authority where such right cannot lawfully be restricted."}, {"type": "h", "text": "19.5 Mandatory Rights Preserved"}, {"type": "p", "text": "Nothing in these Terms is intended to exclude, restrict or waive any right, remedy, procedure or protection that cannot lawfully be excluded, restricted or waived under applicable Nigerian law."}, {"type": "h", "text": "19.6 Alternative Dispute Resolution / No Waiver"}, {"type": "p", "text": "Where the parties expressly agree in writing to mediation or arbitration, such process shall be conducted in accordance with the applicable agreement and applicable Nigerian law, including the Arbitration and Mediation Act 2023, where applicable."}, {"type": "p", "text": "A delay or failure by JAAD LOGISTICS to immediately enforce any provision of these Terms shall not constitute a waiver of JAAD LOGISTICS right to enforce that provision later."}, {"type": "h", "text": "20. Changes"}, {"type": "p", "text": "JAAD LOGISTICS may update these Terms of continued use after an effective date constitutes acceptance of the updated Terms to the extent permitted by law."}]}, "user-agreement": {"title": "User Agreement", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Customer Agreement"}, {"type": "p", "text": "This User Agreement is the customer-facing contract for use of JAAD LOGISTICS services and customer accounts. It should be presented during registration and/or checkout with an affirmative acceptance mechanism where required."}, {"type": "p", "text": "By clicking “I Agree”, creating an account, purchasing a package, or using a JAAD LOGISTICS service after being presented with these terms, you acknowledge and accept this Agreement."}, {"type": "h", "text": "2. Service Relationship"}, {"type": "p", "text": "JAAD LOGISTICS provides logistics and related digital/ERP services. A specific order, package subscription, quote or service schedule may contain additional terms. If a specific service term conflicts with this Agreement, the specific service term controls only for that transaction."}, {"type": "h", "text": "3. User Commitments"}, {"type": "p", "text": "Use truthful information; maintain account security; pay valid charges; comply with shipping restrictions; provide accurate delivery details; and cooperate reasonably with delivery and verification processes."}, {"type": "h", "text": "4. Customer Data"}, {"type": "p", "text": "JAAD LOGISTICS will handle personal data according to its Privacy Policy. Business customers that upload third-party personal data are responsible for having the required legal authority to do so and for providing required privacy notices."}, {"type": "h", "text": "5. Digital Acceptance and Records"}, {"type": "p", "text": "JAAD LOGISTICS may retain electronic records of acceptance, order confirmations, invoices, consent choices and other transaction records to demonstrate the contractual relationship and comply with legal obligations."}, {"type": "h", "text": "6. Electronic Communications"}, {"type": "p", "text": "You consent to receiving service-related electronic communications, including order confirmations, invoices, delivery updates, security notices and account messages. Marketing communications are subject to applicable consent/opt-out requirements."}, {"type": "h", "text": "7. Complaints and Escalation"}, {"type": "p", "text": "Customers may submit complaints to info@jaadlogistics.com. JAAD LOGISTICS will investigate and respond within a reasonable period appropriate to the issue and applicable law."}, {"type": "h", "text": "8. No Waiver of Mandatory Rights"}, {"type": "p", "text": "Nothing in this Agreement is intended to remove or reduce any statutory consumer, privacy or other right that cannot legally be waived."}]}, "data-processing-addendum": {"title": "Data Processing Addendum", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Purpose"}, {"type": "p", "text": "This Data Processing Addendum (“DPA”) applies where a JAAD LOGISTICS business/ERP customer (“Customer”) uses the JAAD LOGISTICS platform to process personal data for which the Customer determines the purposes and means of processing and JAAD processes that data on the Customer’s behalf."}, {"type": "h", "text": "2. Roles"}, {"type": "p", "text": "The Customer is generally the controller/business responsible for the personal data it uploads or instructs JAAD LOGISTICS to process. JAAD LOGISTICS acts as processor/service provider to the extent described in the applicable agreement, unless JAAD LOGISTICS independently determines purposes of processing for its own legal, security, billing or operational purposes."}, {"type": "h", "text": "3. Processing Instructions"}, {"type": "p", "text": "JAAD LOGISTICS will process Customer Data only to provide, secure, maintain and support the Services, comply with lawful instructions, and as otherwise permitted by applicable law or the main agreement."}, {"type": "h", "text": "4. Confidentiality"}, {"type": "p", "text": "JAAD LOGISTICS will require personnel authorized to process Customer Data to maintain confidentiality, subject to lawful disclosure requirements."}, {"type": "h", "text": "5. Security"}, {"type": "p", "text": "JAAD LOGISTICS will maintain reasonable technical and organizational measures appropriate to the risks, including access control, authentication, logging, backup/recovery and other measures appropriate to the service."}, {"type": "h", "text": "6. Subprocessors"}, {"type": "p", "text": "JAAD LOGISTICS may use Subprocessors such as hosting, cloud, communications, analytics and security providers. JAAD LOGISTICS will impose appropriate contractual privacy obligations and, where required, provide a mechanism for customers to obtain information about relevant Subprocessors."}, {"type": "h", "text": "7. Data Subject Requests"}, {"type": "p", "text": "Where JAAD LOGISTICS receives a request from an individual concerning Customer Data for which the Customer is controller, JAAD LOGISTICS may direct the requester to the Customer and will provide reasonable assistance where required by applicable law and the agreement."}, {"type": "h", "text": "8. Security Incidents"}, {"type": "p", "text": "JAAD LOGISTICS will maintain an incident-response process and notify affected customers of qualifying incidents in accordance with applicable law and contractual requirements, taking account of the nature and risk of the incident."}, {"type": "h", "text": "9. Deletion/Return"}, {"type": "p", "text": "At the end of the service, JAAD LOGISTICS will delete or return Customer Data as agreed, subject to lawful retention requirements, backups and security logs that cannot reasonably be deleted immediately."}, {"type": "h", "text": "10. International Processing"}, {"type": "p", "text": "Where Customer Data is processed outside Nigeria or outside the relevant jurisdiction, the parties will use applicable legal safeguards where required."}, {"type": "h", "text": "11. Audit and Compliance"}, {"type": "p", "text": "Where required by applicable data-protection law, JAAD LOGISTICS will provide reasonable information necessary to demonstrate compliance, subject to confidentiality, security and proportionality limits."}, {"type": "h", "text": "12. Conflict"}, {"type": "p", "text": "If this DPA conflicts with the main services agreement on data protection, this DPA controls only to the extent necessary to address the applicable data-processing obligations."}]}, "ccpa-cpra": {"title": "CCPA / CPRA", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. California Privacy Notice"}, {"type": "p", "text": "This Supplemental California Privacy Notice applies only to the extent JAAD LOGISTICS is subject to the California Consumer Privacy Act of 2018, as amended by the California Privacy Rights Act (collectively, “CCPA”), and only to California residents to whom the CCPA grants rights."}, {"type": "p", "text": "The CCPA can apply to qualifying for-profit businesses doing business in California that meet statutory thresholds. The California Attorney General currently identifies thresholds including annual gross revenue over $25 million, buying/selling/sharing personal information of at least 100,000 California residents/households, or deriving at least 50% of annual revenue from selling California residents’ personal information."}, {"type": "h", "text": "2. Categories We May Collect"}, {"type": "p", "text": "Identifiers/contact details; commercial and transaction information; internet or network activity; geolocation information where collected; account credentials; customer-service communications; and other categories described in the main Privacy Policy."}, {"type": "h", "text": "3. California Rights"}, {"type": "p", "text": "Subject to statutory exceptions, a California consumer may have rights to know/access, delete, correct, opt out of sale or sharing, limit certain uses/disclosures of sensitive personal information, and receive non-discriminatory treatment for exercising rights."}, {"type": "h", "text": "4. Sale/Sharing"}, {"type": "p", "text": "JAAD does not intend to sell personal information as a general business practice. If JAAD LOGISTICS engages in activity that legally constitutes a sale or sharing under the CCPA, JAAD LOGISTICS will provide the notices and opt-out mechanisms required by law."}, {"type": "h", "text": "5. Requests"}, {"type": "p", "text": "Submit a request to privacy@jaadlogistics.com JAAD LOGISTICS may verify identity as required and will process requests within statutory timeframes and applicable exceptions."}, {"type": "h", "text": "6. Authorized Agents and Non-Discrimination"}, {"type": "p", "text": "Where permitted, consumers may use an authorized agent to make a request, subject to identity and authorization verification. JAAD LOGISTICS will not discriminate unlawfully against a consumer for exercising a CCPA right."}]}, "customer-protection-claim-policy": {"title": "Customer Protection & Claim Policy", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Customer Protection Commitment"}, {"type": "p", "text": "JAAD LOGISTICS is committed to fair dealing, reasonable care in handling shipments and customer information, transparent charges, secure account management and accessible complaint channels."}, {"type": "h", "text": "2. Account Protection"}, {"type": "p", "text": "Customers should use strong passwords, keep credentials confidential, enable available security features, avoid sharing one-time codes and immediately report suspicious activity."}, {"type": "h", "text": "3. Shipment Protection"}, {"type": "p", "text": "Customers should use appropriate packaging, accurate addresses and truthful package descriptions. JAAD LOGISTICS may impose special handling conditions for fragile, high-value, restricted or unusual goods."}, {"type": "h", "text": "4. Delivery Protection"}, {"type": "p", "text": "JAAD LOGISTICS may use delivery confirmation, recipient verification, timestamps, status records, photographs or other proof-of-delivery mechanisms where appropriate and lawful."}, {"type": "h", "text": "5. Claims"}, {"type": "p", "text": "Customers should report loss, damage, shortage, incorrect delivery or other service incidents through the official claims channel within 48 hours. Evidence may include order number, photographs, invoice, delivery record and other relevant information."}, {"type": "h", "text": "6. Refunds"}, {"type": "p", "text": "Refunds are handled according to the applicable package/order terms. Insert approved timelines, exclusions and payment-method rules here before publication"}, {"type": "h", "text": "7. Privacy Complaints"}, {"type": "p", "text": "Privacy complaints should be directed to privacy@jaadlogistics.com. Customers may also have the right to complain to the Nigeria Data Protection Commission or another competent supervisory authority, depending on the applicable law."}, {"type": "h", "text": "8. No Waiver of Legal Rights"}, {"type": "p", "text": "Nothing in this Customer Protection Policy limits mandatory rights or remedies available under applicable consumer, contract, privacy, transport or other law."}]}, "legal-notice": {"title": "Legal Notice", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "h", "text": "1. Business Identification"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\nRegistered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\nNature of business: Logistics Service"}, {"type": "h", "text": "2. Website Ownership"}, {"type": "p", "text": "The website and its content, software, design, branding, databases and related materials are owned by or licensed to JAAD LOGISTICS unless otherwise stated."}, {"type": "h", "text": "3. No Professional Advice"}, {"type": "p", "text": "Information on the website is general operational information and does not constitute legal, financial, tax, medical or other professional advice."}, {"type": "h", "text": "4. External Links"}, {"type": "p", "text": "Links to third-party websites are provided for convenience. JAAD LOGISTICS does not control or guarantee third-party content, availability or privacy practices."}, {"type": "h", "text": "5. Accuracy and Availability"}, {"type": "p", "text": "JAAD LOGISTICS aims to keep website information accurate and available but does not guarantee that all content is complete, current or uninterrupted. Service-specific terms control where applicable."}, {"type": "p", "text": "6. Contact\nWebsite: www.jaadlogistics.com\nGeneral customer support email: info@jaadlogistics.com\nPrivacy/Data Protection email: privacy@jaadlogistics.com\nPhone/WhatsApp: 07075688573\nClaims/refunds email: claims@jaadlogistics.com"}]}, "legal-regulatory-reference-note": {"title": "Legal & Regulatory Reference Note", "blocks": [{"type": "p", "text": "Effective Date: 30 August 2026"}, {"type": "p", "text": "JAAD LOGISTICS\nBusiness Name Registration No.: BN 2710259\n  Registered business address: 64A Olushi Street, Lagos Island, Lagos, Nigeria\n     Nature of business: Logistics Service"}, {"type": "p", "text": "The Nigerian privacy provisions are drafted with the Nigeria Data Protection Act 2023 and current NDPC materials in mind. The NDPC states that data subjects have rights including being informed, access, rectification, objection, restriction, portability, erasure, complaint and rights relating to automated decision-making."}, {"type": "p", "text": "The NDPC also states that qualifying personal-data breaches must be handled under the statutory notification framework, including a 72-hour notification requirement for a breach likely to result in risk to individuals’ rights and freedoms."}, {"type": "p", "text": "The GDPR and CCPA/CPRA sections are supplemental. GDPR applicability depends on the circumstances, including offering goods/services to individuals in the EU or monitoring behaviour in the EU. The CCPA applies only where its statutory scope and thresholds are met; California consumers may have access, deletion, correction, opt-out, limitation and non-discrimination rights subject to exceptions."}, {"type": "p", "text": "This pack should be reviewed by a qualified Nigerian lawyer and, where applicable, a licensed data-protection professional before publication. Policies cannot by themselves guarantee compliance: JAAD LOGISTICS must also implement appropriate technical, organizational, contractual and operational controls."}]}};
+-@@ -199,7 +212,7 @@ export default function Home() {
+-             <a href="#pricing" className="text-sm font-medium text-[#b8b8bd] hover:text-white">Pricing</a>
+-           </nav>
+-           <div className="hidden lg:flex items-center gap-3">
+--            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#b8b8bd] hover:text-white px-3 py-2">Contact sales</a>
+-+            <a href={WHATSAPP_URL} onClick={openWhatsAppPopup} className="text-sm font-semibold text-[#b8b8bd] hover:text-white px-3 py-2">Contact sales</a>
+-             <a href={CUSTOMER_LOGIN_URL} className="text-sm font-bold text-white bg-gradient-to-r from-[#ff3b30] to-[#c9160c] rounded-md px-5 py-2.5 hover:opacity-90 transition-opacity">Customer login</a>
+-             <span className="w-px h-6 bg-[#2a2a2e] mx-1"></span>
+-             <a href={ADMIN_LOGIN_URL} className="text-sm font-semibold text-[#b8b8bd] hover:text-white px-3 py-2">Admin login</a>
+-@@ -312,7 +325,7 @@ export default function Home() {
+-             <div className="font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Running more than 150 shipments a month?</div>
+-             <div className="text-sm text-[#8a8a90] mt-1">Get a custom plan built around your fleet size and workflow.</div>
+-           </div>
+--          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="bg-white text-[#0a0a0c] font-bold text-sm px-6 py-3 rounded-md hover:opacity-90 transition-opacity whitespace-nowrap">Contact sales</a>
+-+          <a href={WHATSAPP_URL} onClick={openWhatsAppPopup} className="bg-white text-[#0a0a0c] font-bold text-sm px-6 py-3 rounded-md hover:opacity-90 transition-opacity whitespace-nowrap">Contact sales</a>
+-         </div>
+-       </section>
+- 
+diff --git a/jaad-fixes-batch2.patch b/jaad-fixes-batch2.patch
+deleted file mode 100644
+index 8cf1da6..0000000
+--- a/jaad-fixes-batch2.patch
++++ /dev/null
+@@ -1,270 +0,0 @@
+-diff --git a/src/app/(app)/fleet/actions.ts b/src/app/(app)/fleet/actions.ts
+-index 73af64c..97dd447 100644
+---- a/src/app/(app)/fleet/actions.ts
+-+++ b/src/app/(app)/fleet/actions.ts
+-@@ -7,6 +7,26 @@ export async function updateFleetStatus(id: string, status: string) {
+-   const supabase = await createClient();
+-   const { error } = await supabase.from('fleet_vehicles').update({ status }).eq('id', id);
+-   if (error) return { error: error.message };
+-+
+-+  if (status === 'Maintenance') {
+-+    const { data: openRecord } = await supabase
+-+      .from('fleet_maintenance')
+-+      .select('id')
+-+      .eq('vehicle_id', id)
+-+      .neq('status', 'Completed')
+-+      .limit(1)
+-+      .maybeSingle();
+-+
+-+    if (!openRecord) {
+-+      await supabase.from('fleet_maintenance').insert({
+-+        vehicle_id: id,
+-+        description: 'Vehicle moved to maintenance',
+-+        status: 'Scheduled',
+-+        service_date: new Date().toISOString().slice(0, 10),
+-+      });
+-+    }
+-+  }
+-+
+-   revalidatePath('/fleet');
+-   return { error: null };
+- }
+-@@ -98,8 +118,32 @@ export async function createMaintenanceRecord(formData: FormData) {
+- 
+- export async function updateMaintenanceStatus(id: string, status: string) {
+-   const supabase = await createClient();
+--  const { error } = await supabase.from('fleet_maintenance').update({ status }).eq('id', id);
+-+  const { data: record, error } = await supabase
+-+    .from('fleet_maintenance')
+-+    .update({ status })
+-+    .eq('id', id)
+-+    .select('vehicle_id')
+-+    .single();
+-+
+-   if (error) return { error: error.message };
+-+
+-+  if (status === 'Completed' && record?.vehicle_id) {
+-+    await supabase.from('fleet_vehicles').update({ status: 'Available' }).eq('id', record.vehicle_id);
+-+  }
+-+
+-   revalidatePath('/fleet');
+-   return { error: null };
+- }
+-+
+-+export async function getVehicleMaintenanceHistory(vehicleId: string) {
+-+  if (!vehicleId) return { error: 'Select a vehicle.', records: [] };
+-+  const supabase = await createClient();
+-+  const { data, error } = await supabase
+-+    .from('fleet_maintenance')
+-+    .select('id, description, cost, service_date, status')
+-+    .eq('vehicle_id', vehicleId)
+-+    .order('service_date', { ascending: false });
+-+
+-+  if (error) return { error: error.message, records: [] };
+-+  return { error: null, records: data ?? [] };
+-+}
+-diff --git a/src/app/(app)/fleet/maintenance-records-modal.tsx b/src/app/(app)/fleet/maintenance-records-modal.tsx
+-new file mode 100644
+-index 0000000..e80f9e4
+---- /dev/null
+-+++ b/src/app/(app)/fleet/maintenance-records-modal.tsx
+-@@ -0,0 +1,139 @@
+-+'use client';
+-+
+-+import { useState, useTransition } from 'react';
+-+import { getVehicleMaintenanceHistory } from './actions';
+-+
+-+type Vehicle = { id: string; plate: string };
+-+type Record = { id: string; description: string; cost: number | null; service_date: string | null; status: string };
+-+
+-+export default function MaintenanceRecordsButton({ vehicles }: { vehicles: Vehicle[] }) {
+-+  const [open, setOpen] = useState(false);
+-+  const [vehicleId, setVehicleId] = useState('');
+-+  const [records, setRecords] = useState<Record[] | null>(null);
+-+  const [error, setError] = useState<string | null>(null);
+-+  const [isPending, startTransition] = useTransition();
+-+
+-+  const selectedPlate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+-+
+-+  function handleVehicleChange(id: string) {
+-+    setVehicleId(id);
+-+    setRecords(null);
+-+    setError(null);
+-+    if (!id) return;
+-+    startTransition(async () => {
+-+      const res = await getVehicleMaintenanceHistory(id);
+-+      if (res.error) setError(res.error);
+-+      else setRecords(res.records as Record[]);
+-+    });
+-+  }
+-+
+-+  return (
+-+    <>
+-+      <button
+-+        onClick={() => setOpen(true)}
+-+        className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+      >
+-+        Records
+-+      </button>
+-+
+-+      {open && (
+-+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-8 print:bg-white">
+-+          <style>{`
+-+            @media print {
+-+              body * { visibility: hidden; }
+-+              .finance-print-area, .finance-print-area * { visibility: visible; }
+-+              .finance-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+-+            }
+-+          `}</style>
+-+          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-neutral-900">
+-+            <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-4 print:hidden dark:border-neutral-800">
+-+              <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+-+                Vehicle maintenance records
+-+              </h2>
+-+              <button
+-+                onClick={() => setOpen(false)}
+-+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+-+              >
+-+                ✕
+-+              </button>
+-+            </div>
+-+
+-+            <div className="finance-print-area p-6">
+-+              <div className="mb-4 print:hidden">
+-+                <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+-+                  Vehicle
+-+                </label>
+-+                <select
+-+                  value={vehicleId}
+-+                  onChange={(e) => handleVehicleChange(e.target.value)}
+-+                  className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+-+                >
+-+                  <option value="">Select a vehicle...</option>
+-+                  {vehicles.map((v) => (
+-+                    <option key={v.id} value={v.id}>
+-+                      {v.plate}
+-+                    </option>
+-+                  ))}
+-+                </select>
+-+              </div>
+-+
+-+              {selectedPlate && (
+-+                <h3 className="mb-4 text-lg font-bold text-neutral-900">
+-+                  Maintenance history — {selectedPlate}
+-+                </h3>
+-+              )}
+-+
+-+              {isPending && <p className="text-sm text-neutral-400">Loading...</p>}
+-+              {error && <p className="text-sm text-red-600">{error}</p>}
+-+
+-+              {records && (
+-+                <div className="overflow-hidden rounded-lg border border-neutral-200">
+-+                  <div className="grid grid-cols-[110px_1fr_110px_110px] bg-neutral-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white">
+-+                    <div>Date</div>
+-+                    <div>Description</div>
+-+                    <div>Cost</div>
+-+                    <div>Status</div>
+-+                  </div>
+-+                  {records.map((r) => (
+-+                    <div
+-+                      key={r.id}
+-+                      className="grid grid-cols-[110px_1fr_110px_110px] border-t border-neutral-100 px-4 py-2 text-sm"
+-+                    >
+-+                      <div className="text-neutral-700">{r.service_date ?? '\u2014'}</div>
+-+                      <div className="text-neutral-700">{r.description}</div>
+-+                      <div className="text-neutral-700">
+-+                        {r.cost ? `\u20a6${Number(r.cost).toLocaleString()}` : '\u2014'}
+-+                      </div>
+-+                      <div className="text-neutral-700">{r.status}</div>
+-+                    </div>
+-+                  ))}
+-+                  {!records.length && (
+-+                    <div className="px-4 py-6 text-center text-sm text-neutral-400">
+-+                      No maintenance records for this vehicle yet.
+-+                    </div>
+-+                  )}
+-+                </div>
+-+              )}
+-+            </div>
+-+
+-+            <div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-4 print:hidden dark:border-neutral-800">
+-+              <button
+-+                onClick={() => setOpen(false)}
+-+                className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+-+              >
+-+                Close
+-+              </button>
+-+              <button
+-+                onClick={() => window.print()}
+-+                disabled={!records || !records.length}
+-+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+-+              >
+-+                Print
+-+              </button>
+-+            </div>
+-+          </div>
+-+        </div>
+-+      )}
+-+    </>
+-+  );
+-+}
+-diff --git a/src/app/(app)/fleet/page.tsx b/src/app/(app)/fleet/page.tsx
+-index e16fa62..bfd0fa8 100644
+---- a/src/app/(app)/fleet/page.tsx
+-+++ b/src/app/(app)/fleet/page.tsx
+-@@ -4,6 +4,7 @@ import NewVehicleForm from './new-vehicle-form';
+- import AddInsuranceForm from './add-insurance-form';
+- import AddMaintenanceForm from './add-maintenance-form';
+- import MaintenanceStatusSwitch from './maintenance-status-switch';
+-+import MaintenanceRecordsButton from './maintenance-records-modal';
+- 
+- const TABS = [
+-   { key: 'vehicles', label: 'Vehicles' },
+-@@ -59,7 +60,12 @@ export default async function FleetPage({
+-         </div>
+-         {view === 'vehicles' && <NewVehicleForm />}
+-         {view === 'insurance' && <AddInsuranceForm vehicles={allVehicles ?? []} />}
+--        {view === 'maintenance' && <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />}
+-+        {view === 'maintenance' && (
+-+          <div className="flex gap-2">
+-+            <MaintenanceRecordsButton vehicles={allVehicles ?? []} />
+-+            <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />
+-+          </div>
+-+        )}
+-       </div>
+- 
+-       <div className="mb-5 flex gap-6 border-b border-neutral-200 dark:border-neutral-800">
+-diff --git a/src/app/(app)/shipments/manifest-detail-modal.tsx b/src/app/(app)/shipments/manifest-detail-modal.tsx
+-index 6362def..c5704aa 100644
+---- a/src/app/(app)/shipments/manifest-detail-modal.tsx
+-+++ b/src/app/(app)/shipments/manifest-detail-modal.tsx
+-@@ -47,10 +47,7 @@ export default function ManifestDetailTrigger({
+-             <div className="flex items-center justify-between border-b border-neutral-200 px-8 py-4">
+-               <div className="flex items-center gap-3">
+-                 <Image src="/logo.png" alt="JAAD Logistics" width={36} height={36} className="rounded" />
+--                <div>
+--                  <div className="text-sm font-bold text-neutral-900">JAAD Logistics Ltd</div>
+--                  <div className="text-xs text-neutral-500">Dispatch manifest</div>
+--                </div>
+-+                <div className="text-sm font-bold text-neutral-900">Dispatch manifest</div>
+-               </div>
+-               <button onClick={() => setOpen(false)} className="text-sm text-neutral-400 hover:text-neutral-600">
+-                 Close
+-diff --git a/src/app/(app)/shipments/road-waybill.tsx b/src/app/(app)/shipments/road-waybill.tsx
+-index 3bf607a..fe63a77 100644
+---- a/src/app/(app)/shipments/road-waybill.tsx
+-+++ b/src/app/(app)/shipments/road-waybill.tsx
+-@@ -61,13 +61,6 @@ export default function RoadWaybill({ booking, cargoItems }: { booking: Booking;
+-       </div>
+-       <h2 className="mb-5 text-center text-base font-bold">OFFICIAL WAYBILL</h2>
+- 
+--      <div className="mb-4 grid grid-cols-2 gap-4">
+--        <Row label="Company Name" value="Jaad Logistics" />
+--        <Row label="Address" value="64a Olushi Street, Lagos Island Lagos" />
+--        <Row label="Phone" value="07075688573" />
+--        <Row label="Email" value="info@jaadlogistics.com" />
+--      </div>
+--
+-       <h3 className="mb-1 mt-4 text-sm font-bold">WAYBILL INFORMATION</h3>
+-       <Row label="Waybill Date" value={booking.pickup_date} />
+-       <Row label="Waybill Reference Number" value={booking.tracking_no} />
+diff --git a/src/app/(app)/customers/status-switch.tsx b/src/app/(app)/customers/status-switch.tsx
+index 3004464..aa2013a 100644
+--- a/src/app/(app)/customers/status-switch.tsx
++++ b/src/app/(app)/customers/status-switch.tsx
+@@ -26,7 +26,7 @@ export default function CustomerStatusSwitch({ id, status }: { id: string; statu
+         });
+       }}
+       style={{ backgroundColor: color + '22', color }}
+-      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
++      className="w-full rounded-full border-0 px-3 py-1 text-center text-xs font-semibold outline-none"
+     >
+       {STATUS_OPTIONS.map((s) => (
+         <option key={s} value={s}>
