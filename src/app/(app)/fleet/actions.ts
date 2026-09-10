@@ -7,6 +7,26 @@ export async function updateFleetStatus(id: string, status: string) {
   const supabase = await createClient();
   const { error } = await supabase.from('fleet_vehicles').update({ status }).eq('id', id);
   if (error) return { error: error.message };
+
+  if (status === 'Maintenance') {
+    const { data: openRecord } = await supabase
+      .from('fleet_maintenance')
+      .select('id')
+      .eq('vehicle_id', id)
+      .neq('status', 'Completed')
+      .limit(1)
+      .maybeSingle();
+
+    if (!openRecord) {
+      await supabase.from('fleet_maintenance').insert({
+        vehicle_id: id,
+        description: 'Vehicle moved to maintenance',
+        status: 'Scheduled',
+        service_date: new Date().toISOString().slice(0, 10),
+      });
+    }
+  }
+
   revalidatePath('/fleet');
   return { error: null };
 }
@@ -98,8 +118,32 @@ export async function createMaintenanceRecord(formData: FormData) {
 
 export async function updateMaintenanceStatus(id: string, status: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from('fleet_maintenance').update({ status }).eq('id', id);
+  const { data: record, error } = await supabase
+    .from('fleet_maintenance')
+    .update({ status })
+    .eq('id', id)
+    .select('vehicle_id')
+    .single();
+
   if (error) return { error: error.message };
+
+  if (status === 'Completed' && record?.vehicle_id) {
+    await supabase.from('fleet_vehicles').update({ status: 'Available' }).eq('id', record.vehicle_id);
+  }
+
   revalidatePath('/fleet');
   return { error: null };
+}
+
+export async function getVehicleMaintenanceHistory(vehicleId: string) {
+  if (!vehicleId) return { error: 'Select a vehicle.', records: [] };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('fleet_maintenance')
+    .select('id, description, cost, service_date, status')
+    .eq('vehicle_id', vehicleId)
+    .order('service_date', { ascending: false });
+
+  if (error) return { error: error.message, records: [] };
+  return { error: null, records: data ?? [] };
 }

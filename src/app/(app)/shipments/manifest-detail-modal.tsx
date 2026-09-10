@@ -47,10 +47,7 @@ export default function ManifestDetailTrigger({
             <div className="flex items-center justify-between border-b border-neutral-200 px-8 py-4">
               <div className="flex items-center gap-3">
                 <Image src="/logo.png" alt="JAAD Logistics" width={36} height={36} className="rounded" />
-                <div>
-                  <div className="text-sm font-bold text-neutral-900">JAAD Logistics Ltd</div>
-                  <div className="text-xs text-neutral-500">Dispatch manifest</div>
-                </div>
+                <div className="text-sm font-bold text-neutral-900">Dispatch manifest</div>
               </div>
               <button onClick={() => setOpen(false)} className="text-sm text-neutral-400 hover:text-neutral-600">
                 Close

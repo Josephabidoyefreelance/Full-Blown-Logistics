@@ -4,6 +4,7 @@ import NewVehicleForm from './new-vehicle-form';
 import AddInsuranceForm from './add-insurance-form';
 import AddMaintenanceForm from './add-maintenance-form';
 import MaintenanceStatusSwitch from './maintenance-status-switch';
+import MaintenanceRecordsButton from './maintenance-records-modal';
 
 const TABS = [
   { key: 'vehicles', label: 'Vehicles' },
@@ -59,7 +60,12 @@ export default async function FleetPage({
         </div>
         {view === 'vehicles' && <NewVehicleForm />}
         {view === 'insurance' && <AddInsuranceForm vehicles={allVehicles ?? []} />}
-        {view === 'maintenance' && <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />}
+        {view === 'maintenance' && (
+          <div className="flex gap-2">
+            <MaintenanceRecordsButton vehicles={allVehicles ?? []} />
+            <AddMaintenanceForm vehicles={allVehicles ?? []} staff={staff ?? []} />
+          </div>
+        )}
       </div>
 
       <div className="mb-5 flex gap-6 border-b border-neutral-200 dark:border-neutral-800">
