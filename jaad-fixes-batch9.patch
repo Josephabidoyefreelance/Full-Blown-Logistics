@@ -1,0 +1,13 @@
+diff --git a/src/app/(app)/customers/status-switch.tsx b/src/app/(app)/customers/status-switch.tsx
+index 3004464..c665c87 100644
+--- a/src/app/(app)/customers/status-switch.tsx
++++ b/src/app/(app)/customers/status-switch.tsx
+@@ -26,7 +26,7 @@ export default function CustomerStatusSwitch({ id, status }: { id: string; statu
+         });
+       }}
+       style={{ backgroundColor: color + '22', color }}
+-      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
++      className="w-fit rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
+     >
+       {STATUS_OPTIONS.map((s) => (
+         <option key={s} value={s}>
