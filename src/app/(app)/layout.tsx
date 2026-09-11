@@ -33,13 +33,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // roles() comes back as an array from the join; normalise to a single object.
   const role = Array.isArray(profile?.roles) ? profile?.roles[0] : profile?.roles;
+  const isSuperAdmin = role?.name === 'Super Admin';
   const permittedModules: string[] = role?.permitted_modules ?? [];
   const fullName = profile?.full_name ?? '';
 
-  const filteredNav = NAV.map((group) => ({
-    ...group,
-    items: group.items.filter((it) => permittedModules.includes(it.key)),
-  })).filter((group) => group.items.length > 0);
+  const filteredNav = isSuperAdmin
+    ? NAV
+    : NAV.map((group) => ({
+        ...group,
+        items: group.items.filter((it) => permittedModules.includes(it.key)),
+      })).filter((group) => group.items.length > 0);
 
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-100 dark:bg-neutral-950 print:bg-white">
