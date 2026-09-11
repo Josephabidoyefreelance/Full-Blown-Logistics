@@ -1,0 +1,92 @@
+diff --git a/src/app/(app)/customers/page.tsx b/src/app/(app)/customers/page.tsx
+index 6576291..6d5ae0f 100644
+--- a/src/app/(app)/customers/page.tsx
++++ b/src/app/(app)/customers/page.tsx
+@@ -42,42 +42,52 @@ export default async function CustomersPage() {
+       )}
+ 
+       <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+-        <div className="min-w-[900px]">
+-          <div className="grid grid-cols-[repeat(6,minmax(0,1fr))_160px_140px] items-center gap-x-6 bg-neutral-50 px-4 py-2.5 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
+-            <div>Account</div>
+-            <div>Type</div>
+-            <div>Contact</div>
+-            <div>Credit limit</div>
+-            <div>Balance</div>
+-            <div>Since</div>
+-            <div>Assigned to</div>
+-            <div>Status</div>
+-          </div>
++        <table className="w-full min-w-[900px] table-fixed text-sm">
++          <thead>
++            <tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
++              <th className="w-[20%] px-4 py-2.5 font-medium">Account</th>
++              <th className="w-[7%] px-4 py-2.5 font-medium">Type</th>
++              <th className="w-[16%] px-4 py-2.5 font-medium">Contact</th>
++              <th className="w-[12%] px-4 py-2.5 font-medium">Credit limit</th>
++              <th className="w-[11%] px-4 py-2.5 font-medium">Balance</th>
++              <th className="w-[7%] px-4 py-2.5 font-medium">Since</th>
++              <th className="w-[15%] px-4 py-2.5 font-medium">Assigned to</th>
++              <th className="w-[12%] px-4 py-2.5 font-medium">Status</th>
++            </tr>
++          </thead>
++          <tbody>
++            {(customers ?? []).map((c) => (
++              <tr key={c.id} className="border-t border-neutral-100 dark:border-neutral-800">
++                <td className="truncate px-4 py-2.5">
++                  <CustomerDetailTrigger customer={c} staff={staff ?? []} />
++                </td>
++                <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.type}</td>
++                <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.contact}</td>
++                <td className="truncate px-4 py-2.5 text-neutral-900 dark:text-neutral-100">
++                  {nairaFmt(c.credit_limit)}
++                </td>
++                <td className="truncate px-4 py-2.5 text-neutral-900 dark:text-neutral-100">
++                  {c.balance ? nairaFmt(c.balance) : '\u2014'}
++                </td>
++                <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{c.client_since}</td>
++                <td className="px-4 py-2.5">
++                  <AssignedToSwitch id={c.id} assignedTo={c.assigned_to ?? null} staff={staff ?? []} />
++                </td>
++                <td className="px-4 py-2.5">
++                  <StatusSwitch id={c.id} status={c.status} />
++                </td>
++              </tr>
++            ))}
+ 
+-          {(customers ?? []).map((c) => (
+-            <div
+-              key={c.id}
+-              className="grid grid-cols-[repeat(6,minmax(0,1fr))_160px_140px] items-center gap-x-6 border-t border-neutral-100 px-4 py-2.5 text-sm dark:border-neutral-800"
+-            >
+-              <CustomerDetailTrigger customer={c} staff={staff ?? []} />
+-              <div className="text-neutral-700 dark:text-neutral-300">{c.type}</div>
+-              <div className="truncate text-neutral-700 dark:text-neutral-300">{c.contact}</div>
+-              <div className="text-neutral-900 dark:text-neutral-100">{nairaFmt(c.credit_limit)}</div>
+-              <div className="text-neutral-900 dark:text-neutral-100">
+-                {c.balance ? nairaFmt(c.balance) : '\u2014'}
+-              </div>
+-              <div className="text-neutral-700 dark:text-neutral-300">{c.client_since}</div>
+-              <AssignedToSwitch id={c.id} assignedTo={c.assigned_to ?? null} staff={staff ?? []} />
+-              <div>
+-                <StatusSwitch id={c.id} status={c.status} />
+-              </div>
+-            </div>
+-          ))}
+-
+-          {!customers?.length && !error && (
+-            <div className="px-4 py-8 text-center text-neutral-400 dark:text-neutral-600">No customers yet.</div>
+-          )}
+-        </div>
++            {!customers?.length && !error && (
++              <tr>
++                <td colSpan={8} className="px-4 py-8 text-center text-neutral-400 dark:text-neutral-600">
++                  No customers yet.
++                </td>
++              </tr>
++            )}
++          </tbody>
++        </table>
+       </div>
+     </div>
+   );
