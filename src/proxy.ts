@@ -1,10 +1,16 @@
+
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
   // Webhook routes have no browser session (Resend, etc. call these directly),
   // so they must skip the auth redirect entirely.
-  const isWebhookRoute = request.nextUrl.pathname.startsWith('/api/inbound-email');
+  const pathname = request.nextUrl.pathname;
+  const isWebhookRoute =
+    pathname.startsWith('/api/inbound-email') ||
+    pathname === '/api/twilio/voice' ||
+    pathname === '/api/twilio/status';
+
   if (isWebhookRoute) {
     return NextResponse.next({ request });
   }
