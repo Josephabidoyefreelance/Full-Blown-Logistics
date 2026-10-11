@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import FinanceLiveRefresh from './live-refresh';
 import InvoiceModal from './invoice-modal';
 import PayslipModal from './payslip-modal';
 import ExpenseReceiptModal from './expense-receipt-modal';
@@ -14,17 +15,66 @@ import NewPayrollForm from './new-payroll-form';
 import NewPurchaseOrderForm from './new-purchase-order-form';
 import NewQuotationForm from './new-quotation-form';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function nairaFmt(n: number) {
-  return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
+  return '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
 }
 
 const VAT_RATE = 0.075;
 
-const INVOICE_COLS = 'grid-cols-[150px_220px_170px_160px_150px]';
-const EXPENSE_COLS = 'grid-cols-[170px_220px_170px_160px_150px]';
-const PAYROLL_COLS = 'grid-cols-[220px_220px_170px_170px_170px]';
-const PO_COLS = 'grid-cols-[150px_220px_170px_160px_150px]';
-const QUOTE_COLS = 'grid-cols-[150px_220px_260px_170px_150px]';
+function dateAge(date: string) {
+  const then = new Date(date).getTime();
+  if (!Number.isFinite(then)) return '—';
+  const days = Math.max(0, Math.floor((Date.now() - then) / 86400000));
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day';
+  return `${days} days`;
+}
+
+function statusBadge(status: string) {
+  const tone =
+    status === 'Paid' || status === 'Received' || status === 'Approved'
+      ? 'bg-green-50 text-green-700 ring-green-200'
+      : status === 'Overdue' || status === 'Rejected'
+        ? 'bg-red-50 text-red-700 ring-red-200'
+        : 'bg-amber-50 text-amber-700 ring-amber-200';
+  return `inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${tone}`;
+}
+
+function SectionHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <div className="mb-2 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">{title}</h2>
+        <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function TableShell({ children, minWidth = '1050px' }: { children: React.ReactNode; minWidth?: string }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      <div style={{ minWidth }}>{children}</div>
+    </div>
+  );
+}
+
+const th = 'px-2.5 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
+const td = 'border-t border-neutral-100 px-2.5 py-2 text-[12px] text-neutral-700 dark:border-neutral-800 dark:text-neutral-300';
+const wideTh = 'px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
+const wideTd = 'border-t border-neutral-100 px-4 py-3 text-[12px] text-neutral-700 dark:border-neutral-800 dark:text-neutral-300';
 
 export default async function FinancePage({
   searchParams,
@@ -35,259 +85,232 @@ export default async function FinancePage({
   const supabase = await createClient();
 
   const [invoices, expenses, payroll, purchaseOrders, quotations] = await Promise.all([
-    supabase.from('invoices').select('id, invoice_no, customer_name, amount, status, invoice_date').order('invoice_date', { ascending: false }),
-    supabase.from('expenses').select('id, category, vendor, amount, expense_date, status').order('expense_date', { ascending: false }),
-    supabase.from('employees').select('id, name, role_title, gross_pay, deductions').not('gross_pay', 'is', null),
-    supabase.from('purchase_orders').select('id, po_no, supplier, description, total, order_date, status').order('order_date', { ascending: false }),
-    supabase.from('quotations').select('id, ref, customer_name, route, amount, quote_date, status').order('quote_date', { ascending: false }),
+    supabase
+      .from('invoices')
+      .select('id, invoice_no, customer_name, amount, status, invoice_date')
+      .order('invoice_date', { ascending: false }),
+    supabase
+      .from('expenses')
+      .select('id, category, vendor, amount, expense_date, status')
+      .order('expense_date', { ascending: false }),
+    supabase
+      .from('employees')
+      .select('id, name, role_title, gross_pay, deductions')
+      .not('gross_pay', 'is', null)
+      .order('name', { ascending: true }),
+    supabase
+      .from('purchase_orders')
+      .select('id, po_no, supplier, description, total, order_date, po_date, status, category, requested_by, expected_date, payment_terms, priority')
+      .order('order_date', { ascending: false }),
+    supabase
+      .from('quotations')
+      .select('id, ref, customer_name, contact, route, mode, amount, quote_date, valid_until, status')
+      .order('quote_date', { ascending: false }),
   ]);
 
-  const revenue = (invoices.data ?? []).filter((i) => i.status === 'Paid').reduce((s, i) => s + Number(i.amount), 0);
-  const expenseTotal = (expenses.data ?? []).reduce((s, e) => s + Number(e.amount), 0);
-  const payrollGross = (payroll.data ?? []).reduce((s, p) => s + Number(p.gross_pay ?? 0), 0);
-  const payrollDeductions = (payroll.data ?? []).reduce((s, p) => s + Number(p.deductions ?? 0), 0);
+  const invoiceRows = invoices.data ?? [];
+  const expenseRows = expenses.data ?? [];
+  const payrollRows = payroll.data ?? [];
+  const purchaseOrderRows = purchaseOrders.data ?? [];
+  const quotationRows = quotations.data ?? [];
+
+  const paidInvoices = invoiceRows.filter((i) => i.status === 'Paid');
+  const pendingInvoices = invoiceRows.filter((i) => i.status === 'Pending');
+  const overdueInvoices = invoiceRows.filter((i) => i.status === 'Overdue');
+  const revenue = paidInvoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const outstandingAmount = [...pendingInvoices, ...overdueInvoices].reduce((s, i) => s + Number(i.amount || 0), 0);
+  const paidExpenseRows = expenseRows.filter((e) => e.status === 'Paid');
+  const unpaidExpenseRows = expenseRows.filter((e) => e.status !== 'Paid');
+  const expenseTotal = paidExpenseRows.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const payrollGross = payrollRows.reduce((s, p) => s + Number(p.gross_pay ?? 0), 0);
+  const payrollDeductions = payrollRows.reduce((s, p) => s + Number(p.deductions ?? 0), 0);
   const payrollNet = payrollGross - payrollDeductions;
   const vat = Math.round(revenue * VAT_RATE);
   const netPosition = revenue - expenseTotal - payrollNet - vat;
+  const approvedQuotes = quotationRows.filter((q) => q.status === 'Approved').length;
+  const receivedPOs = purchaseOrderRows.filter((p) => p.status === 'Received').length;
+  const orderedPOs = purchaseOrderRows.filter((p) => p.status === 'Ordered').length;
+  const procurementValue = purchaseOrderRows.reduce((s, p) => s + Number(p.total || 0), 0);
+  const validQuotes = quotationRows.filter((q) => !q.valid_until || new Date(q.valid_until).getTime() >= Date.now()).length;
+
+  const tabClass = (key: string) =>
+    `whitespace-nowrap border-b-2 px-1 pb-2 text-[12px] font-semibold transition ${
+      view === key
+        ? 'border-red-600 text-neutral-900 dark:text-white'
+        : 'border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+    }`;
 
   return (
-    <div>
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Finance</h1>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Accounts, invoicing, payroll and reporting.</p>
+    <>
+      <FinanceLiveRefresh />
+      <div className="min-w-0">
+        <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-green-600">Live finance data</span>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-white">Finance</h1>
+            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Invoices, expenses, payroll, procurement and customer quotations.</p>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-500 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            Synced with Dashboard
+          </div>
+        </div>
+
+        <div className="mb-2 flex gap-3 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800">
+          <a href="/finance?view=overview" className={tabClass('overview')}>Overview</a>
+          <a href="/finance?view=invoices" className={tabClass('invoices')}>Invoices <span className="ml-1 text-[10px] text-neutral-400">{invoiceRows.length}</span></a>
+          <a href="/finance?view=expenses" className={tabClass('expenses')}>Expenses <span className="ml-1 text-[10px] text-neutral-400">{expenseRows.length}</span></a>
+          <a href="/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
+          <a href="/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
+          <a href="/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
+        </div>
+
+        {view === 'overview' && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+              <div className="rounded-xl border border-neutral-200 border-t-2 border-t-green-500 bg-white p-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Paid revenue</p>
+                <p className="mt-1.5 text-xl font-bold text-neutral-900 dark:text-white">{nairaFmt(revenue)}</p>
+                <p className="mt-1 text-[10px] text-green-600">{paidInvoices.length} paid invoices</p>
+              </div>
+              <div className="rounded-xl border border-neutral-200 border-t-2 border-t-amber-500 bg-white p-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Outstanding</p>
+                <p className="mt-1.5 text-xl font-bold text-neutral-900 dark:text-white">{nairaFmt(outstandingAmount)}</p>
+                <p className="mt-1 text-[10px] text-amber-600">{pendingInvoices.length} pending · {overdueInvoices.length} overdue</p>
+              </div>
+              <div className="rounded-xl border border-neutral-200 border-t-2 border-t-red-500 bg-white p-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Operating expenses</p>
+                <p className="mt-1.5 text-xl font-bold text-neutral-900 dark:text-white">{nairaFmt(expenseTotal)}</p>
+                <p className="mt-1 text-[10px] text-neutral-500">{expenseRows.length} recorded entries</p>
+              </div>
+              <div className="rounded-xl border border-neutral-200 border-t-2 border-t-blue-500 bg-white p-3.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)]">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Net position</p>
+                <p className={`mt-1.5 text-xl font-bold ${netPosition >= 0 ? 'text-neutral-900 dark:text-white' : 'text-red-600'}`}>{nairaFmt(netPosition)}</p>
+                <p className="mt-1 text-[10px] text-neutral-500">After payroll and VAT</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+              <a href="/finance?view=invoices" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Invoices</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{invoiceRows.length}</p><p className="text-[10px] text-neutral-500">{pendingInvoices.length + overdueInvoices.length} outstanding</p>
+              </a>
+              <a href="/finance?view=payroll" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Payroll</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{nairaFmt(payrollNet)}</p><p className="text-[10px] text-neutral-500">{payrollRows.length} employees</p>
+              </a>
+              <a href="/finance?view=purchase-orders" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Purchase orders</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{purchaseOrderRows.length}</p><p className="text-[10px] text-neutral-500">{receivedPOs} received</p>
+              </a>
+              <a href="/finance?view=quotations" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Quotations</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{quotationRows.length}</p><p className="text-[10px] text-neutral-500">{approvedQuotes} approved</p>
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[1.35fr_.65fr]">
+              <section className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800"><div><h2 className="text-sm font-semibold text-neutral-900 dark:text-white">Financial position</h2><p className="text-[10px] text-neutral-500">Current figures from live finance records</p></div><span className="text-[10px] font-medium text-neutral-400">VAT 7.5%</span></div>
+                <div className="grid grid-cols-2 divide-x divide-y divide-neutral-100 dark:divide-neutral-800 sm:grid-cols-4 sm:divide-y-0">
+                  <div className="p-3.5"><p className="text-[10px] text-neutral-500">Paid revenue</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(revenue)}</p></div>
+                  <div className="p-3.5"><p className="text-[10px] text-neutral-500">Expenses</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(expenseTotal)}</p></div>
+                  <div className="p-3.5"><p className="text-[10px] text-neutral-500">Payroll net</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(payrollNet)}</p></div>
+                  <div className="p-3.5"><p className="text-[10px] text-neutral-500">VAT payable</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(vat)}</p></div>
+                </div>
+              </section>
+              <section className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="border-b border-neutral-100 px-4 py-3 dark:border-neutral-800"><h2 className="text-sm font-semibold text-neutral-900 dark:text-white">Payment health</h2><p className="text-[10px] text-neutral-500">Invoices requiring attention</p></div>
+                <div className="space-y-2.5 p-4">
+                  <div className="flex items-center justify-between"><span className="text-[11px] text-neutral-500">Paid</span><span className="text-xs font-semibold text-green-600">{paidInvoices.length}</span></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full bg-green-500" style={{ width: `${invoiceRows.length ? (paidInvoices.length / invoiceRows.length) * 100 : 0}%` }} /></div>
+                  <div className="flex items-center justify-between"><span className="text-[11px] text-neutral-500">Pending</span><span className="text-xs font-semibold text-amber-600">{pendingInvoices.length}</span></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full bg-amber-500" style={{ width: `${invoiceRows.length ? (pendingInvoices.length / invoiceRows.length) * 100 : 0}%` }} /></div>
+                  <div className="flex items-center justify-between"><span className="text-[11px] text-neutral-500">Overdue</span><span className="text-xs font-semibold text-red-600">{overdueInvoices.length}</span></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full bg-red-500" style={{ width: `${invoiceRows.length ? (overdueInvoices.length / invoiceRows.length) * 100 : 0}%` }} /></div>
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+
+        {view === 'invoices' && (
+          <div>
+            <SectionHeader title="Invoices" description="Create, review, print and manage customer payment status." action={<NewInvoiceForm />} />
+            <TableShell minWidth="1250px">
+              <table className="w-full border-collapse table-fixed text-left">
+                <colgroup><col className="w-[12%]" /><col className="w-[24%]" /><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[12%]" /></colgroup>
+                <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={wideTh}>Invoice</th><th className={wideTh}>Customer</th><th className={`${wideTh} text-right`}>Subtotal</th><th className={`${wideTh} text-right`}>VAT</th><th className={`${wideTh} text-right`}>Total</th><th className={wideTh}>Date</th><th className={`${wideTh} text-right`}>Payment status</th></tr></thead>
+                <tbody>{invoiceRows.map((i) => { const vatAmount = Math.round(Number(i.amount || 0) * VAT_RATE); return <tr key={i.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={wideTd}><InvoiceModal invoiceNo={i.invoice_no} customerName={i.customer_name} amount={i.amount} date={i.invoice_date} status={i.status} autoOpen={i.id === openInvoiceId} /></td><td className={`${wideTd} truncate font-medium`}>{i.customer_name}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(i.amount)}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(vatAmount)}</td><td className={`${wideTd} whitespace-nowrap text-right font-semibold`}>{nairaFmt(Number(i.amount || 0) + vatAmount)}</td><td className={`${wideTd} whitespace-nowrap`}><span>{i.invoice_date}</span><span className="ml-1 text-[10px] text-neutral-400">· {dateAge(i.invoice_date)}</span></td><td className={`${wideTd} whitespace-nowrap text-right`}><StatusSwitch id={i.id} status={i.status} /></td></tr>; })}</tbody>
+              </table>
+              {!invoiceRows.length && <div className="px-4 py-5 text-center text-xs text-neutral-400">No invoices yet.</div>}
+            </TableShell>
+          </div>
+        )}
+
+        {view === 'expenses' && (
+          <div>
+            <SectionHeader title="Expenses" description="Record company spending, vendors and payment status." action={<NewExpenseForm />} />
+            <TableShell minWidth="1180px">
+              <table className="w-full border-collapse table-fixed text-left"><colgroup><col className="w-[19%]" /><col className="w-[23%]" /><col className="w-[17%]" /><col className="w-[15%]" /><col className="w-[10%]" /><col className="w-[16%]" /></colgroup>
+                <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={wideTh}>Category</th><th className={wideTh}>Vendor</th><th className={`${wideTh} text-right`}>Amount</th><th className={wideTh}>Expense date</th><th className={wideTh}>Age</th><th className={`${wideTh} text-right`}>Payment status</th></tr></thead>
+                <tbody>{expenseRows.map((e) => <tr key={e.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={wideTd}><ExpenseReceiptModal category={e.category} vendor={e.vendor} amount={e.amount} date={e.expense_date} status={e.status} /></td><td className={`${wideTd} truncate font-medium`}>{e.vendor}</td><td className={`${wideTd} text-right font-semibold`}>{nairaFmt(e.amount)}</td><td className={wideTd}>{e.expense_date}</td><td className={wideTd}>{dateAge(e.expense_date)}</td><td className={`${wideTd} text-right`}><ExpenseStatusSwitch id={e.id} status={e.status} /></td></tr>)}</tbody>
+              </table>
+              {!expenseRows.length && <div className="px-4 py-5 text-center text-xs text-neutral-400">No expenses yet. Add your first operating expense.</div>}
+            </TableShell>
+          </div>
+        )}
+
+        {view === 'payroll' && (
+          <div>
+            <SectionHeader title="Payroll" description="Employee pay, deductions, net pay and printable payslips." action={<NewPayrollForm />} />
+            <TableShell minWidth="1180px">
+              <table className="w-full border-collapse table-fixed text-left"><colgroup><col className="w-[24%]" /><col className="w-[21%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[13%]" /></colgroup>
+                <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={wideTh}>Employee</th><th className={wideTh}>Role</th><th className={`${wideTh} text-right`}>Gross</th><th className={`${wideTh} text-right`}>Deductions</th><th className={`${wideTh} text-right`}>Net pay</th><th className={`${wideTh} text-right`}>Document</th></tr></thead>
+                <tbody>{payrollRows.map((p) => { const net = Number(p.gross_pay ?? 0) - Number(p.deductions ?? 0); return <tr key={p.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={`${wideTd} font-medium`}><PayslipModal name={p.name} role={p.role_title} grossPay={p.gross_pay ?? 0} deductions={p.deductions ?? 0} /></td><td className={`${wideTd} truncate`}>{p.role_title}</td><td className={`${wideTd} text-right`}>{nairaFmt(p.gross_pay ?? 0)}</td><td className={`${wideTd} text-right`}>{nairaFmt(p.deductions ?? 0)}</td><td className={`${wideTd} text-right font-semibold`}>{nairaFmt(net)}</td><td className={`${wideTd} text-right`}><span className={statusBadge('Approved')}>Payslip</span></td></tr>; })}</tbody>
+              </table>
+              {!payrollRows.length && <div className="px-4 py-5 text-center text-xs text-neutral-400">No payroll entries yet.</div>}
+            </TableShell>
+          </div>
+        )}
+
+        {view === 'purchase-orders' && (
+          <div className="space-y-2">
+            <SectionHeader title="Purchase orders" description="Procurement control for suppliers, fleet parts, services and everyday operating purchases." action={<NewPurchaseOrderForm />} />
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Total POs</p><p className="mt-1 text-lg font-bold">{purchaseOrderRows.length}</p><p className="text-[10px] text-neutral-500">{orderedPOs} ordered · {receivedPOs} received</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Procurement value</p><p className="mt-1 text-lg font-bold">{nairaFmt(procurementValue)}</p><p className="text-[10px] text-neutral-500">Before VAT</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Suppliers</p><p className="mt-1 text-lg font-bold">{new Set(purchaseOrderRows.map((p) => p.supplier)).size}</p><p className="text-[10px] text-neutral-500">Active supplier records</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Typical use</p><p className="mt-1 text-sm font-bold">Fleet · Fuel · Parts</p><p className="text-[10px] text-neutral-500">Services · Office · Vendors</p></div>
+            </div>
+            <TableShell minWidth="1420px">
+              <table className="w-full border-collapse table-fixed text-left"><colgroup><col className="w-[9%]" /><col className="w-[14%]" /><col className="w-[10%]" /><col className="w-[19%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
+                <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={th}>PO no.</th><th className={th}>Supplier</th><th className={th}>Category</th><th className={th}>Items / service</th><th className={th}>Requested by</th><th className={th}>Order date</th><th className={th}>Expected</th><th className={`${th} text-right`}>Total</th><th className={`${th} text-right`}>Status</th></tr></thead>
+                <tbody>{purchaseOrderRows.map((po) => { const vatAmount = Math.round(Number(po.total || 0) * VAT_RATE); return <tr key={po.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={td}><PurchaseOrderModal poNo={po.po_no} supplier={po.supplier} description={po.description} total={po.total} date={po.order_date || po.po_date} status={po.status} category={po.category} requestedBy={po.requested_by} expectedDate={po.expected_date} paymentTerms={po.payment_terms} priority={po.priority} /></td><td className={`${td} truncate font-medium`}>{po.supplier}</td><td className={`${td} truncate`}>{po.category || 'General'}</td><td className={`${td} truncate`}>{po.description || 'General procurement'}</td><td className={`${td} truncate`}>{po.requested_by || '—'}</td><td className={td}>{po.order_date || po.po_date || '—'}</td><td className={td}>{po.expected_date || '—'}</td><td className={`${td} text-right font-semibold`}>{nairaFmt(Number(po.total || 0) + vatAmount)}</td><td className={`${td} text-right`}><PurchaseOrderStatusSwitch id={po.id} status={po.status} /></td></tr>; })}</tbody>
+              </table>
+              {!purchaseOrderRows.length && <div className="grid grid-cols-1 gap-2.5 p-4 sm:grid-cols-3"><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Fleet purchases</b><br/>Track tyres, batteries, spare parts, repairs and fuel suppliers.</div><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Business purchases</b><br/>Office supplies, equipment, software and recurring services.</div><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Control</b><br/>Capture who requested the purchase, delivery date and status.</div></div>}
+            </TableShell>
+          </div>
+        )}
+
+        {view === 'quotations' && (
+          <div className="space-y-2">
+            <SectionHeader title="Quotations" description="Customer pricing, routes, service mode, validity and approval status." action={<NewQuotationForm />} />
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Total quotes</p><p className="mt-1 text-lg font-bold">{quotationRows.length}</p><p className="text-[10px] text-neutral-500">{approvedQuotes} approved</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Quote pipeline</p><p className="mt-1 text-lg font-bold">{nairaFmt(quotationRows.reduce((s, q) => s + Number(q.amount || 0), 0))}</p><p className="text-[10px] text-neutral-500">Total quoted value</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Valid quotes</p><p className="mt-1 text-lg font-bold">{validQuotes}</p><p className="text-[10px] text-neutral-500">Within validity date</p></div>
+              <div className="rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_18px_rgba(239,68,68,0.14)] dark:hover:border-red-900/70 dark:hover:shadow-[0_0_18px_rgba(239,68,68,0.12)]"><p className="text-[10px] uppercase tracking-wide text-neutral-500">Use cases</p><p className="mt-1 text-sm font-bold">Haulage · Freight</p><p className="text-[10px] text-neutral-500">Delivery · Logistics services</p></div>
+            </div>
+            <TableShell minWidth="1280px">
+              <table className="w-full border-collapse table-fixed text-left"><colgroup><col className="w-[10%]" /><col className="w-[17%]" /><col className="w-[22%]" /><col className="w-[10%]" /><col className="w-[11%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[10%]" /></colgroup>
+                <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={th}>Reference</th><th className={th}>Customer</th><th className={th}>Route / service</th><th className={th}>Mode</th><th className={`${th} text-right`}>Value</th><th className={th}>Quote date</th><th className={th}>Valid until</th><th className={`${th} text-right`}>Status</th></tr></thead>
+                <tbody>{quotationRows.map((q) => <tr key={q.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={td}><QuotationModal reference={q.ref} customer={q.customer_name} route={q.route} amount={q.amount} status={q.status} /></td><td className={`${td} truncate font-medium`}>{q.customer_name}</td><td className={`${td} truncate`}>{q.route || 'Logistics service'}</td><td className={`${td} truncate`}>{q.mode || 'Road'}</td><td className={`${td} text-right font-semibold`}>{nairaFmt(q.amount)}</td><td className={td}>{q.quote_date}</td><td className={td}>{q.valid_until || '—'}</td><td className={`${td} text-right`}><QuotationStatusSwitch id={q.id} status={q.status} /></td></tr>)}</tbody>
+              </table>
+              {!quotationRows.length && <div className="grid grid-cols-1 gap-2.5 p-4 sm:grid-cols-3"><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Logistics quote</b><br/>Build customer pricing for haulage, freight, delivery and routes.</div><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Sales workflow</b><br/>Move quotes from Pending to Approved or Declined.</div><div className="rounded-lg border border-dashed border-neutral-200 p-3 text-xs text-neutral-500 transition-all duration-200 hover:border-red-300 hover:shadow-[0_0_16px_rgba(239,68,68,0.10)]"><b className="text-neutral-800">Follow-up</b><br/>Track validity dates so expired quotes do not get reused.</div></div>}
+            </TableShell>
+          </div>
+        )}
       </div>
-
-      <div className="mb-4 flex gap-5 border-b border-neutral-200 text-sm font-semibold dark:border-neutral-800">
-        <a href="/finance?view=overview" className={`pb-2 ${view === 'overview' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Overview</a>
-        <a href="/finance?view=invoices" className={`pb-2 ${view === 'invoices' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Invoices</a>
-        <a href="/finance?view=expenses" className={`pb-2 ${view === 'expenses' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Expenses</a>
-        <a href="/finance?view=payroll" className={`pb-2 ${view === 'payroll' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Payroll</a>
-        <a href="/finance?view=purchase-orders" className={`pb-2 ${view === 'purchase-orders' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Purchase orders</a>
-        <a href="/finance?view=quotations" className={`pb-2 ${view === 'quotations' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Quotations</a>
-      </div>
-
-      {view === 'overview' && (
-        <>
-          <p className="mb-4 rounded-lg bg-neutral-100 p-3 text-xs text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-            Every figure below is a live query against invoices, expenses and employees, computed on
-            each page load. Nothing here is hardcoded.
-          </p>
-          <div className="grid grid-cols-4 gap-3">
-            <div className="rounded-xl border-t-2 border-t-red-600 border-x border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400">Revenue, MTD</div>
-              <div className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-100">{nairaFmt(revenue)}</div>
-              <div className="mt-1 text-[11px] text-neutral-400">from paid invoices</div>
-            </div>
-            <div className="rounded-xl border-t-2 border-t-red-600 border-x border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400">Expenses, MTD</div>
-              <div className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-100">{nairaFmt(expenseTotal)}</div>
-              <div className="mt-1 text-[11px] text-neutral-400">{expenses.data?.length ?? 0} logged</div>
-            </div>
-            <div className="rounded-xl border-t-2 border-t-red-600 border-x border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400">Net position, MTD</div>
-              <div className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-100">{nairaFmt(netPosition)}</div>
-              <div className="mt-1 text-[11px] text-neutral-400">after payroll and VAT</div>
-            </div>
-            <div className="rounded-xl border-t-2 border-t-red-600 border-x border-b border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400">VAT payable, 7.5%</div>
-              <div className="mt-2 text-xl font-bold text-neutral-900 dark:text-neutral-100">{nairaFmt(vat)}</div>
-              <div className="mt-1 text-[11px] text-neutral-400">on paid revenue</div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <h3 className="mb-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">P&amp;L snapshot</h3>
-            <table className="w-full text-sm text-neutral-700 dark:text-neutral-300">
-              <tbody>
-                <tr className="border-t border-neutral-100 dark:border-neutral-800"><td className="py-2">Revenue (paid invoices)</td><td className="py-2 text-right">{nairaFmt(revenue)}</td></tr>
-                <tr className="border-t border-neutral-100 dark:border-neutral-800"><td className="py-2">Operating expenses</td><td className="py-2 text-right">({nairaFmt(expenseTotal)})</td></tr>
-                <tr className="border-t border-neutral-100 dark:border-neutral-800"><td className="py-2">Payroll, net</td><td className="py-2 text-right">({nairaFmt(payrollNet)})</td></tr>
-                <tr className="border-t border-neutral-100 dark:border-neutral-800"><td className="py-2">VAT, 7.5% of revenue</td><td className="py-2 text-right">({nairaFmt(vat)})</td></tr>
-                <tr className="border-t-2 border-neutral-800 font-semibold text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"><td className="py-2">Net position</td><td className="py-2 text-right">{nairaFmt(netPosition)}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {view === 'invoices' && (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <NewInvoiceForm />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="min-w-[1000px]">
-              <div className={`grid ${INVOICE_COLS} items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400`}>
-                <div>Invoice no.</div>
-                <div>Customer</div>
-                <div className="pr-8 text-right">Amount</div>
-                <div>Date</div>
-                <div className="text-right">Status</div>
-              </div>
-              {(invoices.data ?? []).map((i) => (
-                <div key={i.id} className={`grid ${INVOICE_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
-                  <div className="truncate">
-                    <InvoiceModal
-                      invoiceNo={i.invoice_no}
-                      customerName={i.customer_name}
-                      amount={i.amount}
-                      date={i.invoice_date}
-                      status={i.status}
-                      autoOpen={i.id === openInvoiceId}
-                    />
-                  </div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{i.customer_name}</div>
-                  <div className="pr-8 text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(i.amount)}</div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{i.invoice_date}</div>
-                  <div className="flex justify-end"><StatusSwitch id={i.id} status={i.status} /></div>
-                </div>
-              ))}
-              {!invoices.data?.length && (
-                <div className="px-5 py-8 text-center text-neutral-400">No invoices yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view === 'expenses' && (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <NewExpenseForm />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="min-w-[1000px]">
-              <div className={`grid ${EXPENSE_COLS} items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400`}>
-                <div>Category</div>
-                <div>Vendor</div>
-                <div className="pr-8 text-right">Amount</div>
-                <div>Date</div>
-                <div className="text-right">Status</div>
-              </div>
-              {(expenses.data ?? []).map((e) => (
-                <div key={e.id} className={`grid ${EXPENSE_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
-                  <div className="truncate">
-                    <ExpenseReceiptModal category={e.category} vendor={e.vendor} amount={e.amount} date={e.expense_date} status={e.status} />
-                  </div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{e.vendor}</div>
-                  <div className="pr-8 text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(e.amount)}</div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{e.expense_date}</div>
-                  <div className="flex justify-end"><ExpenseStatusSwitch id={e.id} status={e.status} /></div>
-                </div>
-              ))}
-              {!expenses.data?.length && (
-                <div className="px-5 py-8 text-center text-neutral-400">No expenses yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view === 'payroll' && (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <NewPayrollForm />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="min-w-[950px]">
-              <div className={`grid ${PAYROLL_COLS} items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400`}>
-                <div>Employee</div>
-                <div>Role</div>
-                <div className="text-right">Gross</div>
-                <div className="text-right">Deductions</div>
-                <div className="text-right">Net</div>
-              </div>
-              {(payroll.data ?? []).map((p) => (
-                <div key={p.id} className={`grid ${PAYROLL_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
-                  <div className="truncate">
-                    <PayslipModal name={p.name} role={p.role_title} grossPay={p.gross_pay ?? 0} deductions={p.deductions ?? 0} />
-                  </div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{p.role_title}</div>
-                  <div className="text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(p.gross_pay ?? 0)}</div>
-                  <div className="text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(p.deductions ?? 0)}</div>
-                  <div className="text-right text-neutral-700 dark:text-neutral-300">{nairaFmt((p.gross_pay ?? 0) - (p.deductions ?? 0))}</div>
-                </div>
-              ))}
-              {!payroll.data?.length && (
-                <div className="px-5 py-8 text-center text-neutral-400">No payroll entries yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view === 'purchase-orders' && (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <NewPurchaseOrderForm />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="min-w-[1000px]">
-              <div className={`grid ${PO_COLS} items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400`}>
-                <div>PO no.</div>
-                <div>Supplier</div>
-                <div className="pr-8 text-right">Total</div>
-                <div>Date</div>
-                <div className="text-right">Status</div>
-              </div>
-              {purchaseOrders.error && (
-                <div className="px-5 py-8 text-center text-sm text-red-600">
-                  Could not load purchase orders: {purchaseOrders.error.message}. Make sure the purchase_orders table
-                  exists in Supabase.
-                </div>
-              )}
-              {!purchaseOrders.error && (purchaseOrders.data ?? []).map((po) => (
-                <div key={po.id} className={`grid ${PO_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
-                  <div className="truncate"><PurchaseOrderModal poNo={po.po_no} supplier={po.supplier} description={po.description} total={po.total} date={po.order_date} status={po.status} /></div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{po.supplier}</div>
-                  <div className="pr-8 text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(po.total)}</div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{po.order_date}</div>
-                  <div className="flex justify-end"><PurchaseOrderStatusSwitch id={po.id} status={po.status} /></div>
-                </div>
-              ))}
-              {!purchaseOrders.error && !purchaseOrders.data?.length && (
-                <div className="px-5 py-8 text-center text-neutral-400">No purchase orders yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view === 'quotations' && (
-        <div>
-          <div className="mb-4 flex justify-end">
-            <NewQuotationForm />
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="min-w-[1100px]">
-              <div className={`grid ${QUOTE_COLS} items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400`}>
-                <div>Reference</div>
-                <div>Customer</div>
-                <div>Route</div>
-                <div className="text-right">Amount</div>
-                <div className="text-right">Status</div>
-              </div>
-              {quotations.error && (
-                <div className="px-5 py-8 text-center text-sm text-red-600">
-                  Could not load quotations: {quotations.error.message}. Make sure the quotations table exists in
-                  Supabase.
-                </div>
-              )}
-              {!quotations.error && (quotations.data ?? []).map((q) => (
-                <div key={q.id} className={`grid ${QUOTE_COLS} items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800`}>
-                  <div className="truncate"><QuotationModal reference={q.ref} customer={q.customer_name} route={q.route} amount={q.amount} status={q.status} /></div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{q.customer_name}</div>
-                  <div className="truncate text-neutral-700 dark:text-neutral-300">{q.route ?? '\u2014'}</div>
-                  <div className="text-right text-neutral-700 dark:text-neutral-300">{nairaFmt(q.amount)}</div>
-                  <div className="flex justify-end"><QuotationStatusSwitch id={q.id} status={q.status} /></div>
-                </div>
-              ))}
-              {!quotations.error && !quotations.data?.length && (
-                <div className="px-5 py-8 text-center text-neutral-400">No quotations yet.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

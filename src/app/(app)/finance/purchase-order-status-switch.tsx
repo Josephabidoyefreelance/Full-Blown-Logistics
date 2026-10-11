@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { updatePurchaseOrderStatus } from './actions';
 
 export default function PurchaseOrderStatusSwitch({ id, status }: { id: string; status: string }) {
   const [current, setCurrent] = useState(status);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value;
     setCurrent(next);
     startTransition(async () => {
-      await updatePurchaseOrderStatus(id, next);
+      const result = await updatePurchaseOrderStatus(id, next);
+      if (result?.error) {
+        setCurrent(status);
+        window.alert(result.error);
+        return;
+      }
+      router.refresh();
     });
   }
 
@@ -25,6 +33,7 @@ export default function PurchaseOrderStatusSwitch({ id, status }: { id: string; 
       }`}
     >
       <option value="Pending">Pending</option>
+      <option value="Ordered">Ordered</option>
       <option value="Received">Received</option>
     </select>
   );

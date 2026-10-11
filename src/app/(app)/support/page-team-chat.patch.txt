@@ -1,0 +1,10 @@
+In app/support/page.tsx, change ONLY the Team Chat query to select the two new fields:
+
+const teamChat = view === 'teamchat'
+  ? await supabase
+      .from('team_chat_messages')
+      .select('id, sender_name, message, created_at, recipient_name, read_at')
+      .order('created_at', { ascending: true })
+  : null;
+
+Leave all other queries and page UI unchanged.

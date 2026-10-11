@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createLead } from './actions';
 
 export default function NewLeadForm() {
@@ -8,6 +9,7 @@ export default function NewLeadForm() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   if (!open) {
     return (
@@ -36,6 +38,7 @@ export default function NewLeadForm() {
             else {
               setOpen(false);
               formRef.current?.reset();
+              router.refresh();
             }
           });
         }}

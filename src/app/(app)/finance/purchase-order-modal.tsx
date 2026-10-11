@@ -27,9 +27,8 @@ export default function PurchaseOrderModal({
   status: string;
 }) {
   const [open, setOpen] = useState(false);
-  const VAT_RATE = 0.075;
-  const subtotal = total;
-  const vat = Math.round(subtotal * VAT_RATE);
+  const subtotal = Number(total || 0);
+  const vat = Math.round(subtotal * 0.075);
   const grandTotal = subtotal + vat;
   const colors = statusColor(status);
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });

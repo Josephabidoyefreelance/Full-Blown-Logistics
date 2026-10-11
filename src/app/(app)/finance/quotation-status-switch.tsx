@@ -1,17 +1,25 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { updateQuotationStatus } from './actions';
 
 export default function QuotationStatusSwitch({ id, status }: { id: string; status: string }) {
   const [current, setCurrent] = useState(status);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value;
     setCurrent(next);
     startTransition(async () => {
-      await updateQuotationStatus(id, next);
+      const result = await updateQuotationStatus(id, next);
+      if (result?.error) {
+        setCurrent(status);
+        window.alert(result.error);
+        return;
+      }
+      router.refresh();
     });
   }
 

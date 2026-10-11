@@ -12,6 +12,8 @@ export default function ChatWidget() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [initialMessage, setInitialMessage] = useState('');
+  const [starting, setStarting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [chatId, setChatId] = useState<string | null>(null);
@@ -40,7 +42,8 @@ export default function ChatWidget() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'live_chat_messages', filter: `chat_id=eq.${chatId}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Msg]);
+          const incoming = payload.new as Msg;
+          setMessages((prev) => prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]);
         }
       )
       .subscribe();
@@ -74,14 +77,17 @@ export default function ChatWidget() {
   }
 
   async function startChat() {
-    if (!name.trim() || !email.trim() || !phone.trim()) {
-      setFormError('Please fill in your name, email, and phone number.');
+    if (!name.trim() || !email.trim() || !phone.trim() || !initialMessage.trim()) {
+      setFormError('Please enter your name, email, phone number, and message.');
       return;
     }
+    if (starting) return;
+    setStarting(true);
     setFormError(null);
 
     const session = await ensureSignedIn();
     if (!session) {
+      setStarting(false);
       setFormError('Chat is temporarily unavailable, please try again in a moment.');
       return;
     }
@@ -99,27 +105,39 @@ export default function ChatWidget() {
       .single();
 
     if (error || !data) {
+      setStarting(false);
       setFormError('Could not start chat, please try again.');
+      return;
+    }
+
+    const { error: firstMessageError } = await supabase.from('live_chat_messages').insert({
+      chat_id: data.id, sender: 'customer', message: initialMessage.trim(),
+    });
+    if (firstMessageError) {
+      setStarting(false);
+      setFormError('Your chat was created, but the message could not be sent. Please try again.');
       return;
     }
 
     localStorage.setItem('jaad_chat_id', data.id);
     setChatId(data.id);
+    setInitialMessage('');
     setStarted(true);
+    setStarting(false);
   }
 
   async function send() {
     const text = draft.trim();
     if (!text || !chatId) return;
     setSending(true);
-    setDraft('');
 
     const { error } = await supabase
       .from('live_chat_messages')
       .insert({ chat_id: chatId, sender: 'customer', message: text });
 
     setSending(false);
-    if (error) alert('Message could not be sent, please try again.');
+    if (error) { alert('Message could not be sent, please try again.'); return; }
+    setDraft('');
   }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -167,14 +185,14 @@ export default function ChatWidget() {
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-6 z-[9999] flex h-[500px] w-[92vw] max-w-[340px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_10px_40px_rgba(0,0,0,.3)]">
+        <div className="fixed bottom-24 right-4 z-[9999] flex h-[min(440px,calc(100dvh-120px))] w-[92vw] max-w-[320px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_10px_40px_rgba(0,0,0,.3)]">
           <div className="flex items-center gap-2.5 bg-[#0b0b0d] px-4 py-3.5">
             <Image src="/logo.png" alt="JAAD Logistics" width={26} height={26} />
             <span className="text-sm font-bold text-white">Chat with JAAD Logistics</span>
           </div>
 
           {!started ? (
-            <div className="space-y-3 p-5 text-sm">
+            <div className="space-y-2.5 overflow-y-auto p-4 text-sm">
               <p className="mb-1 text-[#0b0b0d]">Hi! Tell us a bit about yourself so our team can help you properly.</p>
               <input
                 value={name}
@@ -195,12 +213,20 @@ export default function ChatWidget() {
                 placeholder="Your phone number"
                 className="w-full rounded-lg border border-[#d8d8db] px-3 py-2 text-sm outline-none focus:border-[#e5231b]"
               />
+              <textarea
+                value={initialMessage}
+                onChange={(e) => setInitialMessage(e.target.value)}
+                placeholder="How can we help you?"
+                rows={3}
+                className="w-full resize-none rounded-lg border border-[#d8d8db] px-3 py-2 text-sm outline-none focus:border-[#e5231b]"
+              />
               {formError && <p className="text-[12.5px] text-[#e5231b]">{formError}</p>}
               <button
                 onClick={startChat}
-                className="w-full rounded-lg bg-[#e5231b] px-3.5 py-2 text-sm font-bold text-white"
+                disabled={starting}
+                className="w-full rounded-lg bg-[#e5231b] px-3.5 py-2 text-sm font-bold text-white disabled:opacity-60"
               >
-                Start chat
+                {starting ? 'Starting chat…' : 'Start chat'}
               </button>
             </div>
           ) : (

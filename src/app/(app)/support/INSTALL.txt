@@ -1,0 +1,8 @@
+JAAD ERP Live Chat layout fix
+
+1. Back up the current live-chat-panel.tsx.
+2. Copy BOTH live-chat-panel.tsx and live-chat-panel.module.css from this folder into the same Support route folder as page.tsx and actions.ts.
+3. Keep page.tsx, actions.ts, the Knowledge Base components, and database policies unchanged.
+4. Restart the Next.js dev server and hard-refresh /support?view=livechat.
+
+The CSS module explicitly sets the desktop two-column layout (left chat list ~28%, right conversation ~72%) so it does not depend on Tailwind generating an arbitrary grid class. On narrow screens it switches to the chat list or conversation view.

@@ -52,7 +52,7 @@ export default async function CustomersPage() {
               <th className="w-[11%] px-4 py-2.5 font-medium">Balance</th>
               <th className="w-[7%] px-4 py-2.5 font-medium">Since</th>
               <th className="w-[15%] px-4 py-2.5 font-medium">Assigned to</th>
-              <th className="w-[12%] px-4 py-2.5 font-medium">Status</th>
+              <th className="w-[12%] px-2 py-2.5 text-right font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -73,7 +73,7 @@ export default async function CustomersPage() {
                 <td className="px-4 py-2.5">
                   <AssignedToSwitch id={c.id} assignedTo={c.assigned_to ?? null} staff={staff ?? []} />
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="w-[12%] px-2 py-2.5 pr-0 text-right">
                   <StatusSwitch id={c.id} status={c.status} />
                 </td>
               </tr>

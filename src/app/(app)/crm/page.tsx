@@ -9,21 +9,11 @@ import ImportLeadsButton from './import-leads-button';
 import DonutChart from '@/components/donut-chart';
 import SheetView from './sheet-view';
 import ConvertLeadButton from './convert-lead-button';
+import KanbanBoard from './kanban-board';
 
 function nairaFmt(n: number) {
   return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
 }
-
-const LANES: { label: string; color: string; match: (s: string) => boolean }[] = [
-  { label: 'New', color: '#2563c7', match: (s) => s === 'New' },
-  {
-    label: 'Contacted',
-    color: '#ca8a04',
-    match: (s) => s === 'Contacted' || s === 'Qualified' || s === 'Proposal Sent',
-  },
-  { label: 'Won', color: '#1f9d5c', match: (s) => s === 'Won' },
-  { label: 'Lost', color: '#e2362b', match: (s) => s === 'Lost' },
-];
 
 const SOURCE_COLORS: Record<string, string> = {
   Website: '#3b82f6',
@@ -58,10 +48,11 @@ export default async function CRMPage({
     noteCounts[n.lead_id] = (noteCounts[n.lead_id] || 0) + 1;
   });
 
-  const sourceGroups: Record<string, { count: number; value: number }> = {};
+  const sourceGroups: Record<string, { count: number; value: number }> = Object.fromEntries(
+    Object.keys(SOURCE_COLORS).map((source) => [source, { count: 0, value: 0 }]),
+  );
   (leads ?? []).forEach((l) => {
-    const src = l.source || 'Other';
-    if (!sourceGroups[src]) sourceGroups[src] = { count: 0, value: 0 };
+    const src = SOURCE_COLORS[l.source || ''] ? (l.source as string) : 'Other';
     sourceGroups[src].count++;
     sourceGroups[src].value += Number(l.value) || 0;
   });
@@ -108,46 +99,7 @@ export default async function CRMPage({
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">Could not load leads: {error.message}</p>}
 
-      {view === 'kanban' && (
-        <div className="grid grid-cols-4 gap-3">
-          {LANES.map((lane) => {
-            const items = (leads ?? []).filter((l) => lane.match(l.status));
-            return (
-              <div
-                key={lane.label}
-                className="rounded-xl border-t-2 bg-neutral-50 p-3 dark:bg-neutral-900"
-                style={{ borderTopColor: lane.color }}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-xs font-semibold uppercase" style={{ color: lane.color }}>
-                    {lane.label}
-                  </h4>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                    style={{ backgroundColor: lane.color + '22', color: lane.color }}
-                  >
-                    {items.length}
-                  </span>
-                </div>
-                {items.map((l) => (
-                  <div
-                    key={l.id}
-                    className="mb-2 rounded-lg border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-neutral-800"
-                  >
-                    <LeadDetailTrigger lead={l} staff={staff ?? []} />
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {l.contact_name} &middot; {nairaFmt(l.value)}
-                    </div>
-                  </div>
-                ))}
-                {!items.length && (
-                  <div className="py-6 text-center text-xs text-neutral-400 dark:text-neutral-600">No leads</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {view === 'kanban' && <KanbanBoard leads={leads ?? []} staff={staff ?? []} />}
 
       {view === 'sheet' && <SheetView />}
 
@@ -205,7 +157,7 @@ export default async function CRMPage({
               </div>
             );
           })}
-          {!Object.keys(sourceGroups).length && (
+          {!leads?.length && (
             <div className="col-span-3 py-8 text-center text-sm text-neutral-400 dark:text-neutral-600">
               No leads yet.
             </div>

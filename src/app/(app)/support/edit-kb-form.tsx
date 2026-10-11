@@ -13,12 +13,29 @@ export default function EditKbForm({ id, question, answer }: { id: string; quest
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="shrink-0 text-xs font-medium text-red-700 hover:underline dark:text-red-500"
-      >
-        Edit
-      </button>
+      <div className="flex shrink-0 items-center gap-2">
+        <button
+          onClick={() => setOpen(true)}
+          className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => {
+            if (!window.confirm('Delete this knowledge base article?')) return;
+            startTransition(async () => {
+              const res = await deleteKbArticle(id);
+              if (res?.error) { setError(res.error); setOpen(true); return; }
+              router.refresh();
+            });
+          }}
+          className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-300"
+        >
+          Delete
+        </button>
+      </div>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">

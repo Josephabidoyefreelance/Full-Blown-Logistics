@@ -19,8 +19,8 @@ export default function NewTicketForm() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 dark:bg-neutral-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 px-4 py-6">
+          <div className="my-auto max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 dark:bg-neutral-900">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">New ticket</h2>
               <button
@@ -68,6 +68,17 @@ export default function NewTicketForm() {
                   required
                   placeholder="Delivery address needs correction"
                   className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-500">Message</label>
+                <textarea
+                  name="message"
+                  required
+                  rows={4}
+                  placeholder="Describe the customer's issue or request..."
+                  className="w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                 />
               </div>
 

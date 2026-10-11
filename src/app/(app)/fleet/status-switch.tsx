@@ -3,7 +3,8 @@
 import { useTransition } from 'react';
 import { updateFleetStatus } from './actions';
 
-const STATUS_OPTIONS = ['Available', 'In Transit', 'Maintenance', 'Out of service', 'Idle'];
+const STATUS_OPTIONS = ['Available', 'In Transit', 'Maintenance', 'Out of service', 'Idle'] as const;
+
 const STATUS_COLORS: Record<string, string> = {
   Available: '#1f9d5c',
   'In Transit': '#2563c7',
@@ -23,17 +24,16 @@ export default function FleetStatusSwitch({ id, status }: { id: string; status: 
       disabled={isPending}
       onChange={(e) => {
         const next = e.target.value;
-        startTransition(() => {
-          updateFleetStatus(id, next);
+        startTransition(async () => {
+          const result = await updateFleetStatus(id, next);
+          if (result?.error) window.alert(result.error);
         });
       }}
       style={{ backgroundColor: color + '22', color }}
-      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
+      className="w-fit rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
     >
       {STATUS_OPTIONS.map((s) => (
-        <option key={s} value={s} className="bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">
-          {s}
-        </option>
+        <option key={s} value={s} className="bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">{s}</option>
       ))}
     </select>
   );

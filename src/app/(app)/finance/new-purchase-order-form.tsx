@@ -1,9 +1,11 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPurchaseOrder } from './actions';
 
 export default function NewPurchaseOrderForm() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,7 @@ export default function NewPurchaseOrderForm() {
                   }
                   formRef.current?.reset();
                   setOpen(false);
+                  router.refresh();
                 });
               }}
               className="space-y-3"

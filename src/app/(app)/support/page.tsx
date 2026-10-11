@@ -26,21 +26,21 @@ export default async function SupportPage({
   }
 
   const tickets = view === 'tickets'
-    ? await supabase.from('tickets').select('id, ticket_no, customer_name, subject, priority, status, channel, opened_at, closed_at').order('opened_at', { ascending: false })
+    ? await supabase.from('tickets').select('id, ticket_no, customer_name, subject, message, priority, status, channel, opened_at, closed_at').order('opened_at', { ascending: false })
     : null;
   const kb = view === 'kb'
     ? await supabase.from('kb_articles').select('id, question, answer').order('created_at', { ascending: false })
     : null;
 
   const chats = view === 'livechat'
-    ? await supabase.from('live_chats').select('id, customer_name, status').order('created_at', { ascending: false })
+    ? await supabase.from('live_chats').select('id, customer_name, customer_email, customer_phone, status').order('created_at', { ascending: false })
     : null;
   const chatMessages = view === 'livechat'
     ? await supabase.from('live_chat_messages').select('id, chat_id, sender, message, created_at').order('created_at', { ascending: true })
     : null;
 
   const emails = view === 'email'
-    ? await supabase.from('support_emails').select('id, to_address, subject, body, status, direction, read, created_at').order('created_at', { ascending: false })
+    ? await supabase.from('support_emails').select('id, to_address, from_address, subject, body, status, direction, read, created_at, scheduled_at, attachments').order('created_at', { ascending: false })
     : null;
 
   const sms = view === 'sms'
@@ -85,7 +85,7 @@ export default async function SupportPage({
         </div>
       )}
 
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
       {view === 'tickets' && (
         <>
           <div className="mb-4 flex justify-end">
@@ -188,7 +188,7 @@ function ChannelBadge({ channel }: { channel: string | null }) {
 function OpenTicketTable({
   rows,
 }: {
-  rows: { id: string; ticket_no: string; customer_name: string | null; subject: string; priority: string; status: string; channel: string | null }[];
+  rows: { id: string; ticket_no: string; customer_name: string | null; subject: string; message?: string | null; priority: string; status: string; channel: string | null }[];
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -202,7 +202,7 @@ function OpenTicketTable({
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
               <td className="px-4 py-2.5"><PrioritySwitch id={t.id} value={t.priority} /></td>
               <td className="px-4 py-2.5"><TicketStatusSwitch id={t.id} value={t.status} /></td>
@@ -218,7 +218,7 @@ function OpenTicketTable({
 function ResolvedTicketTable({
   rows,
 }: {
-  rows: { id: string; ticket_no: string; customer_name: string | null; subject: string; status: string; channel: string | null; closed_at?: string | null }[];
+  rows: { id: string; ticket_no: string; customer_name: string | null; subject: string; message?: string | null; status: string; channel: string | null; closed_at?: string | null }[];
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -232,7 +232,7 @@ function ResolvedTicketTable({
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
               <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="truncate px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.subject}</td>
+              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
               <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
               <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">
                 {t.closed_at ? new Date(t.closed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}

@@ -96,7 +96,7 @@ export async function sendSupportEmail(formData: FormData) {
       }))
     );
 
-    const { error: sendError } = await resend.emails.send({
+      const { error: sendError } = await resend.emails.send({
       from: process.env.EMAIL_FROM,
       to: to_address,
       cc: cc.length ? cc : undefined,
@@ -105,16 +105,21 @@ export async function sendSupportEmail(formData: FormData) {
       html: body || '<p></p>',
       attachments: attachments.length ? attachments : undefined,
     });
-    if (sendError) {
-      status = 'Failed';
-    }
+    if (sendError) status = 'Failed';
   }
 
+  const attachmentMetadata = attachmentFiles.map((file) => ({
+    filename: file.name,
+    content_type: file.type || 'application/octet-stream',
+    size: file.size,
+  }));
   const { error } = await supabase.from('support_emails').insert({
     direction: 'outbound',
+    from_address: process.env.EMAIL_FROM || null,
     to_address,
     subject,
     body,
+    attachments: attachmentMetadata,
     status,
   });
 
@@ -201,10 +206,11 @@ export async function createTicket(formData: FormData) {
 
   const customer_name = String(formData.get('customer_name') ?? '').trim();
   const subject = String(formData.get('subject') ?? '').trim();
+  const message = String(formData.get('message') ?? '').trim();
   const channel = String(formData.get('channel') ?? 'Email');
   const priority = String(formData.get('priority') ?? 'Normal');
 
-  if (!customer_name || !subject) return { error: 'Customer and subject are required.' };
+  if (!customer_name || !subject || !message) return { error: 'Customer, subject and message are required.' };
 
   const ticket_no = await nextTicketNo(supabase);
 
@@ -212,6 +218,7 @@ export async function createTicket(formData: FormData) {
     ticket_no,
     customer_name,
     subject,
+    message,
     channel,
     priority,
     status: 'Open',
@@ -225,13 +232,29 @@ export async function createTicket(formData: FormData) {
 
 // ---------- Team chat ----------
 
-export async function sendTeamChatMessage(senderName: string, message: string) {
+export async function sendTeamChatMessage(senderName: string, message: string, recipientName: string | null = null) {
   if (!message.trim()) return { error: 'Message is empty.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('team_chat_messages').insert({
+  const payload: { sender_name: string; message: string; recipient_name?: string | null } = {
     sender_name: senderName,
-    message,
-  });
+    message: message.trim(),
+  };
+  if (recipientName) payload.recipient_name = recipientName;
+  const { error } = await supabase.from('team_chat_messages').insert(payload);
+  if (error) return { error: error.message };
+  revalidatePath('/support');
+  return { error: null };
+}
+
+
+export async function markTeamChatRead(currentUserName: string, senderName: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('team_chat_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('sender_name', senderName)
+    .eq('recipient_name', currentUserName)
+    .is('read_at', null);
   if (error) return { error: error.message };
   revalidatePath('/support');
   return { error: null };
@@ -260,21 +283,24 @@ export async function uploadLiveChatFile(chatId: string, formData: FormData) {
   return { error: null };
 }
 
-export async function uploadTeamChatFile(senderName: string, formData: FormData) {
+export async function uploadTeamChatFile(senderName: string, formData: FormData, recipientName: string | null = null) {
   const supabase = await createClient();
   const file = formData.get('file') as File | null;
   if (!file) return { error: 'No file selected.' };
 
-  const path = `teamchat/${Date.now()}-${file.name}`;
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `teamchat/${Date.now()}-${safeName}`;
   const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, file);
   if (uploadError) return { error: uploadError.message };
 
   const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path);
 
-  const { error } = await supabase.from('team_chat_messages').insert({
+  const payload: { sender_name: string; message: string; recipient_name?: string | null } = {
     sender_name: senderName,
     message: `📎 ${file.name}|${pub.publicUrl}`,
-  });
+  };
+  if (recipientName) payload.recipient_name = recipientName;
+  const { error } = await supabase.from('team_chat_messages').insert(payload);
   if (error) return { error: error.message };
   revalidatePath('/support');
   return { error: null };

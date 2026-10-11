@@ -3,6 +3,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+function revalidateShipmentViews() {
+  revalidatePath('/shipments');
+  revalidatePath('/dashboard');
+  revalidatePath('/finance');
+}
+
 export async function createBooking(formData: FormData) {
   const supabase = await createClient();
 
@@ -100,15 +106,23 @@ export async function createBooking(formData: FormData) {
     }
   }
 
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }
 
 export async function updateBookingStatus(id: string, status: string) {
+  const allowed = ['Pending', 'Assigned', 'In Transit', 'Delivered', 'Exception', 'Cancelled'];
+  if (!id || !allowed.includes(status)) return { error: 'Invalid shipment status.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status })
+    .eq('id', id)
+    .select('id, status')
+    .maybeSingle();
   if (error) return { error: error.message };
-  revalidatePath('/shipments');
+  if (!data) return { error: 'Shipment was not updated. Check the shipment and database permissions.' };
+  revalidateShipmentViews();
   return { error: null };
 }
 
@@ -148,7 +162,9 @@ export async function generateInvoiceForBooking(bookingId: string) {
       status: 'Pending',
       invoice_date: new Date().toISOString().slice(0, 10),
       linked_booking_id: bookingId,
-      posted: false,
+      tax_rate: 7.5,
+      tax_amount: Math.round(Number(booking.declared_value || 0) * 0.075 * 100) / 100,
+      total_amount: Math.round(Number(booking.declared_value || 0) * 1.075 * 100) / 100,
     })
     .select('id')
     .single();
@@ -167,7 +183,7 @@ export async function generateInvoiceForBooking(bookingId: string) {
     return { error: itemError.message, invoiceId: invoice.id };
   }
 
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   revalidatePath('/finance');
   return { error: null, invoiceId: invoice.id as string };
 }
@@ -232,7 +248,7 @@ export async function createManifest(formData: FormData) {
     return { error: linkError.message };
   }
 
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }
 
@@ -261,7 +277,7 @@ export async function recordProofOfDelivery(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }
 
@@ -269,7 +285,7 @@ export async function updatePodStatus(id: string, status: string) {
   const supabase = await createClient();
   const { error } = await supabase.from('proof_of_delivery').update({ status }).eq('id', id);
   if (error) return { error: error.message };
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }
 
@@ -309,7 +325,7 @@ export async function createReturn(formData: FormData) {
     return { error: insertError.message };
   }
 
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }
 
@@ -317,6 +333,6 @@ export async function updateReturnStatus(id: string, status: string) {
   const supabase = await createClient();
   const { error } = await supabase.from('returns').update({ status }).eq('id', id);
   if (error) return { error: error.message };
-  revalidatePath('/shipments');
+  revalidateShipmentViews();
   return { error: null };
 }

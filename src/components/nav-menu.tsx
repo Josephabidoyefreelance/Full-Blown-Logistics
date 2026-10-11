@@ -178,23 +178,18 @@ export default function NavMenu({ groups }: { groups: typeof NAV }) {
               return (
                 <div key={item.key}>
                   <button
+                    type="button"
                     onClick={() => toggle(item.key)}
+                    aria-expanded={isExpanded}
                     className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors hover:bg-red-600 hover:text-white ${
                       isActive || isExpanded ? 'bg-red-600 text-white' : 'text-neutral-300'
                     }`}
                   >
-                    <Link href={item.href} className="flex flex-1 items-center gap-2.5 text-left" onClick={(e) => e.stopPropagation()}>
+                    <span className="flex flex-1 items-center gap-2.5 text-left">
                       <IconChip name={item.icon} color={item.color} />
                       {item.label}
-                    </Link>
-                    <span
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggle(item.key);
-                      }}
-                      className={`ml-2 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                    >
+                    </span>
+                    <span aria-hidden="true" className={`ml-2 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                       &#9662;
                     </span>
                   </button>

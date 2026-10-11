@@ -28,7 +28,7 @@ export default function AssignedToSwitch({
           updateLeadAssignedTo(id, next);
         });
       }}
-      className="w-fit max-w-full justify-self-start truncate rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-xs text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+      className="w-[125px] max-w-[125px] justify-self-start truncate rounded-full border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
     >
       <option value="">None</option>
       {staff.map((s) => (

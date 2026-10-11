@@ -1,0 +1,16 @@
+// Add this export to app/support/actions.ts (keep the existing imports and actions).
+// The file already imports createClient and revalidatePath in your supplied source.
+
+export async function markTeamChatRead(currentUserName: string, senderName: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('team_chat_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('recipient_name', currentUserName)
+    .eq('sender_name', senderName)
+    .is('read_at', null);
+
+  if (error) return { error: error.message };
+  revalidatePath('/support');
+  return { error: null };
+}

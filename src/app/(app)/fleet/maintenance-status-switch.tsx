@@ -3,16 +3,10 @@
 import { useTransition } from 'react';
 import { updateMaintenanceStatus } from './actions';
 
-const STATUS_OPTIONS = ['Scheduled', 'In Progress', 'Completed'];
-const STATUS_COLORS: Record<string, string> = {
-  Scheduled: '#ca8a04',
-  'In Progress': '#2563c7',
-  Completed: '#1f9d5c',
-};
+const STATUS_OPTIONS = ['Scheduled', 'In Progress', 'Completed'] as const;
 
 export default function MaintenanceStatusSwitch({ id, status }: { id: string; status: string }) {
   const [isPending, startTransition] = useTransition();
-  const color = STATUS_COLORS[status] ?? '#888';
 
   return (
     <select
@@ -21,18 +15,14 @@ export default function MaintenanceStatusSwitch({ id, status }: { id: string; st
       disabled={isPending}
       onChange={(e) => {
         const next = e.target.value;
-        startTransition(() => {
-          updateMaintenanceStatus(id, next);
+        startTransition(async () => {
+          const result = await updateMaintenanceStatus(id, next);
+          if (result?.error) window.alert(result.error);
         });
       }}
-      style={{ backgroundColor: color + '22', color }}
-      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
+      className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700 outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
     >
-      {STATUS_OPTIONS.map((s) => (
-        <option key={s} value={s} className="bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">
-          {s}
-        </option>
-      ))}
+      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
     </select>
   );
 }

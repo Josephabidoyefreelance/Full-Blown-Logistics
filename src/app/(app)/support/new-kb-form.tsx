@@ -1,9 +1,11 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createKbArticle } from './actions';
 
 export default function NewKbForm() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +17,7 @@ export default function NewKbForm() {
         onClick={() => setOpen(true)}
         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
       >
-        + Add article
+        New article
       </button>
 
       {open && (
@@ -45,6 +47,7 @@ export default function NewKbForm() {
                   }
                   formRef.current?.reset();
                   setOpen(false);
+                  router.refresh();
                 });
               }}
               className="space-y-3"

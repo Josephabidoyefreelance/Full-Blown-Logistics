@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import StatusSwitch from './status-switch';
 import NewBookingForm from './new-booking-form';
 import ExportBookingsButton from './export-bookings-button';
-import AdvanceStatusButton from './advance-status-button';
 import TrackingDetailTrigger from './tracking-detail-modal';
 import GenerateInvoiceButton from './generate-invoice-button';
 import CreateManifestForm from './create-manifest-form';
@@ -11,6 +10,8 @@ import RecordPodForm from './record-pod-form';
 import CreateReturnForm from './create-return-form';
 import ReturnStatusSwitch from './return-status-switch';
 import PodStatusSwitch from './pod-status-switch';
+import ShipmentLiveRefresh from './live-refresh';
+import DispatchBoard from './dispatch-board';
 
 function nairaFmt(n: number) {
   return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
@@ -23,13 +24,6 @@ const TABS = [
   { key: 'manifests', label: 'Manifests' },
   { key: 'pod', label: 'Proof of delivery' },
   { key: 'returns', label: 'Returns' },
-];
-
-const DISPATCH_LANES: { label: string; status: string; next: string | null; color: string }[] = [
-  { label: 'Pending', status: 'Pending', next: 'Assigned', color: '#ca8a04' },
-  { label: 'Assigned', status: 'Assigned', next: 'In Transit', color: '#2563c7' },
-  { label: 'In Transit', status: 'In Transit', next: 'Delivered', color: '#7c3aed' },
-  { label: 'Delivered', status: 'Delivered', next: null, color: '#1f9d5c' },
 ];
 
 export default async function ShipmentsPage({
@@ -148,11 +142,13 @@ export default async function ShipmentsPage({
     : bookings ?? [];
 
   const trackedBooking = tracking
-    ? (bookings ?? []).find((b) => b.tracking_no?.toLowerCase() === tracking.toLowerCase())
+    ? (bookings ?? []).find((b) => b.tracking_no?.toLowerCase() === tracking.toLowerCase()) ??
+      (bookings ?? []).find((b) => b.tracking_no?.toLowerCase().includes(tracking.toLowerCase()))
     : null;
 
   return (
     <div>
+      <ShipmentLiveRefresh />
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Shipment Operations</h1>
@@ -201,7 +197,7 @@ export default async function ShipmentsPage({
                 name="q"
                 defaultValue={q}
                 placeholder="Tracking number or customer name"
-                className="w-full max-w-sm rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                className="w-[300px] max-w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
               />
               <button
                 type="submit"
@@ -260,55 +256,7 @@ export default async function ShipmentsPage({
       )}
 
       {view === 'dispatch' && (
-        <div>
-          <p className="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
-            Move a shipment forward as it progresses through dispatch.
-          </p>
-          <div className="grid grid-cols-4 gap-3">
-            {DISPATCH_LANES.map((lane) => {
-              const items = (bookings ?? []).filter((b) => b.status === lane.status);
-              return (
-                <div
-                  key={lane.label}
-                  className="rounded-xl border-t-2 bg-neutral-50 p-3 dark:bg-neutral-900"
-                  style={{ borderTopColor: lane.color }}
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-xs font-semibold uppercase" style={{ color: lane.color }}>
-                      {lane.label}
-                    </h4>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                      style={{ backgroundColor: lane.color + '22', color: lane.color }}
-                    >
-                      {items.length}
-                    </span>
-                  </div>
-                  {items.map((b) => (
-                    <div
-                      key={b.id}
-                      className="mb-2 rounded-lg border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-neutral-800"
-                    >
-                      <div className="font-mono text-xs text-red-600">{b.tracking_no}</div>
-                      <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                        {b.customer_name}
-                      </div>
-                      <div className="mb-2 text-xs text-neutral-500 dark:text-neutral-400">
-                        {b.origin} &rarr; {b.destination}
-                      </div>
-                      {lane.next && <AdvanceStatusButton id={b.id} nextStatus={lane.next} />}
-                    </div>
-                  ))}
-                  {!items.length && (
-                    <div className="py-6 text-center text-xs text-neutral-400 dark:text-neutral-600">
-                      Nothing here
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <DispatchBoard bookings={bookings ?? []} />
       )}
 
       {view === 'tracking' && (
@@ -326,7 +274,7 @@ export default async function ShipmentsPage({
                 name="tracking"
                 defaultValue={tracking}
                 placeholder="e.g. JAAD/3007/2026/00233"
-                className="w-full max-w-sm rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                className="w-[300px] max-w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
               />
               <button
                 type="submit"

@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+const VALID_LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
+
 export async function createLead(formData: FormData) {
   const supabase = await createClient();
   const value = Number(formData.get('value') || 0);
@@ -28,10 +30,12 @@ export async function createLead(formData: FormData) {
 }
 
 export async function updateLeadStatus(id: string, status: string) {
+  if (!id || !VALID_LEAD_STATUSES.includes(status)) return { error: 'Invalid lead status.' };
   const supabase = await createClient();
   const { error } = await supabase.from('leads').update({ status }).eq('id', id);
   if (error) return { error: error.message };
   revalidatePath('/crm');
+  revalidatePath('/dashboard');
   return { error: null };
 }
 
@@ -203,4 +207,110 @@ export async function convertLeadToCustomer(id: string) {
   revalidatePath('/crm');
   revalidatePath('/customers');
   return { error: null };
+}
+
+
+export async function seedDemoLeads() {
+  const supabase = await createClient();
+
+  const { count, error: countError } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true });
+
+  if (countError) return { error: countError.message, inserted: 0 };
+  if ((count ?? 0) > 0) return { error: null, inserted: 0 };
+
+  const demoLeads = [
+    {
+      company: 'Sahara Textiles Ltd',
+      contact_name: 'Aisha Mohammed',
+      job_title: 'Procurement Lead',
+      email: 'aisha@saharatextiles.ng',
+      phone: '0803 221 4471',
+      source: 'Website',
+      priority: 'Hot',
+      status: 'New',
+      transport_mode: 'Trucks / Haulage',
+      origin: 'Lagos',
+      destination: 'Ibadan',
+      value: 980000,
+    },
+    {
+      company: 'Nova Retail Group',
+      contact_name: 'Daniel Okoro',
+      job_title: 'Operations Manager',
+      email: 'daniel@novaretail.ng',
+      phone: '0806 442 1188',
+      source: 'Referral',
+      priority: 'Warm',
+      status: 'Contacted',
+      transport_mode: 'Road Freight',
+      origin: 'Lagos',
+      destination: 'Abuja',
+      value: 1250000,
+    },
+    {
+      company: 'Ubuntu Foods Ltd',
+      contact_name: 'Chioma Eze',
+      job_title: 'Supply Chain Manager',
+      email: 'chioma@ubuntufoods.ng',
+      phone: '0814 550 2290',
+      source: 'Social Media',
+      priority: 'Hot',
+      status: 'Qualified',
+      transport_mode: 'Cold Chain',
+      origin: 'Lagos',
+      destination: 'Port Harcourt',
+      value: 1750000,
+    },
+    {
+      company: 'Kano Agro Supplies',
+      contact_name: 'Musa Abdullahi',
+      job_title: 'Logistics Coordinator',
+      email: 'musa@kanoagro.ng',
+      phone: '0802 774 6132',
+      source: 'Cold Call',
+      priority: 'Warm',
+      status: 'Proposal Sent',
+      transport_mode: 'Trucks / Haulage',
+      origin: 'Lagos',
+      destination: 'Kano',
+      value: 2100000,
+    },
+    {
+      company: 'BluePeak Manufacturing',
+      contact_name: 'Tunde Balogun',
+      job_title: 'Purchasing Manager',
+      email: 'tunde@bluepeak.ng',
+      phone: '0705 338 9011',
+      source: 'Trade Show',
+      priority: 'Hot',
+      status: 'Won',
+      transport_mode: 'Road Freight',
+      origin: 'Lagos',
+      destination: 'Benin City',
+      value: 3200000,
+    },
+    {
+      company: 'Greenfield Stores',
+      contact_name: 'Esther John',
+      job_title: 'Admin Manager',
+      email: 'esther@greenfield.ng',
+      phone: '0810 991 4402',
+      source: 'Other',
+      priority: 'Cold',
+      status: 'Lost',
+      transport_mode: 'Road Freight',
+      origin: 'Lagos',
+      destination: 'Ilorin',
+      value: 650000,
+    },
+  ];
+
+  const { error } = await supabase.from('leads').insert(demoLeads);
+  if (error) return { error: error.message, inserted: 0 };
+
+  revalidatePath('/crm');
+  revalidatePath('/dashboard');
+  return { error: null, inserted: demoLeads.length };
 }

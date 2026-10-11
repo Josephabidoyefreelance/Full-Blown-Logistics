@@ -8,62 +8,74 @@ function deriveStatus(qty: number) {
   return qty < LOW_STOCK_THRESHOLD ? 'Low stock' : 'In stock';
 }
 
-export async function createInventoryItem(formData: FormData) {
-  const supabase = await createClient();
+function text(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? '').trim();
+  return value || null;
+}
 
-  const sku = String(formData.get('sku') ?? '').trim();
-  const name = String(formData.get('name') ?? '').trim();
-  const qtyRaw = String(formData.get('qty') ?? '').trim();
-  const qty = qtyRaw ? Number(qtyRaw) : 0;
-  const reorderRaw = String(formData.get('reorder_level') ?? '').trim();
-  const reorder_level = reorderRaw ? Number(reorderRaw) : 0;
-  const location = String(formData.get('location') ?? '').trim() || null;
+function numberOrNull(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? '').trim();
+  if (!value) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
 
-  if (!sku || !name) return { error: 'SKU and item name are required.' };
+function generateSku() {
+  return `SKU-${Date.now().toString().slice(-8)}`;
+}
 
-  const { error } = await supabase.from('inventory_items').insert({
-    sku,
-    name,
+function buildPayload(formData: FormData) {
+  const qty = numberOrNull(formData, 'qty') ?? 0;
+  const reorder_level = numberOrNull(formData, 'reorder_level') ?? 0;
+
+  return {
+    sku: text(formData, 'sku') || generateSku(),
+    name: String(formData.get('name') ?? '').trim(),
+    description: text(formData, 'description'),
     qty,
     reorder_level,
-    location,
+    location: text(formData, 'location'),
+    storage_type: text(formData, 'storage_type') || 'Ambient',
+    zone: text(formData, 'zone'),
+    rack: text(formData, 'rack'),
+    bin: text(formData, 'bin'),
+    unit: text(formData, 'unit') || 'units',
+    batch_no: text(formData, 'batch_no'),
+    expiry_date: text(formData, 'expiry_date'),
+    supplier: text(formData, 'supplier'),
+    temperature_c: numberOrNull(formData, 'temperature_c'),
+    notes: text(formData, 'notes'),
     status: deriveStatus(qty),
-  });
+  };
+}
 
+export async function createInventoryItem(formData: FormData) {
+  const supabase = await createClient();
+  const payload = buildPayload(formData);
+
+  if (!payload.name) return { error: 'Item name is required.' };
+
+  const { error } = await supabase.from('inventory_items').insert(payload);
   if (error) return { error: error.message };
+
   revalidatePath('/warehouse');
+  revalidatePath('/dashboard');
   return { error: null };
 }
 
 export async function updateInventoryItem(formData: FormData) {
   const supabase = await createClient();
-
-  const id = String(formData.get('id') ?? '');
-  const sku = String(formData.get('sku') ?? '').trim();
-  const name = String(formData.get('name') ?? '').trim();
-  const qtyRaw = String(formData.get('qty') ?? '').trim();
-  const qty = qtyRaw ? Number(qtyRaw) : 0;
-  const reorderRaw = String(formData.get('reorder_level') ?? '').trim();
-  const reorder_level = reorderRaw ? Number(reorderRaw) : 0;
-  const location = String(formData.get('location') ?? '').trim() || null;
+  const id = String(formData.get('id') ?? '').trim();
+  const payload = buildPayload(formData);
 
   if (!id) return { error: 'Missing item id.' };
-  if (!sku || !name) return { error: 'SKU and item name are required.' };
+  if (!payload.sku || !payload.name) return { error: 'SKU and item name are required.' };
 
-  const { error } = await supabase
-    .from('inventory_items')
-    .update({
-      sku,
-      name,
-      qty,
-      reorder_level,
-      location,
-      status: deriveStatus(qty),
-    })
-    .eq('id', id);
-
+  const { error } = await supabase.from('inventory_items').update(payload).eq('id', id);
   if (error) return { error: error.message };
+
   revalidatePath('/warehouse');
+  revalidatePath('/dashboard');
   return { error: null };
 }
 
@@ -72,6 +84,8 @@ export async function deleteInventoryItem(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from('inventory_items').delete().eq('id', id);
   if (error) return { error: error.message };
+
   revalidatePath('/warehouse');
+  revalidatePath('/dashboard');
   return { error: null };
 }

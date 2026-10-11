@@ -27,7 +27,7 @@ export default function LeadPrioritySwitch({ id, priority }: { id: string; prior
         });
       }}
       style={{ backgroundColor: color + '22', color }}
-      className="rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none"
+      className="w-[76px] rounded-full border-0 px-2 py-1 text-xs font-semibold outline-none"
     >
       {PRIORITY_OPTIONS.map((p) => (
         <option key={p} value={p}>

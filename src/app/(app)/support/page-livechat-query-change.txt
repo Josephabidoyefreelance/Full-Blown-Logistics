@@ -1,0 +1,13 @@
+LIVE CHAT PAGE HEIGHT + DATA QUERY
+
+In the Support page, ensure the wrapper around LiveChatPanel is allowed to grow and shrink:
+<div className="min-h-0 flex-1">
+  {view === 'livechat' && (
+    <LiveChatPanel chats={chats?.data ?? []} messages={chatMessages?.data ?? []} />
+  )}
+</div>
+
+The live_chats query must include created_at because the panel displays each conversation's start time:
+select('id, customer_name, customer_email, customer_phone, status, created_at')
+
+Keep the existing live_chat_messages query ordered by created_at ascending. Do not delete or replace any customer chats when moving a conversation to Pending or Resolved.
