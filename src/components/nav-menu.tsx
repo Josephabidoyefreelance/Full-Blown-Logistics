@@ -47,6 +47,29 @@ const ICONS: Record<string, (props: IconProps) => JSX.Element> = {
       <path d="M3 10l9-6 9 6v10a1 1 0 01-1 1H4a1 1 0 01-1-1V10z" strokeLinejoin="round" /><path d="M9 21v-7h6v7" />
     </svg>
   ),
+  clock: ({ className }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  calendar: ({ className }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" strokeLinecap="round" />
+    </svg>
+  ),
+  bot: ({ className }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <path d="M12 3v3" strokeLinecap="round" /><circle cx="12" cy="3" r="1" />
+      <rect x="4" y="7" width="16" height="14" rx="3" />
+      <path d="M8 12h.01M16 12h.01M9 17h6" strokeLinecap="round" />
+    </svg>
+  ),
+  layers: ({ className }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
+      <path d="m12 3 9 5-9 5-9-5 9-5z" strokeLinejoin="round" />
+      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" strokeLinejoin="round" />
+    </svg>
+  ),
   banknote: ({ className }) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
       <rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="3" /><path d="M6 10v.01M18 14v.01" />

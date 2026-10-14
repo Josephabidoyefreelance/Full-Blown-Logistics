@@ -7,6 +7,7 @@ export type ModuleKey =
   | 'drivers'
   | 'warehouse'
   | 'finance'
+  | 'packages'
   | 'hr'
   | 'support'
   | 'reports'
@@ -41,6 +42,7 @@ export const NAV: { section: string; items: NavItem[] }[] = [
     section: 'Finance & People',
     items: [
       { key: 'finance', label: 'Finance', href: '/finance', icon: 'banknote', color: '#059669' },
+      { key: 'packages', label: 'Packages', href: '/packages', icon: 'layers', color: '#0d9488' },
       { key: 'hr', label: 'HR & Careers', href: '/hr', icon: 'briefcase', color: '#ec4899' },
     ],
   },

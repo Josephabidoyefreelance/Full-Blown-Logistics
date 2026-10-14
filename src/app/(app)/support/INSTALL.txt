@@ -1,8 +1,23 @@
-JAAD ERP Live Chat layout fix
+JAAD ERP — Support ticket update fix
 
-1. Back up the current live-chat-panel.tsx.
-2. Copy BOTH live-chat-panel.tsx and live-chat-panel.module.css from this folder into the same Support route folder as page.tsx and actions.ts.
-3. Keep page.tsx, actions.ts, the Knowledge Base components, and database policies unchanged.
-4. Restart the Next.js dev server and hard-refresh /support?view=livechat.
+IMPORTANT: the earlier ZIP corrected the controls and layout, but your screenshot shows Supabase is refusing to update a ticket. This package includes the missing database policy step as well.
 
-The CSS module explicitly sets the desktop two-column layout (left chat list ~28%, right conversation ~72%) so it does not depend on Tailwind generating an arbitrary grid class. On narrow screens it switches to the chat list or conversation view.
+FILES
+- src/app/(app)/support/page.tsx
+- src/app/(app)/support/actions.ts
+- src/app/(app)/support/switches.tsx
+- supabase/support-tickets-rls.sql
+
+INSTALL
+1. Back up the current Support files.
+2. Replace the three Support files in src/app/(app)/support/ with the versions in this package.
+3. Open Supabase Dashboard for the same project your local JAAD ERP uses.
+4. Open SQL Editor > New query.
+5. Open supabase/support-tickets-rls.sql from this package, copy its full contents into SQL Editor, and click Run.
+6. Restart the local Next.js server and reload /support?view=tickets.
+7. Test changing a ticket priority, resolving it, then reopening it.
+
+SECURITY NOTE
+The SQL policy allows any authenticated Supabase user to read and update the shared tickets queue. This is appropriate only if all authenticated JAAD ERP users are trusted staff allowed to manage support tickets. If access should be restricted to particular roles, the policy must be tied to your actual staff-role table; that schema was not included in support.zip, so no role name has been guessed here.
+
+The SQL policy does not use the Supabase service-role key and does not disable RLS. It grants access to authenticated users only.

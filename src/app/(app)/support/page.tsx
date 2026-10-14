@@ -194,18 +194,18 @@ function OpenTicketTable({
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       <table className="w-full min-w-[820px] table-fixed text-sm">
         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
-          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Priority</th><th className="w-[12%] px-4 py-2.5">Status</th>
+          <th className="w-[11%] px-3 py-2.5">Ticket</th><th className="w-[16%] px-3 py-2.5">Customer</th><th className="w-[33%] px-3 py-2.5">Subject</th>
+          <th className="w-[13%] px-3 py-2.5">Channel</th><th className="w-[13%] px-3 py-2.5">Priority</th><th className="w-[14%] px-3 py-2.5 text-right">Status</th>
         </tr></thead>
         <tbody>
           {rows.map((t) => (
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
-              <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
-              <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
-              <td className="px-4 py-2.5"><PrioritySwitch id={t.id} value={t.priority} /></td>
-              <td className="px-4 py-2.5"><TicketStatusSwitch id={t.id} value={t.status} /></td>
+              <td className="px-3 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
+              <td className="px-3 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
+              <td className="px-3 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
+              <td className="px-3 py-2.5"><ChannelBadge channel={t.channel} /></td>
+              <td className="px-3 py-2.5"><PrioritySwitch id={t.id} value={t.priority} /></td>
+              <td className="px-3 py-2.5 text-right"><TicketStatusSwitch id={t.id} value={t.status} /></td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={6} className="px-4 py-6 text-center text-neutral-400">None</td></tr>}
@@ -224,20 +224,20 @@ function ResolvedTicketTable({
     <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       <table className="w-full min-w-[820px] table-fixed text-sm">
         <thead><tr className="bg-neutral-50 text-left text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-          <th className="w-[12%] px-4 py-2.5">Ticket</th><th className="w-[18%] px-4 py-2.5">Customer</th><th className="w-[32%] px-4 py-2.5">Subject</th>
-          <th className="w-[13%] px-4 py-2.5">Channel</th><th className="w-[13%] px-4 py-2.5">Closed</th><th className="w-[12%] px-4 py-2.5">Status</th>
+          <th className="w-[11%] px-3 py-2.5">Ticket</th><th className="w-[16%] px-3 py-2.5">Customer</th><th className="w-[33%] px-3 py-2.5">Subject</th>
+          <th className="w-[13%] px-3 py-2.5">Channel</th><th className="w-[13%] px-3 py-2.5">Closed</th><th className="w-[14%] px-3 py-2.5 text-right">Status</th>
         </tr></thead>
         <tbody>
           {rows.map((t) => (
             <tr key={t.id} className="border-t border-neutral-100 dark:border-neutral-800">
-              <td className="px-4 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
-              <td className="px-4 py-2.5"><ChannelBadge channel={t.channel} /></td>
-              <td className="px-4 py-2.5 text-neutral-700 dark:text-neutral-300">
+              <td className="px-3 py-2.5 font-mono text-neutral-900 dark:text-neutral-100">{t.ticket_no}</td>
+              <td className="px-3 py-2.5 text-neutral-700 dark:text-neutral-300">{t.customer_name}</td>
+              <td className="px-3 py-2.5 text-neutral-700 dark:text-neutral-300"><div className="truncate font-medium" title={t.subject}>{t.subject}</div>{t.message && <div className="mt-0.5 truncate text-xs font-normal text-neutral-400" title={t.message}>{t.message}</div>}</td>
+              <td className="px-3 py-2.5"><ChannelBadge channel={t.channel} /></td>
+              <td className="px-3 py-2.5 text-neutral-700 dark:text-neutral-300">
                 {t.closed_at ? new Date(t.closed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014'}
               </td>
-              <td className="px-4 py-2.5"><TicketStatusSwitch id={t.id} value={t.status} /></td>
+              <td className="px-3 py-2.5 text-right"><TicketStatusSwitch id={t.id} value={t.status} /></td>
             </tr>
           ))}
           {!rows.length && <tr><td colSpan={6} className="px-4 py-6 text-center text-neutral-400">None</td></tr>}

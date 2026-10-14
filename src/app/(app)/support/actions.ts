@@ -7,11 +7,35 @@ import { Resend } from 'resend';
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function updateTicket(id: string, field: 'priority' | 'status', value: string) {
+  if (!id) return { error: 'Ticket ID is missing.' };
+
+  const allowedValues: Record<'priority' | 'status', readonly string[]> = {
+    priority: ['Low', 'Normal', 'High', 'Urgent'],
+    status: ['Open', 'Resolved'],
+  };
+  if (!allowedValues[field].includes(value)) {
+    return { error: `Invalid ticket ${field}.` };
+  }
+
   const supabase = await createClient();
-  const patch: Record<string, string> = { [field]: value };
-  if (field === 'status' && value === 'Resolved') patch.closed_at = new Date().toISOString();
-  const { error } = await supabase.from('tickets').update(patch).eq('id', id);
+  const patch: Record<string, string | null> = { [field]: value };
+  if (field === 'status') {
+    // Set the close timestamp on resolution and clear it when a ticket is reopened.
+    patch.closed_at = value === 'Resolved' ? new Date().toISOString() : null;
+  }
+
+  const { data, error } = await supabase
+    .from('tickets')
+    .update(patch)
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
+
   if (error) return { error: error.message };
+  if (!data) {
+    return { error: 'No ticket was updated. Check the tickets table permissions (Supabase RLS) for the signed-in user.' };
+  }
+
   revalidatePath('/support');
   return { error: null };
 }
@@ -152,16 +176,61 @@ export async function sendSupportSms(formData: FormData) {
 
 // ---------- Call ----------
 
-export async function logSupportCall(formData: FormData) {
+export async function logSupportCall(formData: FormData, status = 'Call attempt logged') {
   const supabase = await createClient();
 
   const number = String(formData.get('number') ?? '').trim();
   if (!number) return { error: 'Number is required.' };
 
-  const { error } = await supabase.from('support_calls').insert({
-    number,
-    status: 'Logged (no voice provider connected)',
-  });
+  const allowedStatuses = new Set([
+    'Call attempt logged',
+    'Initiated via Twilio',
+    'Ringing',
+    'Answered',
+    'Declined / Busy',
+    'Unanswered',
+    'Failed',
+    'Inbound Ringing',
+    'Inbound Answered',
+    'Inbound Missed',
+    'Inbound Declined',
+    'Inbound Failed',
+  ]);
+  const safeStatus = allowedStatuses.has(status) ? status : 'Call attempt logged';
+
+  const { data, error } = await supabase
+    .from('support_calls')
+    .insert({ number, status: safeStatus })
+    .select('id')
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath('/support');
+  return { error: null, id: data.id };
+}
+
+export async function updateSupportCallStatus(id: string, status: string) {
+  const supabase = await createClient();
+  const allowedStatuses = new Set([
+    'Ringing',
+    'Answered',
+    'Declined / Busy',
+    'Unanswered',
+    'Failed',
+    'Inbound Answered',
+    'Inbound Missed',
+    'Inbound Declined',
+    'Inbound Failed',
+  ]);
+
+  if (!id || !allowedStatuses.has(status)) {
+    return { error: 'Invalid call status update.' };
+  }
+
+  const { error } = await supabase
+    .from('support_calls')
+    .update({ status })
+    .eq('id', id);
 
   if (error) return { error: error.message };
   revalidatePath('/support');

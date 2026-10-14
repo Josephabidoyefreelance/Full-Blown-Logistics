@@ -14,6 +14,7 @@ type Sms = {
 };
 
 type SmsDraft = { id: string; to_number: string; message: string; updated_at: string };
+type SmsContact = { id: string; name: string; phone: string };
 type SmsTab = 'compose' | 'inbox' | 'sent' | 'drafts';
 
 const DRAFTS_KEY = 'jaad-support-sms-drafts-v1';
@@ -30,10 +31,13 @@ const tabClass = (active: boolean) =>
 export default function SmsPanel({
   history,
   inbox = [],
+  contacts = [],
 }: {
   history: Sms[];
   /** Populate this with inbound SMS rows fetched by the server page. */
   inbox?: Sms[];
+  /** CRM/Leads contacts with a usable phone number. */
+  contacts?: SmsContact[];
 }) {
   const [tab, setTab] = useState<SmsTab>('compose');
   const [isMinimized, setIsMinimized] = useState(false);
@@ -233,7 +237,7 @@ export default function SmsPanel({
       {tab === 'compose' && (
         <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           <h3 className="mb-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Send SMS</h3>
-          <p className="mb-4 text-xs text-neutral-400">Send a text message to a phone number.</p>
+          <p className="mb-4 text-xs text-neutral-400">Choose a CRM/Leads contact or enter any phone number manually.</p>
           {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
           <form
             ref={formRef}
@@ -258,9 +262,29 @@ export default function SmsPanel({
             }}
             className="space-y-3"
           >
+            {contacts.length > 0 && (
+              <div>
+                <label htmlFor="sms-contact" className="mb-1 block text-xs font-medium uppercase text-neutral-500">Choose CRM / Leads contact (optional)</label>
+                <select
+                  id="sms-contact"
+                  value=""
+                  onChange={(event) => {
+                    const selected = contacts.find((contact) => contact.id === event.target.value);
+                    if (selected) setToNumber(selected.phone);
+                  }}
+                  className={fieldClass}
+                >
+                  <option value="">Select a contact to fill their phone number…</option>
+                  {contacts.map((contact) => (
+                    <option key={contact.id} value={contact.id}>{contact.name} — {contact.phone}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-neutral-400">You can still edit the number below or type a number not saved in CRM.</p>
+              </div>
+            )}
             <div>
-              <label htmlFor="sms-to-number" className="mb-1 block text-xs font-medium uppercase text-neutral-500">To</label>
-              <input id="sms-to-number" name="to_number" value={toNumber} onChange={(event) => setToNumber(event.target.value)} required placeholder="08061234567" className={fieldClass} />
+              <label htmlFor="sms-to-number" className="mb-1 block text-xs font-medium uppercase text-neutral-500">To phone number</label>
+              <input id="sms-to-number" name="to_number" type="tel" autoComplete="tel" value={toNumber} onChange={(event) => setToNumber(event.target.value)} required placeholder="+2348012345678" className={fieldClass} />
             </div>
             <div>
               <label htmlFor="sms-message" className="mb-1 block text-xs font-medium uppercase text-neutral-500">Message</label>

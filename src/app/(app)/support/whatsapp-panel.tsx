@@ -1,137 +1,88 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { sendSupportWhatsapp } from './actions';
 
 type Wa = { id: string; to_number: string; message: string; direction: string; created_at: string };
+type CRMContact = { id?: string; name: string; phone: string; company?: string };
+const GREEN = '#00a884';
+const DARK = '#202c33';
+const isIncoming = (direction: string) => /inbound|incoming|received/i.test(direction || '');
+const time = (value: string) => { const d = new Date(value); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' }); };
+const dateLabel = (value: string) => { const d = new Date(value); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }); };
+const initials = (value: string) => value.replace(/\D/g, '').slice(-2) || 'WA';
 
-export default function WhatsappPanel({ history }: { history: Wa[] }) {
-  const [tab, setTab] = useState<'whatsapp' | 'log'>('whatsapp');
+function WaIcon({ size = 22, color = 'currentColor' }: { size?: number; color?: string }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} style={{ width: size, height: size, minWidth: size, minHeight: size, display: 'block', flexShrink: 0, color }} fill="currentColor"><path d="M12.04 2C6.53 2 2.05 6.48 2.05 11.99c0 1.76.46 3.48 1.34 5L2 22l5.16-1.35a10 10 0 0 0 4.88 1.25h.01c5.51 0 9.99-4.48 9.99-9.99A9.93 9.93 0 0 0 19.11 4.8 9.93 9.93 0 0 0 12.04 2Zm0 18.2h-.01a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.06.8.82-2.98-.2-.31a8.17 8.17 0 0 1-1.25-4.39c0-4.52 3.68-8.2 8.2-8.2a8.15 8.15 0 0 1 5.8 2.4 8.15 8.15 0 0 1 2.4 5.8c0 4.52-3.68 8.2-8.2 8.2Zm4.5-6.14c-.25-.13-1.48-.73-1.71-.81-.23-.08-.4-.13-.57.13-.17.25-.65.81-.8.98-.15.17-.3.19-.55.06-.25-.13-1.06-.39-2.02-1.24-.75-.67-1.25-1.5-1.4-1.75-.15-.25-.02-.39.11-.52.11-.11.25-.3.38-.45.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.45-.06-.13-.57-1.37-.78-1.87-.2-.49-.41-.42-.57-.43h-.49c-.17 0-.45.06-.68.32-.23.25-.89.87-.89 2.12s.91 2.46 1.04 2.63c.13.17 1.79 2.73 4.33 3.83.61.26 1.08.42 1.45.53.61.19 1.17.16 1.61.1.49-.07 1.48-.61 1.69-1.2.21-.59.21-1.1.15-1.2-.06-.11-.23-.17-.49-.3Z" /></svg>;
+}
+function SearchIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" style={{ width: 17, height: 17, minWidth: 17, display: 'block', flexShrink: 0, color: '#8696a0' }} fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4 4" strokeLinecap="round"/></svg>; }
+
+export default function WhatsappPanel({ history, crmContacts = [] }: { history: Wa[]; crmContacts?: CRMContact[] }) {
+  const [tab, setTab] = useState<'chats' | 'log'>('chats');
   const [toNumber, setToNumber] = useState('');
+  const [search, setSearch] = useState('');
+  const [draft, setDraft] = useState('');
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [theme, setTheme] = useState<'classic' | 'light' | 'dark'>('classic');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const thread = history.filter((h) => h.to_number === toNumber);
+  const contacts = useMemo(() => {
+    const map = new Map<string, { number: string; latest: Wa; count: number }>();
+    [...history].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).forEach((m) => {
+      const number = (m.to_number || '').trim();
+      if (number) map.set(number, { number, latest: m, count: (map.get(number)?.count || 0) + 1 });
+    });
+    return [...map.values()].sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
+  }, [history]);
+  const visibleContacts = contacts.filter((c) => `${c.number} ${c.latest.message}`.toLowerCase().includes(search.toLowerCase()));
+  const thread = history.filter((m) => m.to_number === toNumber).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  function chooseChat(number: string) { setToNumber(number); setShowNewChat(false); setError(null); }
+  function submitNewChat() { if (!toNumber.trim()) { setError('Enter the customer WhatsApp number first.'); return; } setToNumber(toNumber.trim()); setShowNewChat(false); setError(null); }
 
-  return (
-    <div>
-      <div className="mb-4 flex gap-2">
-        {(['whatsapp', 'log'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${
-              tab === t ? 'bg-red-600 text-white' : 'border border-neutral-300 text-neutral-700 dark:border-neutral-700 dark:text-neutral-300'
-            }`}
-          >
-            {t === 'whatsapp' ? 'WhatsApp' : 'Chat log'}
-          </button>
-        ))}
-      </div>
+  const root: React.CSSProperties = { display: 'flex', flexDirection: 'column', width: '100%', height: 'calc(100dvh - 120px)', minHeight: 560, maxHeight: 'calc(100dvh - 90px)', overflow: 'hidden', borderRadius: 10, border: '1px solid #d1d7db', background: '#f0f2f5', boxShadow: '0 2px 8px rgba(11,20,26,.10)', color: '#111b21', fontFamily: 'Arial, Helvetica, sans-serif' };
+  const iconButton: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, border: 0, borderRadius: 18, background: 'transparent', color: '#54656f', cursor: 'pointer', flexShrink: 0 };
+  const field: React.CSSProperties = { width: '100%', minWidth: 0, border: 0, outline: 'none', background: 'transparent', color: theme === 'dark' ? '#e9edef' : '#111b21', fontSize: 12 };
+  const chatBg = theme === 'dark' ? '#111b21' : theme === 'light' ? '#ffffff' : '#efeae2';
+  const chatInk = theme === 'dark' ? '#e9edef' : '#111b21';
+  const filteredCrmContacts = crmContacts.filter((c) => `${c.name} ${c.phone} ${c.company || ''}`.toLowerCase().includes(contactSearch.toLowerCase()));
 
-      {tab === 'whatsapp' && (
-        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-          <h3 className="mb-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">WhatsApp</h3>
-          <p className="mb-4 text-xs text-neutral-400">
-            Messages stay inside the ERP. Connect WhatsApp Business Cloud API/webhooks for real inbound and outbound traffic.
-          </p>
+  return <section style={root}>
+    <header style={{ height: 58, minHeight: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 18px', background: '#f0f2f5', borderBottom: '1px solid #d9e0e4' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}><div style={{ width: 38, height: 38, borderRadius: 20, background: GREEN, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><WaIcon size={23} /></div><div style={{ minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700, lineHeight: '19px' }}>WhatsApp Business</div><div style={{ fontSize: 11, color: '#667781', lineHeight: '16px' }}>JAAD Logistics · Customer conversations</div></div></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><button type="button" onClick={() => setTab('chats')} style={{ ...iconButton, background: tab === 'chats' ? '#d9fdd3' : 'transparent', color: tab === 'chats' ? '#075e54' : '#54656f', fontSize: 11, fontWeight: 700, width: 68, borderRadius: 7 }}>Chats</button><button type="button" onClick={() => setTab('log')} style={{ ...iconButton, background: tab === 'log' ? '#d9fdd3' : 'transparent', color: tab === 'log' ? '#075e54' : '#54656f', fontSize: 11, fontWeight: 700, width: 92, borderRadius: 7 }}>Message log</button></div>
+    </header>
 
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+    {tab === 'chats' ? <div style={{ display: 'grid', gridTemplateColumns: 'minmax(230px, 290px) minmax(0, 1fr)', minHeight: 0, flex: 1, overflow: 'hidden' }}>
+      <aside style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: '#fff', borderRight: '1px solid #d9e0e4' }}>
+        <div style={{ height: 56, minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 15px' }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111b21' }}>Chats</h3><button type="button" title="Message a CRM contact" onClick={() => { setShowContactPicker(true); setContactSearch(''); setError(null); }} style={{ ...iconButton, background: '#d9fdd3', color: '#008069', fontSize: 22 }}>＋</button></div>
+        <div style={{ padding: '0 12px 11px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 9, height: 36, padding: '0 11px', borderRadius: 8, background: '#f0f2f5' }}><SearchIcon /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search or start a new chat" aria-label="Search chats" style={field} /></div></div>
+        {showContactPicker && <div style={{ margin: '0 11px 10px', padding: 11, border: '1px solid #ccefe4', borderRadius: 9, background: '#f4fbf8' }}><label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 7 }}>Choose a CRM contact</label><input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Search name, company or phone" style={{ ...field, boxSizing: 'border-box', background: '#fff', border: '1px solid #d1d7db', borderRadius: 6, padding: '9px 10px', color: '#111b21' }} /><div style={{ maxHeight: 150, overflowY: 'auto', marginTop: 6 }}>{filteredCrmContacts.map((c) => <button key={c.id || c.phone} type="button" onClick={() => { chooseChat(c.phone); setShowContactPicker(false); }} style={{ width: '100%', display: 'block', border: 0, borderRadius: 6, background: '#fff', padding: '8px', marginTop: 4, textAlign: 'left', cursor: 'pointer', color: '#111b21' }}><span style={{ display: 'block', fontSize: 12, fontWeight: 700 }}>{c.name}</span><span style={{ display: 'block', fontSize: 10, color: '#667781' }}>{c.company ? `${c.company} · ` : ''}{c.phone}</span></button>)}{!filteredCrmContacts.length && <div style={{ padding: 8, color: '#667781', fontSize: 11 }}>{crmContacts.length ? 'No matching contacts.' : 'CRM contacts are not connected to this panel yet. You can start a chat by entering a number below.'}</div>}</div><button type="button" onClick={() => setShowContactPicker(false)} style={{ border: 0, background: 'transparent', color: '#667781', padding: '7px 0 0', fontSize: 11, cursor: 'pointer' }}>Close</button></div>}
+        {showNewChat && <div style={{ margin: '0 11px 10px', padding: 11, border: '1px solid #ccefe4', borderRadius: 9, background: '#f4fbf8' }}><label style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 7 }}>New conversation</label><input value={toNumber} onChange={(e) => setToNumber(e.target.value)} placeholder="Customer number, e.g. +234..." style={{ ...field, boxSizing: 'border-box', background: '#fff', border: '1px solid #d1d7db', borderRadius: 6, padding: '9px 10px' }} /><div style={{ display: 'flex', gap: 7, marginTop: 8 }}><button type="button" onClick={submitNewChat} style={{ border: 0, borderRadius: 6, background: '#008069', color: '#fff', padding: '7px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Open chat</button><button type="button" onClick={() => setShowNewChat(false)} style={{ border: 0, background: 'transparent', color: '#667781', padding: '7px 8px', fontSize: 11, cursor: 'pointer' }}>Cancel</button></div></div>}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>{visibleContacts.map((contact) => <button type="button" key={contact.number} onClick={() => chooseChat(contact.number)} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 11, border: 0, borderBottom: '1px solid #f0f2f5', background: toNumber === contact.number ? '#f0f2f5' : '#fff', padding: '12px 13px', textAlign: 'left', cursor: 'pointer', minHeight: 74 }}><span style={{ width: 45, height: 45, borderRadius: 24, background: '#d9fdd3', color: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials(contact.number)}</span><span style={{ flex: 1, minWidth: 0, display: 'block' }}><span style={{ display: 'flex', justifyContent: 'space-between', gap: 5, alignItems: 'center' }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 600, color: '#111b21' }}>{contact.number}</span><span style={{ color: '#667781', fontSize: 10, flexShrink: 0 }}>{time(contact.latest.created_at)}</span></span><span style={{ display: 'block', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#667781', fontSize: 11 }}>{contact.latest.message}</span></span></button>)}{!visibleContacts.length && <div style={{ padding: '32px 18px', textAlign: 'center', color: '#667781' }}><div style={{ width: 46, height: 46, margin: '0 auto 12px', borderRadius: 24, background: '#d9fdd3', color: '#008069', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><WaIcon size={25} /></div><div style={{ fontSize: 13, fontWeight: 700, color: '#3b4a54' }}>No conversations yet</div><p style={{ fontSize: 11, lineHeight: 1.6 }}>Choose a saved conversation or start a new chat with a customer.</p><button type="button" onClick={() => setShowNewChat(true)} style={{ border: 0, borderRadius: 20, background: '#008069', color: '#fff', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>＋ New chat</button></div>}</div>
+        <div style={{ borderTop: '1px solid #e9edef', padding: '10px 14px', color: '#8696a0', fontSize: 10 }}>{contacts.length} conversation{contacts.length === 1 ? '' : 's'}</div>
+      </aside>
 
-          <div className="mb-3">
-            <label className="mb-1 block text-xs font-medium uppercase text-neutral-500">To</label>
-            <input
-              value={toNumber}
-              onChange={(e) => setToNumber(e.target.value)}
-              placeholder="2347075688573"
-              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-            />
+      <main style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', background: '#efeae2' }}>
+        {toNumber ? <>
+          <div style={{ height: 58, minHeight: 58, display: 'flex', alignItems: 'center', gap: 11, padding: '0 18px', background: theme === 'dark' ? '#202c33' : '#f0f2f5', color: chatInk, borderBottom: '1px solid #d9e0e4' }}><div style={{ width: 39, height: 39, borderRadius: 24, background: '#d9fdd3', color: '#075e54', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{initials(toNumber)}</div><div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{toNumber}</div><div style={{ fontSize: 10, color: theme === 'dark' ? '#aebac1' : '#667781', marginTop: 3 }}>WhatsApp conversation</div></div><div style={{ marginLeft: 'auto', display: 'flex', gap: 3, alignItems: 'center' }}><button type="button" title="Search in conversation" style={{ ...iconButton, color: theme === 'dark' ? '#d1d7db' : '#54656f' }}><SearchIcon /></button><button type="button" title="WhatsApp voice call" onClick={() => setError('WhatsApp voice calling needs WhatsApp Business Calling API support enabled for this account. This button is ready in the interface, but cannot place a real call until that integration is configured.')} style={{ ...iconButton, color: '#008069' }}><svg viewBox="0 0 24 24" width="21" height="21" style={{ width: 21, height: 21, display: 'block' }} fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 11.2 19a19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 8.9a16 16 0 0 0 6 6l1.2-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.8 2.1Z" strokeLinecap="round" strokeLinejoin="round"/></svg></button><div style={{ position: 'relative' }}><button type="button" title="More options" onClick={() => setShowMore((v) => !v)} style={{ ...iconButton, fontSize: 20, color: theme === 'dark' ? '#d1d7db' : '#54656f' }}>⋮</button>{showMore && <div style={{ position: 'absolute', right: 0, top: 38, zIndex: 5, width: 190, padding: 5, borderRadius: 9, background: '#fff', boxShadow: '0 5px 22px rgba(0,0,0,.18)', border: '1px solid #e9edef' }}>{[['Classic WhatsApp', 'classic'], ['Light chat', 'light'], ['Dark chat', 'dark']].map(([label, value]) => <button key={value} type="button" onClick={() => { setTheme(value as 'classic' | 'light' | 'dark'); setShowMore(false); }} style={{ display: 'block', width: '100%', border: 0, borderRadius: 6, padding: '9px 10px', background: theme === value ? '#d9fdd3' : '#fff', color: '#111b21', textAlign: 'left', fontSize: 12, cursor: 'pointer' }}>{label}{theme === value ? ' ✓' : ''}</button>)}<button type="button" onClick={() => { setShowMore(false); setShowNewChat(true); }} style={{ display: 'block', width: '100%', border: 0, borderRadius: 6, padding: '9px 10px', background: '#fff', color: '#111b21', textAlign: 'left', fontSize: 12, cursor: 'pointer' }}>Message another number</button><button type="button" onClick={() => { setShowMore(false); setShowContactPicker(true); }} style={{ display: 'block', width: '100%', border: 0, borderRadius: 6, padding: '9px 10px', background: '#fff', color: '#111b21', textAlign: 'left', fontSize: 12, cursor: 'pointer' }}>Message a CRM contact</button></div>}</div></div></div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px clamp(12px, 3vw, 32px)', display: 'flex', flexDirection: 'column', gap: 7, backgroundColor: chatBg, color: chatInk, backgroundImage: theme === 'dark' ? 'radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px)' : 'radial-gradient(rgba(17,27,33,.045) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+            {!thread.length && <div style={{ alignSelf: 'center', marginTop: 12, padding: '7px 12px', borderRadius: 7, background: '#fff4c4', color: '#54656f', fontSize: 10, textAlign: 'center', boxShadow: '0 1px 1px rgba(0,0,0,.05)' }}>This is the start of your conversation with {toNumber}.</div>}
+            {thread.map((message, index) => { const incoming = isIncoming(message.direction); const showDate = index === 0 || dateLabel(thread[index - 1].created_at) !== dateLabel(message.created_at); return <div key={message.id} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>{showDate && <div style={{ alignSelf: 'center', padding: '6px 10px', margin: '5px 0', borderRadius: 7, background: '#fff', color: '#54656f', fontSize: 10, boxShadow: '0 1px 1px rgba(0,0,0,.06)' }}>{dateLabel(message.created_at)}</div>}<div style={{ display: 'flex', justifyContent: incoming ? 'flex-start' : 'flex-end' }}><div style={{ maxWidth: 'min(78%, 640px)', padding: '8px 10px 5px', borderRadius: incoming ? '8px 8px 8px 2px' : '8px 8px 2px 8px', background: incoming ? (theme === 'dark' ? '#202c33' : '#fff') : '#d9fdd3', color: incoming && theme === 'dark' ? '#e9edef' : '#111b21', boxShadow: '0 1px 1px rgba(11,20,26,.12)', overflowWrap: 'anywhere' }}><div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.45 }}>{message.message}</div><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 3, color: '#667781', fontSize: 9 }}><span>{time(message.created_at)}</span>{!incoming && <svg aria-label="Sent" viewBox="0 0 18 12" width="16" height="11" style={{ width: 16, height: 11, display: 'block', flexShrink: 0, color: '#53a6c0' }} fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m1 6 3 3 6-6M7 6l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/></svg>}</div></div></div></div>; })}<div ref={bottomRef} />
           </div>
-
-          <div className="mb-3 max-h-64 overflow-y-auto rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-            {thread.length === 0 && (
-              <div className="py-6 text-center text-sm text-neutral-400">No messages in this chat yet.</div>
-            )}
-            {thread.map((m) => (
-              <div key={m.id} className="mb-2 ml-auto max-w-[70%] rounded-lg bg-green-600 px-3 py-2 text-sm text-white">
-                {m.message}
-              </div>
-            ))}
-          </div>
-
-          <form
-            ref={formRef}
-            action={(fd) => {
-              if (!toNumber.trim()) {
-                setError('Enter a recipient number first.');
-                return;
-              }
-              fd.set('to_number', toNumber);
-              setError(null);
-              startTransition(async () => {
-                const res = await sendSupportWhatsapp(fd);
-                if (res?.error) {
-                  setError(res.error);
-                  return;
-                }
-                formRef.current?.reset();
-                router.refresh();
-              });
-            }}
-            className="space-y-3"
-          >
-            <div>
-              <label className="mb-1 block text-xs font-medium uppercase text-neutral-500">Message</label>
-              <textarea
-                name="message"
-                rows={3}
-                placeholder="Type WhatsApp message"
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled
-                className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-400 dark:border-neutral-700"
-                title="File attachments require a WhatsApp Business API connection"
-              >
-                Attach file
-              </button>
-              <button
-                type="submit"
-                disabled={isPending}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {isPending ? 'Sending...' : 'Send WhatsApp'}
-              </button>
-            </div>
+          <form ref={formRef} action={(fd) => { const number = toNumber.trim(); const message = String(fd.get('message') || '').trim(); if (!number) { setError('Enter a recipient number first.'); return; } if (!message) { setError('Type a message before sending.'); return; } fd.set('to_number', number); fd.set('message', message); setError(null); startTransition(async () => { const result = await sendSupportWhatsapp(fd); if (result?.error) { setError(result.error); return; } setDraft(''); formRef.current?.reset(); router.refresh(); }); }} style={{ flexShrink: 0, padding: '10px 13px', background: theme === 'dark' ? '#202c33' : '#f0f2f5', color: chatInk, borderTop: '1px solid #d9e0e4' }}>
+            {error && <div role="alert" style={{ margin: '0 0 8px', padding: '8px 10px', borderRadius: 7, background: '#fff0f0', color: '#b42318', fontSize: 11 }}>{error}</div>}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, borderRadius: 10, padding: '4px 6px', background: theme === 'dark' ? '#111b21' : '#fff', border: '1px solid #e3e8eb' }}><button type="button" disabled title="Media sending requires WhatsApp Business API media integration" style={{ ...iconButton, color: '#667781', height: 38 }}><svg viewBox="0 0 24 24" width="21" height="21" style={{ width: 21, height: 21, display: 'block' }} fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m21.4 11.1-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9.2-9.2a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.2a1.9 1.9 0 0 1-2.6-2.6l8.5-8.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button><textarea name="message" rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); formRef.current?.requestSubmit(); } }} placeholder="Type a message" style={{ flex: 1, minWidth: 0, minHeight: 38, maxHeight: 110, resize: 'vertical', border: 0, outline: 'none', padding: '10px 3px', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.4, background: 'transparent', color: chatInk }} /><button type="submit" disabled={isPending || !draft.trim() || !toNumber.trim()} title="Send message" style={{ width: 39, height: 39, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 21, background: GREEN, color: '#fff', cursor: 'pointer', opacity: isPending || !draft.trim() || !toNumber.trim() ? .55 : 1 }}><svg viewBox="0 0 24 24" width="20" height="20" style={{ width: 20, height: 20, display: 'block' }} fill="currentColor"><path d="M3.4 20.4 22 12 3.4 3.6 3 10l13 2-13 2 .4 6.4Z"/></svg></button></div><div style={{ padding: '5px 4px 0', color: '#8696a0', fontSize: 10 }}>Enter sends · Shift+Enter adds a new line</div>
           </form>
-        </div>
-      )}
-
-      {tab === 'log' && (
-        <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="min-w-[600px]">
-            <div className="grid grid-cols-[180px_1fr_140px] items-center justify-between bg-neutral-50 px-5 py-3 text-[11px] uppercase text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-              <div>To</div>
-              <div>Message</div>
-              <div className="text-right">Date</div>
-            </div>
-            {history.map((m) => (
-              <div key={m.id} className="grid grid-cols-[180px_1fr_140px] items-center justify-between border-t border-neutral-100 px-5 py-3 text-sm dark:border-neutral-800">
-                <div className="truncate text-neutral-700 dark:text-neutral-300">{m.to_number}</div>
-                <div className="truncate text-neutral-900 dark:text-neutral-100">{m.message}</div>
-                <div className="text-right text-xs text-neutral-400">{new Date(m.created_at).toLocaleDateString()}</div>
-              </div>
-            ))}
-            {!history.length && <div className="px-5 py-8 text-center text-neutral-400">No WhatsApp messages yet.</div>}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+        </> : <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: 24, textAlign: 'center', color: '#667781', backgroundColor: chatBg, color: chatInk, backgroundImage: theme === 'dark' ? 'radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px)' : 'radial-gradient(rgba(17,27,33,.045) 1px, transparent 1px)', backgroundSize: '20px 20px' }}><div style={{ width: 76, height: 76, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 40, background: GREEN, color: '#fff', marginBottom: 16 }}><WaIcon size={40} /></div><div style={{ fontSize: 17, fontWeight: 700, color: '#41525d' }}>WhatsApp for JAAD Logistics</div><p style={{ maxWidth: 330, fontSize: 12, lineHeight: 1.7 }}>Select a conversation or start a new chat with a customer.</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}><button type="button" onClick={() => setShowContactPicker(true)} style={{ border: 0, borderRadius: 22, background: '#008069', color: '#fff', padding: '10px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>＋ Message a contact</button><button type="button" onClick={() => setShowNewChat(true)} style={{ border: '1px solid #cfd8dc', borderRadius: 22, background: '#fff', color: '#075e54', padding: '10px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enter number</button></div></div>}
+      </main>
+    </div> : <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff' }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 220px) minmax(0,1fr) 150px 90px', gap: 10, padding: '13px 16px', background: '#f0f2f5', color: '#667781', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}><span>Contact</span><span>Message</span><span>Date</span><span>Direction</span></div>{[...history].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((m) => <button type="button" key={m.id} onClick={() => { chooseChat(m.to_number); setTab('chats'); }} style={{ display: 'grid', width: '100%', gridTemplateColumns: 'minmax(150px, 220px) minmax(0,1fr) 150px 90px', gap: 10, padding: '13px 16px', border: 0, borderBottom: '1px solid #e9edef', background: '#fff', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{m.to_number}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#667781' }}>{m.message}</span><span style={{ color: '#667781', fontSize: 11 }}>{dateLabel(m.created_at)} · {time(m.created_at)}</span><span style={{ color: isIncoming(m.direction) ? '#027eb5' : '#008069', fontSize: 11, fontWeight: 700 }}>{isIncoming(m.direction) ? 'Received' : 'Sent'}</span></button>)}{!history.length && <div style={{ padding: 50, textAlign: 'center', color: '#667781', fontSize: 12 }}>No WhatsApp message history yet.</div>}</div>}
+  </section>;
 }

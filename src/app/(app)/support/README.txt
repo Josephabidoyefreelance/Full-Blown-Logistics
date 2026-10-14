@@ -1,33 +1,16 @@
-JAAD ERP CALL CENTRE — JSON/API ERROR FIX
+JAAD call button + Twilio console-error fix
+==========================================
 
-This package includes the Twilio Voice integration files plus a fix for the exact error:
-Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+Replace only:
+src/app/(app)/support/call-panel.tsx
 
-The call panel now handles HTML/non-JSON API responses safely and displays a useful message instead of crashing while parsing JSON.
+The included actions.ts is unchanged from the previous package; you do not need to replace it unless you want the matching copy.
 
-INSTALL
-1. Back up your existing app/support/call-panel.tsx.
-2. Copy the files in this package into the matching locations in your project, preserving the folders:
-   app/support/call-panel.tsx
-   app/api/twilio/token/route.ts
-   app/api/twilio/voice/route.ts
-   app/api/twilio/status/route.ts
-3. Open actions-logSupportCall.patch.ts and apply its small change to the existing logSupportCall function in app/support/actions.ts. Do NOT replace your entire actions.ts file.
-4. Ensure npm install twilio @twilio/voice-sdk has completed.
-5. Set Twilio credentials in .env.local only. Never put credentials in client-side code or share them in chat.
-6. Stop and restart the dev server: Ctrl+C, then npm run dev.
-7. If the error message says the API route returned HTML, check the terminal where npm run dev is running. The improved message also tells you if the route is missing.
+This patch:
+- Changes the visible call action to a WhatsApp-style circular green handset button.
+- Changes the active-call action to a circular red end-call handset button.
+- Adds a synchronous dialing lock so rapid taps cannot start duplicate calls while Twilio connect is pending.
+- Sets Twilio Voice SDK logging to silent to stop its gateway General Error console log from opening the Next.js red development overlay. App-level setup errors are still shown through the existing UI.
+- Does not change dashboard cards, colours, card dimensions, keypad layout, or Recent Calls styling.
 
-REQUIRED SERVER-ONLY ENVIRONMENT VARIABLES
-TWILIO_ACCOUNT_SID=
-TWILIO_API_KEY_SID=
-TWILIO_API_KEY_SECRET=
-TWILIO_AUTH_TOKEN=
-TWILIO_TWIML_APP_SID=
-TWILIO_CALLER_ID=
-
-IMPORTANT
-- This patch was not built against your complete local project, because that project folder is not available in this session. It fixes the unsafe JSON parsing and includes the needed route files, but it is not represented as a verified end-to-end call test.
-- TwiML App Voice Request URL must point to your public HTTPS host at /api/twilio/voice (POST). Localhost alone is not reachable by Twilio.
-- The included voice route does not validate Twilio request signatures. Treat this as a development patch, not production-ready until signature validation and rate limiting are added.
-- If you previously pasted Twilio secrets in chat, rotate them before using them.
+After replacing the file, restart the local Next.js dev server and test once. The UI patch cannot fix an underlying Twilio gateway/network failure, but it prevents the SDK's routine console log from being surfaced as a fatal-looking Next.js overlay.

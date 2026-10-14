@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import DashboardLiveRefresh from './live-refresh';
+import DashboardAnnouncements from './announcements-panel';
 
 type StatusCount = Record<string, number>;
 
@@ -589,6 +590,8 @@ export default async function DashboardPage({
 
         {activeView === 'overview' ? (
           <>
+            <DashboardAnnouncements />
+
             <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
               <div className="mb-3 flex items-end justify-between">
                 <div>
