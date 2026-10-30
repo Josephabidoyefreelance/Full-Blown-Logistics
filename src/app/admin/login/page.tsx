@@ -30,6 +30,7 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  const requiresCaptcha = process.env.NODE_ENV !== 'development';
 
   const renderCaptcha = useCallback(() => {
     if (!siteKey || !captchaContainer.current || !window.turnstile || widgetId.current) return;
@@ -45,7 +46,7 @@ export default function AdminLoginPage() {
   }, [siteKey]);
 
   useEffect(() => {
-    if (!siteKey) return;
+    if (!requiresCaptcha || !siteKey) return;
     if (window.turnstile) { renderCaptcha(); return; }
     const script = document.querySelector<HTMLScriptElement>('script[data-jaad-turnstile="true"]');
     if (script) {
@@ -58,7 +59,7 @@ export default function AdminLoginPage() {
     el.onerror = () => setCaptchaError('Cloudflare could not load. Check your site key and internet connection.');
     document.head.appendChild(el);
     return () => { el.onload = null; };
-  }, [siteKey, renderCaptcha]);
+  }, [siteKey, renderCaptcha, requiresCaptcha]);
 
   useEffect(() => () => {
     if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
@@ -68,10 +69,11 @@ export default function AdminLoginPage() {
     event.preventDefault();
     setError('');
     if (!authorized) { setError('Confirm that you are authorized to access the admin portal.'); return; }
-    if (!siteKey) { setError('Cloudflare is not configured. Add NEXT_PUBLIC_TURNSTILE_SITE_KEY.'); return; }
-    if (!captchaToken) { setError('Complete the Cloudflare security check first.'); return; }
+    if (requiresCaptcha && !siteKey) { setError('Cloudflare is not configured.'); return; }
+    if (requiresCaptcha && !captchaToken) { setError('Complete the Cloudflare security check first.'); return; }
     setLoading(true);
     try {
+      if (requiresCaptcha) {
       const verify = await fetch('/api/security/turnstile', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: captchaToken, action: 'admin_login' }),
@@ -83,8 +85,30 @@ export default function AdminLoginPage() {
         setCaptchaToken('');
         return;
       }
+      }
       const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (authError) { setError('Sign-in failed. Check your email and password.'); return; }
+      if (authError) {
+        console.error('JAAD admin Supabase authentication failed:', { code: authError.code, status: authError.status, message: authError.message });
+        setError(authError.message || 'Sign-in failed. Check your email and password.');
+        return;
+      }
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (sessionError || !accessToken) {
+        setError('Sign-in succeeded, but your session is not ready. Please try again.');
+        return;
+      }
+      const checkResponse = await fetch('/api/admin/session-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken }),
+        cache: 'no-store',
+      });
+      if (!checkResponse.ok) {
+        const checkResult = await checkResponse.json().catch(() => ({}));
+        setError(typeof checkResult.error === 'string' ? checkResult.error : 'Administrator verification failed.');
+        return;
+      }
       router.replace('/dashboard');
       router.refresh();
     } catch {
@@ -95,47 +119,33 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="jaad-auth-page">
-      <style jsx>{`
-        .jaad-auth-page{min-height:100svh;display:flex;align-items:center;justify-content:center;position:relative;overflow:auto;padding:92px 18px 36px;background:radial-gradient(ellipse at 84% 8%,rgba(143,22,25,.42),transparent 42%),radial-gradient(ellipse at 12% 90%,rgba(36,36,40,.25),transparent 42%),#09090b;color:#111114}
-        .jaad-back{position:fixed!important;left:20px!important;top:20px!important;z-index:10000!important;display:inline-flex!important;align-items:center!important;gap:8px!important;padding:10px 15px!important;border:1px solid #ff6b64!important;border-radius:999px!important;background:#e5231b!important;color:#fff!important;text-decoration:none!important;font-size:13px!important;font-weight:800!important;line-height:1.2!important;box-shadow:0 4px 18px #0008!important;visibility:visible!important;opacity:1!important;filter:none!important}
-        .jaad-back:hover{background:#c91c16!important;color:#fff!important}
-        .jaad-back:focus-visible{outline:3px solid #e5231b!important;outline-offset:3px!important}
-        .jaad-card{position:relative;z-index:1;width:min(100%,430px);background:#fff;border:1px solid #e3e3e7;border-radius:22px;box-shadow:0 24px 80px #0008;padding:0 0 27px;display:flex;flex-direction:column;overflow:hidden}
-        .jaad-logo{display:block!important;object-fit:contain!important;object-position:center!important;margin:0 auto!important;width:132px!important;height:86px!important;max-width:100%!important;object-fit:contain!important;object-position:center!important;margin:0 auto!important;position:relative!important;z-index:1!important;filter:drop-shadow(0 2px 10px #0008)!important}
-        .jaad-card-header{height:116px!important;min-height:116px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#09090b!important;padding:12px 24px!important;border-bottom:1px solid #242428!important;overflow:hidden!important;position:relative!important}
-        .jaad-card-content{padding:26px 32px 0}
-        .jaad-eyebrow{font-size:9px;letter-spacing:.2em;font-weight:800;text-transform:uppercase;color:#e5231b;text-align:center;margin:0}
-        .jaad-heading{font-size:25px;line-height:1.15;letter-spacing:-.035em;font-weight:850;text-align:center;margin:8px 0 0;color:#111114}
-        .jaad-subtitle{font-size:11px;line-height:1.55;color:#686872;text-align:center;margin:8px 0 0}
-        .jaad-label{display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#62626b;margin:0 0 7px}
-        .jaad-input{width:100%;box-sizing:border-box;border:1px solid #d8dbe2;border-radius:10px;background:#eaf1ff;padding:12px;font-size:12px;color:#111114;outline:none}
-        .jaad-input:focus{border-color:#e5231b;box-shadow:0 0 0 3px #e5231b18}
-        .jaad-submit{width:100%;border:0;border-radius:9px;background:#e5231b;color:#fff;font-weight:800;font-size:12px;padding:13px;cursor:pointer;transition:background .2s}
-        .jaad-submit:hover{background:#c91c16}
-        .jaad-submit:disabled{opacity:.6;cursor:not-allowed}
-        .jaad-foot{font-size:10px;line-height:1.5;text-align:center;color:#62626b;margin:17px 0 0}
-        @media(max-width:480px){.jaad-auth-page{padding:84px 14px 24px}.jaad-card{padding:0 0 23px;border-radius:19px}.jaad-card-content{padding:24px 22px 0}.jaad-card-header{height:106px!important;min-height:106px!important;padding:10px 20px!important}.jaad-logo{width:122px!important;height:82px!important}.jaad-heading{font-size:23px}.jaad-back{left:14px!important;top:14px!important}}
-      `}</style>
-      <Link href="/" className="jaad-back" aria-label="Back to website" style={{ position: "fixed", left: 20, top: 20, zIndex: 10000, display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 16px", border: "1px solid #ff6b64", borderRadius: 999, background: "#e5231b", color: "#ffffff", textDecoration: "none", fontSize: 13, fontWeight: 800, lineHeight: 1.2, boxShadow: "0 6px 24px rgba(0,0,0,.55)" }}>← <span>Back to website</span></Link>
-      <section className="jaad-card" aria-labelledby="admin-login-title">
-        <div className="jaad-card-header"><Image src="/logo.png" alt="JAAD Logistics" width={156} height={116} className="jaad-logo" priority /></div>
-        <div className="jaad-card-content">
-        <p className="jaad-eyebrow">Staff only</p>
-        <h1 id="admin-login-title" className="jaad-heading">Sign in to administration</h1>
-        <p className="jaad-subtitle">Secure access for authorised JAAD Logistics staff.</p>
-        <form onSubmit={signIn} style={{display:'grid',gap:15,marginTop:24}}>
-          <div><label className="jaad-label" htmlFor="admin-email">Email</label><input className="jaad-input" id="admin-email" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} /></div>
-          <div><label className="jaad-label" htmlFor="admin-password">Password</label><div style={{position:'relative'}}><input className="jaad-input" id="admin-password" type={showPassword?'text':'password'} autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} style={{paddingRight:55}}/><button type="button" onClick={()=>setShowPassword(v=>!v)} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',fontSize:10,color:'#62626b',background:'transparent',border:0,cursor:'pointer'}}>{showPassword?'Hide':'Show'}</button></div></div>
-          <label style={{display:'flex',gap:7,alignItems:'center',fontSize:10.5,color:'#62626b'}}><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)} style={{accentColor:'#16a34a'}}/>I confirm I am authorized to access the admin portal.</label>
-          {siteKey ? <div ref={captchaContainer} style={{minHeight:65}} /> : <p style={{fontSize:11,color:'#b91c1c',margin:0}}>Cloudflare site key is missing from the environment.</p>}
-          {captchaError && <p role="alert" style={{fontSize:11,color:'#b91c1c',margin:0}}>{captchaError}</p>}
-          {error && <p role="alert" style={{fontSize:11,color:'#b91c1c',margin:0}}>{error}</p>}
-          <button className="jaad-submit" type="submit" disabled={loading}>{loading?'Checking…':'Continue as admin →'}</button>
-        </form>
-        <p className="jaad-foot">Admin accounts are provisioned by an administrator.</p>
-        </div>
-      </section>
+    <main className="min-h-screen bg-[#09090b] text-[#18181b] flex items-center justify-center px-4 py-12 relative" style={{backgroundImage:'radial-gradient(circle at 85% 5%,rgba(180,20,30,.20),transparent 40%)'}}>
+      <Link href="/" className="absolute left-5 top-5 rounded-full border border-red-500 bg-red-600 px-4 py-2 text-xs font-bold !text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500" style={{ backgroundColor: "#dc2626", color: "#ffffff" }}>← Back to website</Link>
+      <div className="w-full max-w-[680px] overflow-hidden rounded-[20px] border border-red-600/60 bg-white shadow-[0_24px_100px_rgba(0,0,0,.65)] grid grid-cols-1 md:grid-cols-[.9fr_1.1fr]">
+        <section className="bg-[#09090b] min-h-[180px] md:min-h-[410px] flex flex-col items-center justify-center gap-3 p-6 border-b md:border-b-0 md:border-r border-red-700/50">
+          <div className="h-24 w-36 relative flex items-center justify-center">
+            <Image src="/logo.png" alt="JAAD Logistics" width={144} height={88} priority className="h-[88px] w-[144px] object-contain" />
+          </div>
+          <div className="text-center"><p className="text-zinc-400 text-xs mt-2">Secure platform administration</p></div>
+          <div className="hidden md:block w-14 h-[2px] bg-red-600" />
+          <p className="hidden md:block text-zinc-500 text-xs text-center max-w-[240px]">Private access for authorized JAAD administrators.</p>
+        </section>
+        <section className="px-6 py-7 sm:px-8 sm:py-8 flex flex-col justify-center">
+          <p className="text-red-600 text-[11px] font-bold tracking-[.16em] uppercase">Administrator portal</p>
+          <h1 className="text-[26px] font-extrabold tracking-tight mt-2">Sign in</h1>
+          <p className="text-zinc-500 text-sm mt-2">Access your JAAD management dashboard.</p>
+          <form onSubmit={signIn} className="mt-5 space-y-4">
+            <div><label htmlFor="admin-email" className="block text-xs font-bold mb-2">Email address</label><input id="admin-email" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-xl border border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100" placeholder="Admin email" /></div>
+            <div><div className="flex items-center justify-between mb-2"><label htmlFor="admin-password" className="text-xs font-bold">Password</label></div><div className="relative"><input id="admin-password" type={showPassword?'text':'password'} autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} className="w-full rounded-xl border border-zinc-300 bg-zinc-50 px-3 py-2.5 pr-16 text-sm outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100" placeholder="Enter your password" /><button type="button" onClick={()=>setShowPassword(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-600 hover:text-red-600">{showPassword?'Hide':'Show'}</button></div></div>
+            <label className="flex items-start gap-2 text-xs text-zinc-600 cursor-pointer"><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)} className="mt-0.5 accent-red-600" />I confirm I am authorized to access the JAAD administration portal.</label>
+            {requiresCaptcha && (siteKey ? <div ref={captchaContainer} className="min-h-[65px]" /> : <p role="alert" className="text-xs text-red-700">Cloudflare site key is missing.</p>)}
+            {requiresCaptcha && captchaError && <p role="alert" className="text-xs text-red-700">{captchaError}</p>}
+            {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+            <button type="submit" disabled={loading} className="w-full rounded-xl bg-red-600 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">{loading?'Signing in…':'Sign in to JAAD →'}</button>
+          </form>
+          <p className="text-xs text-zinc-500 mt-5 text-center">JAAD internal administration only</p>
+        </section>
+      </div>
     </main>
   );
 }

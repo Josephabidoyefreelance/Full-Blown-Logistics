@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { LegalDocModal, useLegalModal } from '@/components/legal-modal';
-import TurnstileBox from '@/components/turnstile-box';
 
 const COUNTRY_CODES = [
   { code: '+234', label: '🇳🇬 +234' },
@@ -35,6 +34,7 @@ export default function CustomerSignupPage() {
   const [step, setStep] = useState<'details' | 'code'>('details');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+234');
@@ -43,8 +43,6 @@ export default function CustomerSignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [captchaToken, setCaptchaToken] = useState('');
-  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const { openDoc, setOpenDoc } = useLegalModal();
 
   useEffect(() => {
@@ -54,46 +52,25 @@ export default function CustomerSignupPage() {
   }, [cooldown]);
 
   async function sendCode() {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      setError('Please fill in your first name, last name, email, and phone number.');
+    if (!firstName.trim() || !lastName.trim() || !businessName.trim() || !email.trim() || !phone.trim()) {
+      setError('Please fill in your business name, first name, last name, email, and phone number.');
       return;
     }
     setError(null);
-    if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-      setError('Cloudflare security check is not configured. Please contact support.');
-      return;
-    }
-    if (!captchaToken) {
-      setError('Complete the Cloudflare security check first.');
-      return;
-    }
-    setLoading(true);
-    try {
-      const verify = await fetch('/api/security/turnstile', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: captchaToken, action: 'customer_signup' }),
-      });
-      const result = await verify.json().catch(() => ({}));
-      if (!verify.ok || !result.success) {
-        setError(result.error || 'Cloudflare could not verify this request. Please try again.');
-        setCaptchaToken('');
-        setCaptchaResetKey((v) => v + 1);
-        return;
-      }
-    } catch {
-      setError('Could not verify the security check. Please try again.');
-      return;
-    } finally {
-      setLoading(false);
-    }
-    setCaptchaToken('');
-    setCaptchaResetKey((v) => v + 1);
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
+    let authError: { message: string } | null = null;
+    try {
+      const result = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { shouldCreateUser: true },
+      });
+      authError = result.error;
+    } catch (err) {
+      setLoading(false);
+      setError(readErrorMessage(err, "Unable to send the code because the connection failed. Try again."));
+      return;
+    }
 
     setLoading(false);
     if (authError) {
@@ -106,7 +83,7 @@ export default function CustomerSignupPage() {
   }
 
   async function verifyCode() {
-    if (!code.trim()) {
+    if (!/^\d{6,8}$/.test(code.trim())) {
       setError('Enter the code we emailed you.');
       return;
     }
@@ -116,50 +93,59 @@ export default function CustomerSignupPage() {
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
     const fullPhone = `${countryCode}${phone.trim().replace(/^0+/, '')}`;
 
-    const { data, error: authError } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: 'email',
-    });
+    let data: { user: { id: string } | null } = { user: null };
+    let authError: { message: string } | null = null;
+    try {
+      const result = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: 'email',
+      });
+      data = result.data;
+      authError = result.error;
+    } catch (err) {
+      setLoading(false);
+      setError(readErrorMessage(err, "Unable to contact Supabase to verify the code. Check your connection and try again."));
+      return;
+    }
 
     if (authError || !data.user) {
       setLoading(false);
-      console.error('verifyOtp failed:', authError);
       setError(readErrorMessage(authError, 'That code did not work, please try again.'));
       return;
     }
 
-    const { error: customerError } = await supabase.from('customers').insert({
-      user_id: data.user.id,
-      name: fullName,
-      email: email.trim(),
-      phone: fullPhone,
-      contact: fullPhone,
-      type: 'Individual',
-      status: 'Active',
-      client_since: new Date().toISOString().slice(0, 10),
-      credit_limit: 0,
-      balance: 0,
-    });
-    if (customerError) console.error('customers insert failed:', customerError);
-
-    // Create the lead through a server route: the public customer form must not
-    // receive a service-role key or depend on broad client-side CRM table access.
-    const leadResponse = await fetch('/api/public/customer-lead', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company: fullName,
-        contact_name: fullName,
-        email: email.trim(),
-        phone: fullPhone,
-        source: 'Website',
-      }),
-    });
-    const leadResult = await leadResponse.json().catch(() => ({}));
-    if (!leadResponse.ok || !leadResult.success) {
+    // OTP is already verified. Only the trusted server can provision a company.
+    // A verified user without a workspace can retry registration safely.
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.access_token || session.user.id !== data.user.id) {
       setLoading(false);
-      setError(leadResult.error || 'Your account was created, but we could not register your enquiry with the sales team. Please contact support before trying signup again.');
+      setError('Your email was verified, but a secure session could not be established. Please sign in again.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/customer/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          businessName: businessName.trim(),
+          contactName: fullName,
+          phone: fullPhone,
+        }),
+      });
+      const result: { error?: string; companyId?: string } = await response.json();
+      if (!response.ok || !result.companyId) {
+        setError(result.error || 'Email verified, but workspace setup failed. Please try again.');
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      setError(readErrorMessage(err, 'Network error while creating your workspace. Please try again.'));
+      setLoading(false);
       return;
     }
 
@@ -169,57 +155,24 @@ export default function CustomerSignupPage() {
     }
 
     setLoading(false);
-    router.push('/customer/dashboard');
+    router.push('/customer/dashboard'); // Existing customer-ERP lock and plan enforcement remain unchanged.
   }
 
   return (
-    <div className="jaad-auth-page">
-
-      <style jsx>{`
-        .jaad-auth-page{min-height:100svh;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;position:relative;overflow-x:hidden;overflow-y:auto;padding:92px 18px 38px;background:radial-gradient(ellipse at 84% 8%,rgba(143,22,25,.42),transparent 42%),radial-gradient(ellipse at 12% 90%,rgba(36,36,40,.25),transparent 42%),#09090b;color:#111114}
-        .jaad-back{position:fixed!important;left:20px!important;top:20px!important;z-index:10000!important;display:inline-flex!important;align-items:center!important;gap:8px!important;padding:10px 15px!important;border:1px solid #ff6b64!important;border-radius:999px!important;background:#e5231b!important;color:#fff!important;text-decoration:none!important;font-size:13px!important;font-weight:800!important;line-height:1.2!important;box-shadow:0 4px 18px #0008!important;visibility:visible!important;opacity:1!important;filter:none!important}
-        .jaad-back:hover{background:#c91c16!important;color:#fff!important}
-        .jaad-back:focus-visible{outline:3px solid #e5231b!important;outline-offset:3px!important}
-        .jaad-shell{position:relative;width:min(100%,430px);margin:0 auto;flex:0 1 430px}
-        .jaad-card{width:100%;overflow:hidden;box-sizing:border-box;background:#fff;border:1px solid #e3e3e7;border-radius:22px;box-shadow:0 24px 80px #0008;}
-        .jaad-card-header{height:116px!important;min-height:116px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#09090b!important;padding:12px 24px!important;border-bottom:1px solid #242428!important;overflow:hidden!important;position:relative!important}
-        .jaad-logo{display:block!important;width:132px!important;height:86px!important;max-width:100%!important;object-fit:contain!important;object-position:center!important;margin:0 auto!important;position:relative!important;z-index:1!important;filter:drop-shadow(0 2px 10px #0008)!important}
-        .jaad-card-body{box-sizing:border-box;padding:26px 30px 28px;background:#fff;color:#111114}
-        .jaad-card-body h1{margin:0!important;text-align:center!important;color:#111114!important;font-size:25px!important;line-height:1.2!important;font-weight:800!important;letter-spacing:-.035em}
-        .jaad-card-body .jaad-subtitle{margin:8px 0 0!important;text-align:center;color:#686872;font-size:11px;line-height:1.55}
-        .jaad-card-body label:not(.jaad-remember){display:block;color:#555560;font-size:10px;font-weight:750;letter-spacing:.045em;margin-bottom:7px}
-        .jaad-card-body input:not([type="checkbox"]),.jaad-card-body select{display:block;width:100%;min-width:0;box-sizing:border-box;border:1px solid #d8dbe2!important;border-radius:9px!important;background:#eaf1ff!important;padding:12px 13px!important;color:#111114!important;font-size:13px!important;line-height:1.35!important;outline:none;box-shadow:none!important}
-        .jaad-card-body input:not([type="checkbox"]):focus,.jaad-card-body select:focus{border-color:#e5231b!important;box-shadow:0 0 0 3px #e5231b18!important}
-        .jaad-card-body input[type="checkbox"]{accent-color:#16a34a;flex:0 0 auto}
-        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal){box-sizing:border-box;min-height:43px;border:0;border-radius:9px;background:#e5231b;color:#fff;font-size:12px;font-weight:800;line-height:1.25;padding:12px 14px;cursor:pointer}
-        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal):hover{background:#c91c16}
-        .jaad-card-body button:disabled{opacity:.6;cursor:not-allowed}
-        .jaad-card-body .jaad-secondary{display:block;width:100%;min-height:0!important;margin-top:12px!important;padding:7px 4px!important;border:0!important;background:transparent!important;color:#62626b!important;font-size:12px!important;font-weight:650!important}
-        .jaad-card-body .jaad-secondary:hover{color:#e5231b!important}
-        .jaad-card-body .jaad-legal{min-height:0!important;padding:0!important;background:transparent!important;color:inherit!important;border:0!important;font-size:inherit!important;font-weight:inherit!important;text-decoration:underline;cursor:pointer}
-        .jaad-card-body .jaad-auth-error{margin:12px 0 0;color:#b91c1c;font-size:12px;line-height:1.5}
-        .jaad-card-body .jaad-remember{display:flex!important;align-items:center;gap:8px;margin:16px 0 0!important;color:#62626b!important;font-size:11px!important;font-weight:500!important;letter-spacing:0!important}
-        .jaad-card-body .jaad-turnstile{display:flex;justify-content:center;max-width:100%;overflow:hidden;margin-top:18px}
-        .jaad-card-body .jaad-account-link{margin:20px 0 0;text-align:center;color:#62626b;font-size:12px;line-height:1.6}
-        .jaad-card-body .jaad-account-link a{color:#e5231b;font-weight:700;text-decoration:underline}
-        .jaad-legal-footer{margin:18px 0 0;text-align:center;color:#ffffffa6;font-size:11px;line-height:1.6}
-        .jaad-legal-footer button{color:#fff;text-decoration:underline}
-
-        .jaad-card-body .jaad-name-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-        .jaad-card-body .jaad-name-grid>div{min-width:0}
-        .jaad-card-body .jaad-name-grid input{width:100%}
-        .jaad-card-body .jaad-form-field{margin-top:22px}
-        .jaad-card-body .jaad-form-stack{display:grid;gap:15px;margin-top:24px}
-        @media(max-width:420px){.jaad-card-body .jaad-name-grid{grid-template-columns:1fr}}
-        @media(max-width:520px){.jaad-auth-page{padding:84px 14px 28px}.jaad-back{left:14px!important;top:14px!important}.jaad-shell{width:100%;flex-basis:100%}.jaad-card-header{height:106px!important;min-height:106px!important;padding:10px 20px!important}.jaad-logo{width:122px!important;height:82px!important}.jaad-card-body{padding:24px 21px 25px}.jaad-card-body h1{font-size:23px!important}}
-      `}</style>
-
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0b0d] px-5 py-10">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <Image
+          src="/logo.png"
+          alt=""
+          width={900}
+          height={900}
+          className="w-[85%] max-w-[560px] opacity-[0.14]"
+        />
+      </div>
 
       <Link
         href="/"
-        className="jaad-back"
-        aria-label="Back to website"
-        style={{ position: "fixed", left: 20, top: 20, zIndex: 10000, display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 16px", border: "1px solid #ff6b64", borderRadius: 999, background: "#e5231b", color: "#ffffff", textDecoration: "none", fontSize: 13, fontWeight: 800, lineHeight: 1.2, boxShadow: "0 6px 24px rgba(0,0,0,.55)" }}
+        className="absolute left-5 top-5 z-10 flex items-center gap-1.5 rounded-full border border-[#ff6b64] bg-[#e5231b] px-4 py-2 text-[12.5px] font-semibold text-white transition hover:bg-[#c91c16]"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -227,25 +180,27 @@ export default function CustomerSignupPage() {
         Back to website
       </Link>
 
-      <div className="jaad-shell">
-        <div className="jaad-card">
-          <div className="jaad-card-header">
-            <Image src="/logo.png" alt="JAAD Logistics" width={156} height={116} className="jaad-logo" priority />
+      <div className="relative w-full max-w-[680px]">
+        <div className="grid grid-cols-1 overflow-hidden rounded-[20px] border border-red-700/60 bg-white shadow-[0_24px_100px_rgba(0,0,0,.65)] md:grid-cols-[.9fr_1.1fr]">
+          <div className="flex min-h-[170px] flex-col items-center justify-center gap-3 border-b border-red-700/50 bg-[#09090b] p-6 md:min-h-[450px] md:border-b-0 md:border-r">
+            <Image src="/logo.png" alt="JAAD Logistics" width={132} height={86} className="mx-auto block object-contain" style={{ display: "block", marginLeft: "auto", marginRight: "auto", objectFit: "contain" }} />
+
+            <p className="text-center text-xs text-zinc-400">Create your secure business workspace</p>
           </div>
 
-          <div className="jaad-card-body">
+          <div className="min-w-0 bg-white px-7 pb-8 pt-7 text-zinc-900 md:flex md:flex-col md:justify-center">
             <h1 className="text-center text-2xl font-bold text-[#0b0b0d]">Create Account</h1>
 
             {step === 'details' ? (
               <>
                 <div className="mt-7 space-y-3.5">
-                  <div className="jaad-name-grid">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">First name</label>
                       <input
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                        className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       />
                     </div>
                     <div>
@@ -253,9 +208,18 @@ export default function CustomerSignupPage() {
                       <input
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                        className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Business name</label>
+                    <input
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      maxLength={150}
+                      className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                    />
                   </div>
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Email</label>
@@ -263,7 +227,7 @@ export default function CustomerSignupPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                      className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                     />
                   </div>
                   <div>
@@ -272,7 +236,7 @@ export default function CustomerSignupPage() {
                       <select
                         value={countryCode}
                         onChange={(e) => setCountryCode(e.target.value)}
-                        className="rounded-full border-0 bg-[#ececec] px-3 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                        className="rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-3 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       >
                         {COUNTRY_CODES.map((c) => (
                           <option key={c.code} value={c.code}>{c.label}</option>
@@ -282,13 +246,13 @@ export default function CustomerSignupPage() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="8012345678"
-                        className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                        className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       />
                     </div>
                   </div>
                 </div>
 
-                <label className="jaad-remember">
+                <label className="mt-4 flex items-center gap-2 px-1 text-[12.5px] text-[#6c6c72]">
                   <input
                     type="checkbox"
                     checked={remember}
@@ -298,13 +262,12 @@ export default function CustomerSignupPage() {
                   Keep me signed in on this device
                 </label>
 
-                <div className="jaad-turnstile"><TurnstileBox action="customer_signup" resetKey={captchaResetKey} onToken={setCaptchaToken} /></div>
-                {error && <p role="alert" className="jaad-auth-error">{error}</p>}
+                {error && <p className="mt-3 px-1 text-[13px] text-[#e5231b]">{error}</p>}
 
                 <button
                   onClick={sendCode}
                   disabled={loading || cooldown > 0}
-                  className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-3.5 text-[13px] font-extrabold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
+                  className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-4 text-[15px] font-bold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
                 >
                   {loading ? 'Sending code...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Send Code'}
                   {!loading && cooldown === 0 && (
@@ -323,20 +286,20 @@ export default function CustomerSignupPage() {
                 <div className="mt-6">
                   <input
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
                     onKeyDown={(e) => e.key === 'Enter' && verifyCode()}
                     placeholder="00000000"
                     maxLength={8}
-                    className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-center text-lg tracking-[.35em] outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                    className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-center text-lg tracking-[.35em] outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                   />
                 </div>
 
-                {error && <p role="alert" className="jaad-auth-error">{error}</p>}
+                {error && <p className="mt-3 px-1 text-[13px] text-[#e5231b]">{error}</p>}
 
                 <button
                   onClick={verifyCode}
                   disabled={loading}
-                  className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-3.5 text-[13px] font-extrabold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
+                  className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-4 text-[15px] font-bold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
                 >
                   {loading ? 'Verifying...' : 'Verify & Continue'}
                   {!loading && (
@@ -347,24 +310,24 @@ export default function CustomerSignupPage() {
                 </button>
                 <button
                   onClick={() => { setStep('details'); setCode(''); setError(null); }}
-                  className="jaad-secondary"
+                  className="mt-3 w-full text-center text-[12.5px] font-semibold text-[#6c6c72]"
                 >
                   Use a different email
                 </button>
               </>
             )}
 
-            <p className="jaad-account-link">
+            <p className="mt-6 text-center text-[13px] text-[#6c6c72]">
               Already have an account? <Link href="/customer/login" className="font-semibold text-[#e5231b] underline">Log In</Link>
             </p>
           </div>
         </div>
 
-        <p className="jaad-legal-footer">
+        <p className="mt-6 text-center text-[12px] leading-relaxed text-white/60">
           By continuing, you agree to
           <br />
-          <button onClick={() => setOpenDoc('terms-of-use')} className="jaad-legal">Terms of Service</button> and{' '}
-          <button onClick={() => setOpenDoc('privacy-policy')} className="jaad-legal">Privacy Policy</button>.
+          <button onClick={() => setOpenDoc('terms-of-use')} className="underline hover:text-white">Terms of Service</button> and{' '}
+          <button onClick={() => setOpenDoc('privacy-policy')} className="underline hover:text-white">Privacy Policy</button>.
         </p>
       </div>
 
