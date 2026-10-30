@@ -24,15 +24,15 @@ export default function PolicyPdfLink({ title, href, className = "" }: Props) {
       <button type="button" className={`jaad-policy-link jaad-policy-button ${className}`.trim()} onClick={() => setOpen(true)}>{title}</button>
       {open && (
         <div className="jaad-pdf-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-          <section className="jaad-pdf-modal jaad-legal-readonly" role="dialog" aria-modal="true" aria-label={title}>
-            <header className="jaad-legal-header">
+          <section className="jaad-pdf-modal jaad-legal-readonly" role="dialog" aria-modal="true" aria-label={title} style={{ width: "min(94vw, 900px)", maxWidth: "900px", height: "min(90dvh, 1000px)", maxHeight: "90dvh", display: "flex", flexDirection: "column", overflow: "hidden", margin: "auto" }}>
+            <header className="jaad-legal-header" style={{ position: "relative", flex: "0 0 auto", minHeight: 64 }}>
               <button type="button" className="jaad-legal-close" aria-label="Close document" onClick={() => setOpen(false)}>×</button>
               <img className="jaad-legal-header-logo" src="/jaad-logo.png" alt="JAAD Logistics" />
             </header>
-            <div className="jaad-legal-pages">
+            <div className="jaad-legal-pages" style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", background: "#e8e8e8", padding: "16px 10px", overscrollBehavior: "contain" }}>
               {pages.map((src, index) => (
-                <div className="jaad-legal-page" key={src}>
-                  <img className="jaad-legal-page-image" src={src} alt={`${title}, page ${index + 1}`} loading={index === 0 ? "eager" : "lazy"} />
+                <div className="jaad-legal-page" key={src} style={{ width: "100%", maxWidth: 760, margin: "0 auto 16px", background: "#fff", boxShadow: "0 2px 12px rgba(0,0,0,.12)", overflow: "hidden" }}>
+                  <img className="jaad-legal-page-image" src={src} alt={`${title}, page ${index + 1}`} loading={index === 0 ? "eager" : "lazy"} style={{ display: "block", width: "100%", height: "auto", maxWidth: "100%", objectFit: "contain" }} />
                 </div>
               ))}
             </div>
