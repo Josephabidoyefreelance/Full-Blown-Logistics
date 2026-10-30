@@ -1,6 +1,6 @@
-﻿import "./jaad-homepage.css";
 import type { Metadata } from "next";
 import "./globals.css";
+import "./jaad-homepage.css";
 
 export const metadata: Metadata = {
   title: "JAAD Logistics ERP",
@@ -18,4 +18,3 @@ export default function RootLayout({
     </html>
   );
 }
-
