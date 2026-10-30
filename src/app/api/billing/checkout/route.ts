@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { JAAD_PLANS, type JaadPlanCode } from '@/lib/billing/plans';
-import { createBillingAdminClient } from '@/lib/billing/paystack';
+import { createBillingAdminClient } from '@/lib/billing/flutterwave';
 
 export const runtime = 'nodejs';
 
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       currency: 'NGN',
       reference,
       status: 'pending',
+      payment_provider: 'flutterwave',
     })
     .select('id')
     .single();
@@ -70,56 +71,45 @@ export async function POST(request: Request) {
   }
 
   const appUrl = process.env.APP_URL;
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = process.env.FLW_SECRET_KEY;
   if (!appUrl || !secret) {
     await admin.from('billing_payment_attempts').update({ status: 'failed', failure_message: 'Billing environment is incomplete.' }).eq('id', attempt.id);
-    return NextResponse.json({ error: 'Set APP_URL and PAYSTACK_SECRET_KEY in the server environment.' }, { status: 503 });
+    return NextResponse.json({ error: 'Set APP_URL and FLW_SECRET_KEY in the server environment.' }, { status: 503 });
   }
 
   try {
-    const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
+    const flutterwaveResponse = await fetch('https://api.flutterwave.com/v3/payments', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email,
-        amount: amountKobo,
+        tx_ref: reference,
+        amount: plan.priceNaira,
         currency: 'NGN',
-        reference,
-        channels: ['bank_transfer'],
-        callback_url: new URL('/api/billing/callback', appUrl).toString(),
-        metadata: {
-          payment_attempt_id: attempt.id,
-          company_id: company.id,
-          company_name: company.name,
-          plan_code: plan.code,
-        },
+        redirect_url: new URL('/api/billing/callback', appUrl).toString(),
+        payment_options: 'banktransfer',
+        customer: { email, name: company.name },
+        meta: { payment_attempt_id: attempt.id, company_id: company.id, plan_code: plan.code },
+        customizations: { title: 'JAAD Logistics ERP', description: `${plan.name} subscription` },
       }),
       cache: 'no-store',
     });
-    const result = await paystackResponse.json().catch(() => null) as
-      | { status?: boolean; message?: string; data?: { authorization_url?: string } }
-      | null;
-    const checkoutUrl = result?.data?.authorization_url;
-    if (!paystackResponse.ok || !result?.status || !checkoutUrl) {
+    const result = await flutterwaveResponse.json().catch(() => null) as
+      | { status?: string; message?: string; data?: { link?: string } } | null;
+    const checkoutUrl = result?.data?.link;
+    if (!flutterwaveResponse.ok || result?.status !== 'success' || !checkoutUrl) {
       await admin.from('billing_payment_attempts')
-        .update({ status: 'failed', failure_message: result?.message || 'Paystack could not initialize transfer checkout.' })
+        .update({ status: 'failed', failure_message: result?.message || 'Flutterwave checkout initialization failed.' })
         .eq('id', attempt.id);
-      console.error('Paystack transfer checkout failed:', result?.message || paystackResponse.status);
-      return NextResponse.json({
-        error: 'Paystack could not start bank-transfer checkout. Confirm that Pay with Transfer is enabled for your Paystack business account, then try again. Card payment is not enabled as a fallback.',
-      }, { status: 502 });
+      return NextResponse.json({ error: 'Flutterwave could not start bank-transfer checkout. Check your Flutterwave account payment-method settings.' }, { status: 502 });
     }
 
     await admin.from('billing_payment_attempts').update({ checkout_url: checkoutUrl }).eq('id', attempt.id);
     return NextResponse.json({ authorizationUrl: checkoutUrl });
   } catch (error) {
     await admin.from('billing_payment_attempts')
-      .update({ status: 'failed', failure_message: 'Unable to reach Paystack.' })
+      .update({ status: 'failed', failure_message: 'Unable to reach Flutterwave.' })
       .eq('id', attempt.id);
-    console.error('JAAD Paystack checkout network error:', error instanceof Error ? error.message : 'unknown error');
-    return NextResponse.json({ error: 'Unable to reach Paystack. Please retry shortly.' }, { status: 502 });
+    console.error('JAAD Flutterwave checkout network error:', error instanceof Error ? error.message : 'unknown error');
+    return NextResponse.json({ error: 'Unable to reach Flutterwave. Please retry shortly.' }, { status: 502 });
   }
 }

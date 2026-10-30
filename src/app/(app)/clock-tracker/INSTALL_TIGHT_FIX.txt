@@ -1,0 +1,18 @@
+JAAD ERP CLOCK TRACKER — TIGHT FIX
+
+This is a targeted patch, not a complete ERP project. The page source shown in your error is under src/app, so use the src/app versions unless your project is configured to use a root-level app/ directory.
+
+COPY THESE FILES INTO THE SAME PATHS IN YOUR PROJECT:
+- src/app/(app)/clock-tracker/page.tsx
+- src/app/(app)/clock-tracker/clock-button.tsx
+- src/app/(app)/clock-tracker/actions.ts
+- src/app/api/clock-tracker/report/route.ts
+- src/app/api/clock-tracker/auto-clock-out/route.ts
+
+Important:
+1. The ReferenceError is fixed by declaring td before centerTd.
+2. Both tables use the same seven-column layout: Staff, Date, Clock In, Clock Out, Duration, Status, Notes for Clock Out. Status fills the column gap with meaningful information. Staff stays left; Notes stays at the right edge.
+3. The PDF route must be located exactly at src/app/api/clock-tracker/report/route.ts. The download link points to /api/clock-tracker/report. A 404 means Next.js is not loading the route from the active app root; do not create duplicate app and src/app trees.
+4. Stop the dev server with Ctrl+C, then restart `npm run dev`. If Next.js still shows stale code, stop the server, remove `.next`, and restart.
+5. Auto clock-out is best effort on `visibilitychange`/`pagehide`. Browsers may block or delay network calls when offline, suspended, or forcibly closed. Test tab switching with a real active session before using this for attendance penalties.
+6. This patch uses the existing Supabase tables and server client. If your schema differs, reconcile the select/update fields before deploying.

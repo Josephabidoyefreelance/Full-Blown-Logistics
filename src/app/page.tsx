@@ -214,8 +214,7 @@ export default function Home() {
           <div className="hidden lg:flex items-center gap-3">
             <a href={WHATSAPP_URL} onClick={openWhatsAppPopup} className="text-sm font-semibold text-[#b8b8bd] hover:text-white px-3 py-2">Contact sales</a>
             <a href={CUSTOMER_LOGIN_URL} className="text-sm font-bold text-white bg-gradient-to-r from-[#ff3b30] to-[#c9160c] rounded-md px-5 py-2.5 hover:opacity-90 transition-opacity">Customer login</a>
-            <span className="w-px h-6 bg-[#2a2a2e] mx-1"></span>
-            <a href={ADMIN_LOGIN_URL} className="text-sm font-semibold text-[#b8b8bd] hover:text-white px-3 py-2">Admin login</a>
+            <a href={ADMIN_LOGIN_URL} className="ml-6 text-sm font-semibold text-white bg-[#09090b] border border-[#29292d] rounded-md px-4 py-2.5 hover:bg-[#1a1a1d] hover:border-[#44444a] transition-colors">Admin login</a>
           </div>
           <button className="lg:hidden text-white" onClick={() => setNav(!nav)} aria-label="Menu">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6"><path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" /></svg>
@@ -226,7 +225,7 @@ export default function Home() {
             <a href="#features" className="text-sm text-[#b8b8bd]">Features</a>
             <a href="#pricing" className="text-sm text-[#b8b8bd]">Pricing</a>
             <a href={CUSTOMER_LOGIN_URL} className="text-sm font-bold text-white bg-[#ff3b30] rounded-md px-4 py-2.5 text-center mt-2">Customer login</a>
-            <a href={ADMIN_LOGIN_URL} className="text-sm font-semibold text-[#b8b8bd] border border-[#2a2a2e] rounded-md px-4 py-2.5 text-center">Admin login</a>
+            <a href={ADMIN_LOGIN_URL} className="mt-3 text-sm font-semibold text-white bg-[#09090b] border border-[#29292d] rounded-md px-4 py-2.5 text-center hover:bg-[#1a1a1d] transition-colors">Admin login</a>
           </div>
         )}
       </header>

@@ -1,0 +1,42 @@
+JAAD ERP CLOCK TRACKER — SPACING + PDF ROUTE FIX (V2)
+
+COPY/MERGE THESE FILES INTO THE PROJECT ROOT (the folder containing package.json):
+- src/app/(app)/clock-tracker/page.tsx
+- src/app/(app)/clock-tracker/clock-button.tsx
+- src/app/(app)/clock-tracker/actions.ts
+- src/app/(app)/clock-tracker/live-work-time.tsx
+- src/app/api/clock-tracker/report/route.ts
+- supabase/migrations/202610130001_clock_entries_pause_tracking.sql
+
+SPACING
+The report table uses these column widths: Staff 15%, Date 12%, Clock In 12%, Clock Out 12%, Duration 12%, Overtime 12%, Idle Time 12%, Notes 13%. This reduces the Staff-to-Date gap and gives the middle time columns equal space while keeping Notes at the far right. Cell padding is compact and consistent.
+
+WHY THE PDF CAN STILL SHOW 404
+A 404 means Next.js is not registering the API handler. The correct physical path is exactly:
+  <project-root>/src/app/api/clock-tracker/report/route.ts
+It must NOT be placed at any of these paths:
+  src/app/(app)/clock-tracker/route.ts
+  src/app/clock-tracker/api/clock-tracker/report/route.ts
+  src/app/(app)/api/clock-tracker/report/route.ts
+
+IMPORTANT CONFLICT CHECK
+Your earlier screenshot showed: “Conflicting route and page at /clock-tracker: route at /(app)/clock-tracker/route and page at /(app)/clock-tracker/page”. That means an extra route.ts was placed beside page.tsx. Remove ONLY this accidental file if it exists:
+  src/app/(app)/clock-tracker/route.ts
+Do not remove page.tsx. The separate API report handler belongs under src/app/api/clock-tracker/report/route.ts. Also do not maintain duplicate root-level app/ and src/app/ trees for the same routes.
+
+INSTALL/TEST
+1. Back up the existing clock-tracker files.
+2. Run the included SQL migration in Supabase SQL Editor if it has not already been applied.
+3. Merge the files at the exact paths above.
+4. Confirm src/app/(app)/clock-tracker/ contains page.tsx, clock-button.tsx, actions.ts and live-work-time.tsx, but no route.ts.
+5. Stop Next.js with Ctrl+C. Restart with npm run dev. If necessary, stop the server, delete the project's .next directory, and restart.
+6. While signed in, open http://localhost:3000/api/clock-tracker/report. A successful request downloads JAAD-Clock-Tracker-Report.pdf. A 401 means sign in; a 500 means inspect the terminal for database/schema errors. A 404 means the route file is still not in the active app root or the server has not restarted.
+
+BEHAVIOUR
+- One My Time Report table.
+- 8-hour daily and 40-hour weekly regular-time caps; additional active tracked time is overtime.
+- Manual Pause/Resume and five-minute inactivity auto-pause.
+- PDF includes Staff, Date, Clock In, Clock Out, Duration, Overtime, Idle Time and Notes.
+
+LIMITATION
+This source patch cannot be installed into your localhost by ChatGPT or verified against your running Supabase/Next.js project from here. Browser sleep, forced closure, offline status and background throttling can delay client-side idle detection. Test before relying on it for payroll.

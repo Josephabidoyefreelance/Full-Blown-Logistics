@@ -1,148 +1,141 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { LegalDocModal, useLegalModal } from '@/components/legal-modal';
 
-function readErrorMessage(err: unknown, fallback: string) {
-  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-    return (err as { message: string }).message;
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: Record<string, unknown>) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+    };
   }
-  return fallback;
 }
 
 export default function AdminLoginPage() {
   const supabase = createClient();
   const router = useRouter();
-
+  const captchaContainer = useRef<HTMLDivElement>(null);
+  const widgetId = useRef<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authorized, setAuthorized] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaError, setCaptchaError] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { openDoc, setOpenDoc } = useLegalModal();
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-  async function signIn() {
-    if (!email.trim() || !password) {
-      setError('Enter your email and password.');
-      return;
-    }
-    setError(null);
-    setLoading(true);
-
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
+  const renderCaptcha = useCallback(() => {
+    if (!siteKey || !captchaContainer.current || !window.turnstile || widgetId.current) return;
+    widgetId.current = window.turnstile.render(captchaContainer.current, {
+      sitekey: siteKey,
+      action: 'admin_login',
+      theme: 'light',
+      size: 'flexible',
+      callback: (token: string) => { setCaptchaToken(token); setCaptchaError(''); },
+      'expired-callback': () => setCaptchaToken(''),
+      'error-callback': () => { setCaptchaToken(''); setCaptchaError('Cloudflare check failed. Please try again.'); },
     });
+  }, [siteKey]);
 
-    setLoading(false);
-    if (authError) {
-      console.error('signInWithPassword failed:', authError);
-      setError(readErrorMessage(authError, 'Could not sign in, check your email and password.'));
-      return;
+  useEffect(() => {
+    if (!siteKey) return;
+    if (window.turnstile) { renderCaptcha(); return; }
+    const script = document.querySelector<HTMLScriptElement>('script[data-jaad-turnstile="true"]');
+    if (script) {
+      script.addEventListener('load', renderCaptcha);
+      return () => script.removeEventListener('load', renderCaptcha);
     }
-    router.push('/dashboard');
+    const el = document.createElement('script');
+    el.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    el.async = true; el.defer = true; el.dataset.jaadTurnstile = 'true'; el.onload = renderCaptcha;
+    el.onerror = () => setCaptchaError('Cloudflare could not load. Check your site key and internet connection.');
+    document.head.appendChild(el);
+    return () => { el.onload = null; };
+  }, [siteKey, renderCaptcha]);
+
+  useEffect(() => () => {
+    if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
+  }, []);
+
+  async function signIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    if (!authorized) { setError('Confirm that you are authorized to access the admin portal.'); return; }
+    if (!siteKey) { setError('Cloudflare is not configured. Add NEXT_PUBLIC_TURNSTILE_SITE_KEY.'); return; }
+    if (!captchaToken) { setError('Complete the Cloudflare security check first.'); return; }
+    setLoading(true);
+    try {
+      const verify = await fetch('/api/security/turnstile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: captchaToken, action: 'admin_login' }),
+      });
+      const check = await verify.json().catch(() => ({}));
+      if (!verify.ok || !check.success) {
+        setError(check.error || 'Cloudflare could not verify this request. Please try again.');
+        if (widgetId.current && window.turnstile) window.turnstile.reset(widgetId.current);
+        setCaptchaToken('');
+        return;
+      }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (authError) { setError('Sign-in failed. Check your email and password.'); return; }
+      router.replace('/dashboard');
+      router.refresh();
+    } catch {
+      setError('Unable to complete sign-in. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0b0d] px-5 py-10">
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <Image
-          src="/logo.png"
-          alt=""
-          width={900}
-          height={900}
-          className="w-[85%] max-w-[560px] opacity-[0.14]"
-        />
-      </div>
-
-      <Link
-        href="/"
-        className="absolute left-5 top-5 z-10 flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[12.5px] font-semibold text-white/80 backdrop-blur transition hover:bg-white/10"
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-        Back to website
-      </Link>
-
-      <div className="relative w-full max-w-[400px]">
-        <div className="overflow-hidden rounded-[32px] bg-[#faf9f8] shadow-[0_30px_80px_rgba(0,0,0,.5)]">
-          <div className="flex items-center justify-center bg-[#0b0b0d] py-8">
-            <Image src="/logo.png" alt="JAAD Logistics" width={56} height={56} />
-          </div>
-
-          <div className="px-7 pb-8 pt-7">
-            <h1 className="text-center text-2xl font-bold text-[#0b0b0d]">Sign In</h1>
-
-            <div className="mt-7">
-              <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && signIn()}
-                  className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 pr-12 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6c6c72]"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.7 9.7 0 0112 5c5 0 9 4 10 7-.4 1.1-1.1 2.3-2.1 3.4M6.5 6.6C4.6 8 3.3 9.9 2 12c1 3 5 7 10 7 1.2 0 2.3-.2 3.4-.6" /></svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-3 text-right">
-              <a href="#" className="text-[12.5px] font-semibold text-[#6c6c72] underline">Forgot password?</a>
-            </div>
-
-            {error && <p className="mt-3 px-1 text-[13px] text-[#e5231b]">{error}</p>}
-
-            <button
-              onClick={signIn}
-              disabled={loading}
-              className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-full bg-[#0b0b0d] py-4 text-[15px] font-bold text-white transition hover:bg-[#e5231b] disabled:opacity-60"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-              {!loading && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              )}
-            </button>
-          </div>
+    <main className="jaad-auth-page">
+      <style jsx>{`
+        .jaad-auth-page{min-height:100svh;display:flex;align-items:center;justify-content:center;position:relative;overflow:auto;padding:92px 18px 36px;background:radial-gradient(ellipse at 84% 8%,rgba(143,22,25,.42),transparent 42%),radial-gradient(ellipse at 12% 90%,rgba(36,36,40,.25),transparent 42%),#09090b;color:#111114}
+        .jaad-back{position:fixed!important;left:20px!important;top:20px!important;z-index:10000!important;display:inline-flex!important;align-items:center!important;gap:8px!important;padding:10px 15px!important;border:1px solid #ff6b64!important;border-radius:999px!important;background:#e5231b!important;color:#fff!important;text-decoration:none!important;font-size:13px!important;font-weight:800!important;line-height:1.2!important;box-shadow:0 4px 18px #0008!important;visibility:visible!important;opacity:1!important;filter:none!important}
+        .jaad-back:hover{background:#c91c16!important;color:#fff!important}
+        .jaad-back:focus-visible{outline:3px solid #e5231b!important;outline-offset:3px!important}
+        .jaad-card{position:relative;z-index:1;width:min(100%,430px);background:#fff;border:1px solid #e3e3e7;border-radius:22px;box-shadow:0 24px 80px #0008;padding:0 0 27px;display:flex;flex-direction:column;overflow:hidden}
+        .jaad-logo{display:block!important;object-fit:contain!important;object-position:center!important;margin:0 auto!important;width:132px!important;height:86px!important;max-width:100%!important;object-fit:contain!important;object-position:center!important;margin:0 auto!important;position:relative!important;z-index:1!important;filter:drop-shadow(0 2px 10px #0008)!important}
+        .jaad-card-header{height:116px!important;min-height:116px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#09090b!important;padding:12px 24px!important;border-bottom:1px solid #242428!important;overflow:hidden!important;position:relative!important}
+        .jaad-card-content{padding:26px 32px 0}
+        .jaad-eyebrow{font-size:9px;letter-spacing:.2em;font-weight:800;text-transform:uppercase;color:#e5231b;text-align:center;margin:0}
+        .jaad-heading{font-size:25px;line-height:1.15;letter-spacing:-.035em;font-weight:850;text-align:center;margin:8px 0 0;color:#111114}
+        .jaad-subtitle{font-size:11px;line-height:1.55;color:#686872;text-align:center;margin:8px 0 0}
+        .jaad-label{display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#62626b;margin:0 0 7px}
+        .jaad-input{width:100%;box-sizing:border-box;border:1px solid #d8dbe2;border-radius:10px;background:#eaf1ff;padding:12px;font-size:12px;color:#111114;outline:none}
+        .jaad-input:focus{border-color:#e5231b;box-shadow:0 0 0 3px #e5231b18}
+        .jaad-submit{width:100%;border:0;border-radius:9px;background:#e5231b;color:#fff;font-weight:800;font-size:12px;padding:13px;cursor:pointer;transition:background .2s}
+        .jaad-submit:hover{background:#c91c16}
+        .jaad-submit:disabled{opacity:.6;cursor:not-allowed}
+        .jaad-foot{font-size:10px;line-height:1.5;text-align:center;color:#62626b;margin:17px 0 0}
+        @media(max-width:480px){.jaad-auth-page{padding:84px 14px 24px}.jaad-card{padding:0 0 23px;border-radius:19px}.jaad-card-content{padding:24px 22px 0}.jaad-card-header{height:106px!important;min-height:106px!important;padding:10px 20px!important}.jaad-logo{width:122px!important;height:82px!important}.jaad-heading{font-size:23px}.jaad-back{left:14px!important;top:14px!important}}
+      `}</style>
+      <Link href="/" className="jaad-back" aria-label="Back to website" style={{ position: "fixed", left: 20, top: 20, zIndex: 10000, display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 16px", border: "1px solid #ff6b64", borderRadius: 999, background: "#e5231b", color: "#ffffff", textDecoration: "none", fontSize: 13, fontWeight: 800, lineHeight: 1.2, boxShadow: "0 6px 24px rgba(0,0,0,.55)" }}>← <span>Back to website</span></Link>
+      <section className="jaad-card" aria-labelledby="admin-login-title">
+        <div className="jaad-card-header"><Image src="/logo.png" alt="JAAD Logistics" width={156} height={116} className="jaad-logo" priority /></div>
+        <div className="jaad-card-content">
+        <p className="jaad-eyebrow">Staff only</p>
+        <h1 id="admin-login-title" className="jaad-heading">Sign in to administration</h1>
+        <p className="jaad-subtitle">Secure access for authorised JAAD Logistics staff.</p>
+        <form onSubmit={signIn} style={{display:'grid',gap:15,marginTop:24}}>
+          <div><label className="jaad-label" htmlFor="admin-email">Email</label><input className="jaad-input" id="admin-email" type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)} /></div>
+          <div><label className="jaad-label" htmlFor="admin-password">Password</label><div style={{position:'relative'}}><input className="jaad-input" id="admin-password" type={showPassword?'text':'password'} autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)} style={{paddingRight:55}}/><button type="button" onClick={()=>setShowPassword(v=>!v)} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',fontSize:10,color:'#62626b',background:'transparent',border:0,cursor:'pointer'}}>{showPassword?'Hide':'Show'}</button></div></div>
+          <label style={{display:'flex',gap:7,alignItems:'center',fontSize:10.5,color:'#62626b'}}><input type="checkbox" checked={authorized} onChange={e=>setAuthorized(e.target.checked)} style={{accentColor:'#16a34a'}}/>I confirm I am authorized to access the admin portal.</label>
+          {siteKey ? <div ref={captchaContainer} style={{minHeight:65}} /> : <p style={{fontSize:11,color:'#b91c1c',margin:0}}>Cloudflare site key is missing from the environment.</p>}
+          {captchaError && <p role="alert" style={{fontSize:11,color:'#b91c1c',margin:0}}>{captchaError}</p>}
+          {error && <p role="alert" style={{fontSize:11,color:'#b91c1c',margin:0}}>{error}</p>}
+          <button className="jaad-submit" type="submit" disabled={loading}>{loading?'Checking…':'Continue as admin →'}</button>
+        </form>
+        <p className="jaad-foot">Admin accounts are provisioned by an administrator.</p>
         </div>
-
-        <p className="mt-6 text-center text-[12px] leading-relaxed text-white/60">
-          Internal staff access only, by signing in you agree to
-          <br />
-          <button onClick={() => setOpenDoc('terms-of-use')} className="underline hover:text-white">Terms of Service</button> and{' '}
-          <button onClick={() => setOpenDoc('privacy-policy')} className="underline hover:text-white">Privacy Policy</button>.
-        </p>
-      </div>
-
-      <LegalDocModal docKey={openDoc} onClose={() => setOpenDoc(null)} />
-    </div>
+      </section>
+    </main>
   );
 }

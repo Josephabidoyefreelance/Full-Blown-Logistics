@@ -1,0 +1,5 @@
+- Fixed Team Chat layout to the requested two-pane design.
+- Added normalized/deduplicated staff thread keys.
+- Added direct-message recipient support and read timestamps using an additive SQL migration.
+- Added timestamps, read ticks, file attachments, search, mentions, export, and expand/restore controls.
+- No Tickets, Live Chat, Email, or Knowledge Base files are included in this patch.

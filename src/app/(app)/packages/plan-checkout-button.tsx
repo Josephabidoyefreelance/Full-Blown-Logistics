@@ -36,7 +36,7 @@ export default function PlanCheckoutButton({ planCode, label }: { planCode: Jaad
         disabled={loading}
         className="inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
       >
-        {loading ? 'Connecting to Paystack…' : label}
+        {loading ? 'Connecting to Flutterwave…' : label}
       </button>
       {error && <p role="alert" className="mt-2 text-xs leading-5 text-red-600 dark:text-red-400">{error}</p>}
     </div>

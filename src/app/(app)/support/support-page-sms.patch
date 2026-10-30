@@ -1,0 +1,52 @@
+--- a/src/app/(app)/support/page.tsx
++++ b/src/app/(app)/support/page.tsx
+@@ -44,8 +44,32 @@
+     : null;
+ 
+   const sms = view === 'sms'
+-    ? await supabase.from('support_sms').select('id, to_number, message, status, created_at').order('created_at', { ascending: false })
+-    : null;
++    ? await supabase.from('support_sms').select('id, to_number, from_number, message, status, created_at, direction, provider_sid, error_code, status_message').order('created_at', { ascending: false })
++    : null;
++
++  // SMS contacts are read-only lookups. These queries do not modify CRM/Leads data.
++  const smsLeads = view === 'sms'
++    ? await supabase.from('leads').select('id, company, contact_name, phone').not('phone', 'is', null).order('company', { ascending: true })
++    : null;
++  const smsCustomers = view === 'sms'
++    ? await supabase.from('customers').select('id, name, contact').not('contact', 'is', null).order('name', { ascending: true })
++    : null;
++
++  const smsRows = sms?.data ?? [];
++  const smsHistory = smsRows.filter((item) => item.direction !== 'inbound');
++  const smsInbox = smsRows.filter((item) => item.direction === 'inbound');
++  const smsContacts = [
++    ...((smsLeads?.data ?? []).map((lead) => ({
++      id: `lead-${lead.id}`,
++      name: [lead.contact_name, lead.company].filter(Boolean).join(' — ') || lead.company || 'Lead',
++      phone: lead.phone || '',
++    }))),
++    ...((smsCustomers?.data ?? []).filter((customer) => customer.contact && /[0-9+()\-\s]{7,}/.test(customer.contact)).map((customer) => ({
++      id: `customer-${customer.id}`,
++      name: customer.name || 'Customer',
++      phone: customer.contact || '',
++    }))),
++  ].filter((contact) => contact.phone.trim());
+ 
+   const calls = view === 'call'
+     ? await supabase.from('support_calls').select('id, number, status, created_at').order('created_at', { ascending: false })
+@@ -126,7 +150,13 @@
+ 
+       {view === 'email' && <EmailPanel emails={emails?.data ?? []} />}
+ 
+-      {view === 'sms' && <SmsPanel history={sms?.data ?? []} />}
++      {view === 'sms' && (
++        <SmsPanel
++          history={smsHistory}
++          inbox={smsInbox}
++          contacts={smsContacts}
++        />
++      )}
+ 
+       {view === 'call' && <CallPanel history={calls?.data ?? []} />}
+ 

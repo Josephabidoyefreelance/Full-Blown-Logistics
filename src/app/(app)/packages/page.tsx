@@ -57,7 +57,7 @@ export default async function PackagesPage({
       )}
       {params.payment === 'pending' && (
         <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-          We have not received confirmation yet. If you have completed the transfer, wait for Paystack to confirm it and refresh this page. JAAD will not activate a package from a screenshot or an unverified browser message.
+          We have not received confirmation yet. If you have completed the transfer, wait for Flutterwave to confirm it and refresh this page. JAAD will not activate a package from a screenshot or an unverified browser message.
         </div>
       )}
       {params.payment === 'failed' && (

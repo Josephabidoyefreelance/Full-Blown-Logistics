@@ -1,35 +1,19 @@
 import { NextResponse } from 'next/server';
-import { verifyAndActivateBankTransfer, verifyPaystackSignature } from '@/lib/billing/paystack';
-
+import { verifyAndActivateBankTransfer, verifyFlutterwaveWebhookHash } from '@/lib/billing/flutterwave';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
 export async function POST(request: Request) {
-  const rawBody = await request.text();
-  const signature = request.headers.get('x-paystack-signature');
-  if (!verifyPaystackSignature(rawBody, signature)) {
-    return NextResponse.json({ error: 'Invalid Paystack signature.' }, { status: 401 });
-  }
-
-  let event: { event?: string; data?: { reference?: string } };
-  try {
-    event = JSON.parse(rawBody) as typeof event;
-  } catch {
-    return NextResponse.json({ error: 'Invalid webhook payload.' }, { status: 400 });
-  }
-
-  // Ignore other signed events. Only a verified successful charge can activate a package.
-  if (event.event !== 'charge.success') return NextResponse.json({ received: true });
-  const reference = event.data?.reference;
-  if (!reference) return NextResponse.json({ error: 'The successful charge has no reference.' }, { status: 400 });
-
-  const result = await verifyAndActivateBankTransfer(reference);
+  if (!verifyFlutterwaveWebhookHash(request.headers.get('verif-hash')))
+    return NextResponse.json({ error: 'Invalid webhook signature.' }, { status: 401 });
+  const event = await request.json().catch(() => null) as
+    { event?: string; data?: { id?: number; tx_ref?: string; payment_type?: string } } | null;
+  if (!event || !event.data) return NextResponse.json({ error: 'Invalid webhook.' }, { status: 400 });
+  if (event.event !== 'charge.completed' || event.data.payment_type !== 'bank_transfer')
+    return NextResponse.json({ received: true });
+  if (!event.data.tx_ref || event.data.id == null)
+    return NextResponse.json({ error: 'Missing transaction identity.' }, { status: 400 });
+  const result = await verifyAndActivateBankTransfer(event.data.tx_ref, undefined, event.data.id);
   if (result.ok) return NextResponse.json({ received: true, activated: true });
-  if (result.pending) {
-    // A 5xx response asks Paystack to retry delivery if verification/database access is temporarily unavailable.
-    return NextResponse.json({ received: false, error: result.message }, { status: 503 });
-  }
-  // Invalid/mismatched references must not be activated; acknowledge to avoid retry loops.
-  console.error('JAAD billing webhook could not activate payment:', result.message);
+  if (result.pending) return NextResponse.json({ received: false }, { status: 503 });
   return NextResponse.json({ received: true, activated: false });
 }

@@ -9,7 +9,9 @@ export async function proxy(request: NextRequest) {
   const isWebhookRoute =
     pathname.startsWith('/api/inbound-email') ||
     pathname === '/api/twilio/voice' ||
-    pathname === '/api/twilio/status';
+    pathname === '/api/twilio/status' ||
+    pathname === '/api/billing/webhook' ||
+    pathname === '/api/billing/callback';
 
   if (isWebhookRoute) {
     return NextResponse.next({ request });
@@ -41,16 +43,18 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Pages anyone can visit without being logged in: the homepage,
-  // the admin login page itself, and everything under the customer portal
-  // (that portal has its own separate customer login).
+  // both login pages, and customer signup. Everything else, including
+  // the customer dashboard, requires a logged-in session.
   const isPublicRoute =
     request.nextUrl.pathname === '/' ||
     request.nextUrl.pathname.startsWith('/admin/login') ||
-    request.nextUrl.pathname.startsWith('/customer');
+    request.nextUrl.pathname === '/customer/login' ||
+    request.nextUrl.pathname === '/customer/signup' ||
+    request.nextUrl.pathname === '/customer/erp-signup';
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = '/admin/login';
+    url.pathname = request.nextUrl.pathname.startsWith('/customer') ? '/customer/login' : '/admin/login';
     return NextResponse.redirect(url);
   }
 

@@ -1,0 +1,371 @@
+'use client';
+
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { logSupportCall } from './actions';
+import type { Device as TwilioDeviceType, Call as TwilioCallType } from '@twilio/voice-sdk';
+
+type Call = { id: string; number: string; status: string; created_at: string };
+
+async function readApiJson(response: Response) {
+  const body = await response.text();
+  let payload: any;
+  try {
+    payload = body ? JSON.parse(body) : {};
+  } catch {
+    const hint = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+    throw new Error(
+      response.status === 404
+        ? 'Twilio token API route was not found (404). Make sure app/api/twilio/token/route.ts is installed, then restart the Next.js server.'
+        : `Twilio token API returned HTML instead of JSON (HTTP ${response.status}). ${hint || 'Check the Next.js terminal for the server error.'}`
+    );
+  }
+  if (!response.ok) throw new Error(payload?.error || `Request failed (HTTP ${response.status}).`);
+  return payload;
+}
+
+const keypadRows = [
+  [{ digit: '1', letters: '' }, { digit: '2', letters: 'ABC' }, { digit: '3', letters: 'DEF' }],
+  [{ digit: '4', letters: 'GHI' }, { digit: '5', letters: 'JKL' }, { digit: '6', letters: 'MNO' }],
+  [{ digit: '7', letters: 'PQRS' }, { digit: '8', letters: 'TUV' }, { digit: '9', letters: 'WXYZ' }],
+  [{ digit: '*', letters: '' }, { digit: '0', letters: '+' }, { digit: '#', letters: '' }],
+];
+
+export default function CallPanel({ history }: { history: Call[] }) {
+  const [number, setNumber] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
+  const [device, setDevice] = useState<TwilioDeviceType | null>(null);
+  const [activeCall, setActiveCall] = useState<TwilioCallType | null>(null);
+  const [voiceReady, setVoiceReady] = useState(false);
+  const [callState, setCallState] = useState('Connecting phone…');
+
+  useEffect(() => {
+    let mounted = true;
+    let createdDevice: TwilioDeviceType | null = null;
+
+    async function setupDevice() {
+      try {
+        const response = await fetch('/api/twilio/token', { cache: 'no-store' });
+        const payload = await readApiJson(response);
+
+        const { Device } = await import('@twilio/voice-sdk');
+        createdDevice = new Device(payload.token, { logLevel: 1 });
+        createdDevice.on('registered', () => {
+          if (mounted) {
+            setVoiceReady(true);
+            setCallState('Ready to call');
+          }
+        });
+        createdDevice.on('error', (err) => {
+          if (mounted) {
+            setVoiceReady(false);
+            setCallState('Phone connection error');
+            setError(err.message || 'Twilio phone connection failed.');
+          }
+        });
+        createdDevice.on('tokenWillExpire', async () => {
+          try {
+            const refreshed = await fetch('/api/twilio/token', { cache: 'no-store' });
+            const next = await readApiJson(refreshed);
+            if (next.token && createdDevice) createdDevice.updateToken(next.token);
+          } catch {
+            if (mounted) setError('Could not refresh the phone session. Reload this page.');
+          }
+        });
+        await createdDevice.register();
+        if (mounted) setDevice(createdDevice);
+      } catch (err) {
+        if (mounted) {
+          setVoiceReady(false);
+          setCallState('Phone not connected');
+          setError(err instanceof Error ? err.message : 'Could not connect the phone.');
+        }
+      }
+    }
+
+    void setupDevice();
+    return () => {
+      mounted = false;
+      if (createdDevice) void createdDevice.destroy();
+    };
+  }, []);
+
+  const recentCalls = history;
+
+  // Stable UTC-date grouping makes the chart consistent during server rendering/hydration.
+  const callVolumeByDay = (() => {
+    const counts = new Map<string, number>();
+    for (const call of history) {
+      const day = new Date(call.created_at).toISOString().slice(0, 10);
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    const days = [...counts.keys()].sort((a, b) => b.localeCompare(a)).slice(0, 7).reverse();
+    return days.map((day) => ({
+      day,
+      label: day.slice(5),
+      count: counts.get(day) ?? 0,
+    }));
+  })();
+  const busiestCallDay = [...callVolumeByDay].sort((a, b) => b.count - a.count)[0];
+  const quietestCallDay = [...callVolumeByDay].filter((day) => day.count > 0).sort((a, b) => a.count - b.count)[0];
+  const maxDailyCalls = Math.max(1, ...callVolumeByDay.map((day) => day.count));
+
+  // Metrics are derived from the statuses saved in call history.
+  // Twilio's status callback must update these records for the outcome counts to be authoritative.
+  const normalizedStatus = (status: string) => status.toLowerCase().trim();
+  const answeredCalls = history.filter((call) => {
+    const status = normalizedStatus(call.status);
+    return status === 'answered' || status === 'completed' || status.includes('answered') || status.includes('completed');
+  }).length;
+  const declinedCalls = history.filter((call) => {
+    const status = normalizedStatus(call.status);
+    return status.includes('declined') || status.includes('busy') || status.includes('rejected');
+  }).length;
+  const unansweredCalls = history.filter((call) => {
+    const status = normalizedStatus(call.status);
+    return status.includes('no-answer') || status.includes('no answer') || status.includes('unanswered') || status.includes('timeout');
+  }).length;
+  const failedCalls = history.filter((call) => {
+    const status = normalizedStatus(call.status);
+    return status.includes('failed') || status.includes('error');
+  }).length;
+
+  function addDigit(digit: string) {
+    setNumber((current) => `${current}${digit}`.slice(0, 30));
+    setError(null);
+    setNotice(null);
+  }
+
+  function submitCall(fd: FormData) {
+    const destination = String(fd.get('number') ?? '').trim().replace(/[\s().-]/g, '');
+    if (!destination) {
+      setError('Enter a phone number before placing a call.');
+      return;
+    }
+    if (!/^\+?[1-9]\d{7,14}$/.test(destination)) {
+      setError('Enter a valid phone number in international format, for example +2348012345678.');
+      return;
+    }
+    if (!device || !voiceReady) {
+      setError('The JAAD phone is not connected yet. Check Twilio configuration and reload this page.');
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      try {
+        setCallState(`Calling ${destination}…`);
+        const call = await device.connect({ params: { To: destination } });
+        setActiveCall(call);
+        call.on('accept', () => setCallState(`Connected to ${destination}`));
+        call.on('disconnect', () => {
+          setActiveCall(null);
+          setCallState('Ready to call');
+          setNotice('Call ended.');
+          router.refresh();
+        });
+        call.on('cancel', () => {
+          setActiveCall(null);
+          setCallState('Ready to call');
+        });
+        call.on('error', (err) => {
+          setActiveCall(null);
+          setCallState('Phone call failed');
+          setError(err.message || 'The call could not be connected.');
+        });
+
+        const logData = new FormData();
+        logData.set('number', destination);
+        const result = await logSupportCall(logData, 'Initiated via Twilio');
+        if (result?.error) setNotice(`Call started, but call history could not be saved: ${result.error}`);
+        else setNotice(`Calling ${destination}. Keep this page open and allow microphone access.`);
+      } catch (err) {
+        setCallState('Phone call failed');
+        setError(err instanceof Error ? err.message : 'Unable to start the call.');
+      }
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+         <div>
+           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Call centre</h2>
+           <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Call history and dial pad in one view.</p>
+         </div>
+         <span className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">{history.length} recorded calls</span>
+       </div>
+
+      {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</p>}
+      {notice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{notice}</p>}
+
+      {/* Call metrics dashboard; the existing keypad and call-history layout remain unchanged. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6">
+        {[
+          { label: 'Outbound Calls', value: history.length, detail: 'Total recorded attempts' },
+          { label: 'Answered', value: answeredCalls, detail: 'Answered or completed' },
+          { label: 'Declined / Busy', value: declinedCalls, detail: 'Declined, rejected or busy' },
+          { label: 'Unanswered', value: unansweredCalls, detail: 'No answer or timeout' },
+          { label: 'Failed', value: failedCalls, detail: 'Technical or call failures' },
+          { label: 'Total Calls', value: history.length, detail: 'All calls recorded' },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            className={`rounded-xl border bg-white p-4 shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-lg dark:bg-neutral-900 ${
+              metric.label === 'Outbound Calls'
+                ? 'border-neutral-200 hover:border-yellow-400 hover:bg-yellow-100 hover:text-yellow-950 hover:shadow-yellow-200/70 hover:ring-2 hover:ring-yellow-300/70 dark:border-neutral-800 dark:hover:border-yellow-500 dark:hover:bg-yellow-950/60 dark:hover:text-yellow-100 dark:hover:shadow-yellow-950/40 dark:hover:ring-yellow-600/60'
+                : metric.label === 'Answered'
+                  ? 'border-neutral-200 hover:border-green-400 hover:bg-green-100 hover:text-green-950 hover:shadow-green-200/70 hover:ring-2 hover:ring-green-300/70 dark:border-neutral-800 dark:hover:border-green-500 dark:hover:bg-green-950/60 dark:hover:text-green-100 dark:hover:shadow-green-950/40 dark:hover:ring-green-600/60'
+                  : metric.label === 'Declined / Busy'
+                    ? 'border-neutral-200 hover:border-orange-400 hover:bg-orange-100 hover:text-orange-950 hover:shadow-orange-200/70 hover:ring-2 hover:ring-orange-300/70 dark:border-neutral-800 dark:hover:border-orange-500 dark:hover:bg-orange-950/60 dark:hover:text-orange-100 dark:hover:shadow-orange-950/40 dark:hover:ring-orange-600/60'
+                    : metric.label === 'Unanswered'
+                      ? 'border-neutral-200 hover:border-violet-400 hover:bg-violet-100 hover:text-violet-950 hover:shadow-violet-200/70 hover:ring-2 hover:ring-violet-300/70 dark:border-neutral-800 dark:hover:border-violet-500 dark:hover:bg-violet-950/60 dark:hover:text-violet-100 dark:hover:shadow-violet-950/40 dark:hover:ring-violet-600/60'
+                      : metric.label === 'Failed'
+                        ? 'border-neutral-200 hover:border-red-400 hover:bg-red-100 hover:text-red-950 hover:shadow-red-200/70 hover:ring-2 hover:ring-red-300/70 dark:border-neutral-800 dark:hover:border-red-500 dark:hover:bg-red-950/60 dark:hover:text-red-100 dark:hover:shadow-red-950/40 dark:hover:ring-red-600/60'
+                        : 'border-neutral-200 hover:border-amber-400 hover:bg-amber-100 hover:text-amber-950 hover:shadow-amber-200/70 hover:ring-2 hover:ring-amber-300/70 dark:border-neutral-800 dark:hover:border-amber-500 dark:hover:bg-amber-950/60 dark:hover:text-amber-100 dark:hover:shadow-amber-950/40 dark:hover:ring-amber-600/60'
+            }`}
+          >
+            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{metric.label}</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">{metric.value}</p>
+            <p className="mt-1 text-[10px] text-neutral-400">{metric.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+          <div>
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Call activity insights</h3>
+            <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Recorded calls grouped by day (UTC). Scroll horizontally to review the dates.</p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{callVolumeByDay.length} active dates</span>
+        </div>
+        {callVolumeByDay.length ? (
+          <div className="overflow-x-auto p-4">
+            <div className="flex min-w-max items-end gap-4" style={{ minHeight: '150px' }}>
+              {callVolumeByDay.map((day) => (
+                <div key={day.day} className="group flex w-16 flex-col items-center gap-2" title={`${day.day}: ${day.count} recorded calls`}>
+                  <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">{day.count}</span>
+                  <div className="flex h-24 w-9 items-end overflow-hidden rounded-t-md bg-neutral-100 dark:bg-neutral-800">
+                    <div className="w-full rounded-t-md bg-blue-500 transition-all duration-200 group-hover:bg-violet-500" style={{ height: `${Math.max(5, (day.count / maxDailyCalls) * 100)}%` }} />
+                  </div>
+                  <span className="text-[10px] text-neutral-500">{day.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="px-4 py-8 text-sm text-neutral-500">Call activity will appear here once call records are available.</p>
+        )}
+        <div className="grid gap-3 border-t border-neutral-100 p-4 sm:grid-cols-2 dark:border-neutral-800">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/20">
+            <p className="text-[11px] font-medium text-green-700 dark:text-green-300">Busiest recorded day</p>
+            <p className="mt-1 text-base font-semibold text-green-900 dark:text-green-100">{busiestCallDay ? `${busiestCallDay.day} · ${busiestCallDay.count} calls` : 'No call data yet'}</p>
+          </div>
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-950/20">
+            <p className="text-[11px] font-medium text-orange-700 dark:text-orange-300">Quietest recorded day</p>
+            <p className="mt-1 text-base font-semibold text-orange-900 dark:text-orange-100">{quietestCallDay ? `${quietestCallDay.day} · ${quietestCallDay.count} calls` : 'No call data yet'}</p>
+          </div>
+        </div>
+      </section>
+
+      <div className="w-full min-w-0" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 370px)", alignItems: "start", gap: "18px" }}>
+          <div className="flex min-h-0 flex-col rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" style={{ height: "min(58vh, 520px)", minHeight: "260px" }}>
+            <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Recent calls</h3>
+                <p className="mt-0.5 text-[11px] text-neutral-500">Latest call activity</p>
+              </div>
+              <button type="button" onClick={() => router.refresh()} className="text-xs font-semibold text-red-600 hover:text-red-700">Refresh</button>
+            </div>
+            {recentCalls.length ? (
+              <div className="min-h-0 flex-1 divide-y divide-neutral-100 overscroll-contain dark:divide-neutral-800" style={{ minHeight: 0, overflowY: "scroll", overflowX: "hidden", flex: "1 1 0%", scrollbarGutter: "stable", overscrollBehavior: "contain" }}>
+                {recentCalls.map((call) => (
+                  <div key={call.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">☎</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{call.number}</p>
+                      <p className="mt-0.5 text-[11px] text-neutral-500">{new Date(call.created_at).toISOString().slice(0, 16).replace('T', ' ')}</p>
+                    </div>
+                    <span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">{call.status}</span>
+                    <button type="button" onClick={() => { setNumber(call.number); }} title="Dial this number again" aria-label={`Dial ${call.number} again`} className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-neutral-600 hover:border-red-300 hover:text-red-600 dark:border-neutral-700 dark:text-neutral-300">Redial</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-12 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-xl text-neutral-500 dark:bg-neutral-800">☎</div>
+                <p className="mt-3 text-sm font-medium text-neutral-700 dark:text-neutral-200">No calls yet</p>
+                <p className="mt-1 text-xs text-neutral-400">Your call activity will appear here.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="w-full min-w-0 self-start overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="bg-neutral-950 px-4 py-2.5 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">JAAD Phone</p>
+                  <p className="mt-1 text-[11px] text-neutral-400">Softphone dialler</p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-neutral-200"><span className={`h-1.5 w-1.5 rounded-full ${voiceReady ? 'bg-emerald-400' : 'bg-amber-400'}`} /> {callState}</span>
+              </div>
+            </div>
+
+            <form ref={formRef} action={submitCall} className="p-3">
+              <label htmlFor="support-call-number" className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Phone number</label>
+              <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 dark:border-neutral-700 dark:bg-neutral-800">
+                <span className="text-neutral-400">☎</span>
+                <input
+                  id="support-call-number"
+                  name="number"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  required
+                  value={number}
+                  onChange={(event) => { setNumber(event.target.value); setError(null); setNotice(null); }}
+                  placeholder="Enter number"
+                  className="min-w-0 flex-1 bg-transparent py-2.5 text-center text-lg font-semibold tracking-wider text-neutral-900 outline-none placeholder:text-sm placeholder:font-normal placeholder:tracking-normal dark:text-neutral-100"
+                />
+                <button type="button" aria-label="Delete last digit" title="Delete last digit" onClick={() => setNumber((current) => current.slice(0, -1))} className="rounded-md px-2 py-1 text-lg text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700">⌫</button>
+              </div>
+
+              <div className="mx-auto mt-2.5 grid w-full grid-cols-3 gap-1.5">
+                {keypadRows.flat().map(({ digit, letters }) => (
+                  <button
+                    key={digit}
+                    type="button"
+                    onClick={() => addDigit(digit)}
+                    className="flex h-9 flex-col items-center justify-center rounded-lg border border-neutral-200 bg-white transition hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-emerald-950/30"
+                  >
+                    <span className="text-base font-semibold text-neutral-800 dark:text-neutral-100">{digit}</span>
+                    {letters && <span className="mt-0.5 text-[9px] font-semibold tracking-[0.2em] text-neutral-400">{letters}</span>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 flex items-center justify-center gap-3">
+                <button type="button" onClick={() => { setNumber(''); setError(null); setNotice(null); }} className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">Clear</button>
+                {activeCall ? (
+                  <button type="button" onClick={() => activeCall.disconnect()} className="inline-flex min-w-28 items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-md transition hover:brightness-95" style={{ backgroundColor: '#dc2626', color: '#ffffff', border: '1px solid #b91c1c' }}>
+                    <span aria-hidden="true">✕</span> Hang up
+                  </button>
+                ) : (
+                  <button type="submit" disabled={isPending || !voiceReady} className="inline-flex min-w-28 items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-md transition hover:brightness-95 disabled:cursor-wait disabled:opacity-80" style={{ backgroundColor: '#16a34a', color: '#ffffff', border: '1px solid #15803d' }}>
+                    <span aria-hidden="true" className="text-sm">☎</span>{isPending ? 'Dialing…' : 'Call'}
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-center text-[10px] leading-4 text-neutral-400">Allow microphone access when prompted. Enter numbers in international format. Live calling requires the Twilio backend routes and TwiML App webhook to be configured.</p>
+            </form>
+          </div>
+        </div>
+    </section>
+  );
+}

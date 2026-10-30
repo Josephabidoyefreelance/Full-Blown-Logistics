@@ -1,0 +1,19 @@
+JAAD ERP — PDF DOWNLOAD ROUTE ONLY FIX
+
+This patch changes ONLY the PDF report API route. It does not include or replace the Clock Tracker page, actions, timer components, or any other files.
+
+Install:
+1. Extract this ZIP.
+2. Copy the file at:
+   src/app/api/clock-tracker/report/route.ts
+   into the SAME path in your project, replacing that route.ts if it exists.
+3. Make sure there is no conflicting page.tsx or route.ts at:
+   src/app/api/clock-tracker/report/page.tsx
+   or src/app/(app)/clock-tracker/route.ts
+   The report endpoint must be an API route at src/app/api/clock-tracker/report/route.ts.
+4. Restart Next.js dev server (stop it with Ctrl+C, then run npm run dev).
+5. Open /api/clock-tracker/report while signed in. It should download a PDF, not display a Next.js 404.
+
+The Clock Tracker page already links to /api/clock-tracker/report. A 404 means Next.js is not registering the route at the expected filesystem path or the dev server has not reloaded it.
+
+If your project uses app/ instead of src/app/, copy to app/api/clock-tracker/report/route.ts instead — do not install both copies.

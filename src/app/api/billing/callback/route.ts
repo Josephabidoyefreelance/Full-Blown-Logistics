@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { verifyAndActivateBankTransfer } from '@/lib/billing/paystack';
+import { verifyAndActivateBankTransfer } from '@/lib/billing/flutterwave';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,7 @@ function packageRedirect(status: 'success' | 'pending' | 'failed') {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const reference = url.searchParams.get('reference') || url.searchParams.get('trxref');
+  const reference = url.searchParams.get('tx_ref');
   if (!reference) return packageRedirect('failed');
 
   const supabase = await createClient();
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', user.id).maybeSingle();
   if (!profile?.company_id) return packageRedirect('failed');
 
-  const result = await verifyAndActivateBankTransfer(reference, profile.company_id);
+  const result = await verifyAndActivateBankTransfer(reference, profile.company_id, url.searchParams.get('transaction_id') || undefined);
   if (result.ok) return packageRedirect('success');
   return packageRedirect(result.pending ? 'pending' : 'failed');
 }

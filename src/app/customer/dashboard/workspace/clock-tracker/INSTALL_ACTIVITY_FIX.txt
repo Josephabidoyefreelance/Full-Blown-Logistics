@@ -1,0 +1,28 @@
+JAAD ERP CLOCK TRACKER — IMMEDIATE PAUSE / WEEKLY TIME PATCH
+
+FILES INCLUDED
+- src/app/(app)/clock-tracker/page.tsx
+- src/app/(app)/clock-tracker/clock-button.tsx
+- src/app/(app)/clock-tracker/live-work-time.tsx
+- src/app/api/clock-tracker/report/route.ts
+- ALTERNATIVE_IF_PROJECT_USES_ROOT_APP/ ... same files for root app layout
+
+CHANGES
+1. Pause/Resume emits an immediate browser event so the visible live timer freezes/unfreezes without waiting for a server refresh. The Supabase update still happens asynchronously; failures are shown and the UI rolls back.
+2. Leaving the active browser tab or window triggers an idle pause request immediately. Returning to the focused/visible window auto-resumes only sessions this component itself auto-paused. Manual pauses are not auto-resumed.
+3. Existing 5-minute inactivity pause remains.
+4. Removes the unwanted Elapsed line from the live status and shows Regular today, Regular this week, and Overtime.
+5. Adds Weekly Time after Duration in the table and PDF. Table stays fixed-layout with horizontal scrolling on narrow viewports.
+6. PDF is landscape and includes the Weekly Time column.
+
+INSTALL
+- Determine whether the active Next.js tree is src/app or app. Copy ONLY that variant; do not create duplicate route trees.
+- Copy the API route into the same active app tree at app/api/clock-tracker/report/route.ts (or src/app/api/clock-tracker/report/route.ts).
+- Existing pause-tracking database columns must already be migrated: paused_at, pause_reason, paused_seconds, idle_seconds. This archive does not contain the original migration; do not run it until you confirm the schema.
+- Restart the dev server and test with a non-production account.
+
+LIMITATIONS / REQUIRED END-TO-END TESTS
+- Browser blur/visibility events are best-effort. Browser crash, force close, OS sleep, offline state, or a failed network request can prevent an immediate server write. Reliable attendance enforcement needs a server-side heartbeat/timeout reconciler.
+- Navigation tracking across all ERP modules is NOT wired by this patch. The uploaded source contains only Clock Tracker fragments, not the authenticated ERP layout where a global route/activity tracker must be mounted. To record which ERP pages a worker visits, provide the authenticated layout/root layout and existing database migration conventions; record route changes and timestamps only, not keystrokes or page contents.
+- Weekly Time is cumulative elapsed net time within the week for entries ordered by clock-in. Validate cross-midnight sessions and weekly boundary allocation against business rules before using for payroll.
+- No complete app build, live Supabase write test, browser focus test, or rendered PDF inspection was possible from the source fragments alone.

@@ -1,0 +1,42 @@
+JAAD CLOCK TRACKER — CORRECTED DURATION, IDLE/OERTIME DISPLAY, SPACING, AND PDF DOWNLOAD
+
+This is a targeted source patch, not a complete application. Merge these files into the existing project; do not replace unrelated modules.
+
+FILES
+- src/app/(app)/clock-tracker/page.tsx
+- src/app/(app)/clock-tracker/clock-button.tsx
+- src/app/(app)/clock-tracker/live-work-time.tsx
+- src/app/(app)/clock-tracker/actions.ts
+- src/app/(app)/clock-tracker/pdf-download-button.tsx
+- src/app/api/clock-tracker/report/route.ts
+- src/app/api/clock-tracker/auto-clock-out/route.ts
+- supabase/migrations/202610130002_clock_entries_pause_tracking.sql
+
+IMPORTANT PATH RULE
+The PDF route must be installed at <project-root>/src/app/api/clock-tracker/report/route.ts for a project using src/app. Do not put route.ts beside page.tsx and do not create duplicate app/ and src/app/ trees. If this project uses root-level app/ instead, move the route and page/component files to the corresponding root app paths rather than keeping both trees.
+
+WHAT THIS PATCH CORRECTS
+1. Duration now means total net working time (clock-out minus clock-in minus all paused time). It no longer displays only the regular-time allowance. Example: 03:57 to 09:04 with no pause = 5h 7m duration.
+2. Overtime is calculated separately from total duration after the existing 8-hour daily / 40-hour weekly regular-time allowance. A 5h 7m shift with no earlier regular time that day/week should display 0h 0m overtime, not blank.
+3. Idle Time uses recorded idle_seconds and, for a currently idle-paused session, includes the ongoing idle pause. Clock-out while idle-paused is recorded by actions.ts.
+4. Table padding is compacted and column widths are explicitly defined to total 100%. Staff is left-aligned, date/time/duration values centered, and notes right-aligned.
+5. PDF is A4 landscape with a consistent column grid, repeated table headings, row separators, page numbering, and wrapped notes.
+6. PDF download uses fetch, verifies HTTP status, content type and the %PDF- signature, downloads a named file, and displays a useful error instead of silently opening a JSON/HTML error response.
+7. The migration adds pause/idle tracking fields safely with IF NOT EXISTS and nonnegative constraints. It does not delete or rewrite clock-entry history.
+
+DATABASE STEP REQUIRED
+Review and apply the included SQL migration in the Supabase SQL Editor or your established migration workflow before using the updated code. Do not apply it blindly to production without following your normal backup/review process. Existing historical idle time cannot be reconstructed if it was never tracked; new idle tracking will be available once the migration and updated code are active.
+
+INSTALL / TEST
+1. Back up the existing clock-tracker files.
+2. Apply the SQL migration in a reviewed deployment step.
+3. Merge the files above into the matching paths in the active project.
+4. Confirm there is no accidental src/app/(app)/clock-tracker/route.ts conflicting with page.tsx.
+5. Restart Next.js. If route changes are not picked up, stop the server, remove the project's .next cache, and restart.
+6. While signed in, use the Clock Tracker Download PDF report button. The endpoint should return HTTP 200 and Content-Type application/pdf.
+7. Test a known session: clock in at 03:57 and clock out at 09:04 with no pauses should show Duration 5h 7m, Overtime 0h 0m (assuming no prior regular hours that day/week), and Idle Time 0h 0m if there was no idle pause.
+8. Test manual pause/resume and the five-minute idle pause. Confirm idle duration is excluded from worked duration and appears in Idle Time.
+9. Check the table at desktop and narrow viewport widths; the table intentionally scrolls horizontally when needed rather than squeezing columns out of alignment.
+
+VERIFICATION LIMITATION
+The source bundle supplied for this patch did not include package.json, the full repository, a live browser, or connected Supabase access. Therefore this archive has not been production-built or tested against the live database/browser. This is a code patch with explicit validation steps, not a claim that the running application is already fixed.

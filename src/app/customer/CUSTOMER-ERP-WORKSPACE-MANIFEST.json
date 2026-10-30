@@ -1,0 +1,18 @@
+{
+  "customer_workspace_route": "/customer/dashboard/workspace",
+  "company_signup_route": "/customer/erp-signup",
+  "preserves_existing_shipment_customer_portal": true,
+  "preserves_admin_routes": true,
+  "tenant_identity": "profiles.company_id -> companies.id",
+  "subscription_table": "company_subscriptions",
+  "plans": [
+    { "code": "basic", "monthly_price_ngn": 5000, "crm": "limited" },
+    { "code": "standard", "monthly_price_ngn": 10000, "crm": "limited" },
+    { "code": "business", "monthly_price_ngn": 15000, "crm": "limited" },
+    { "code": "premium", "monthly_price_ngn": 20000, "crm": "full" }
+  ],
+  "modules": ["dashboard", "crm", "customers", "shipments", "fleet", "drivers", "warehouse", "finance", "hr", "support", "reports", "clock-tracker", "calendar", "ai-chat", "invoice-branding"],
+  "tenant_safety_gate": "CUSTOMER_ERP_TENANT_MODE=enabled only after SQL/RLS and attachment storage are verified",
+  "admin_access_guard": "src/app/(app)/admin/layout.tsx requires Super Admin",
+  "note": "Integration patch, not a complete standalone repository; see README-INSTALL.md"
+}
