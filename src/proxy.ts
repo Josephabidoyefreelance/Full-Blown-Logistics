@@ -1,19 +1,31 @@
 
-import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
-  // Webhook routes have no browser session (Resend, etc. call these directly),
-  // so they must skip the auth redirect entirely.
   const pathname = request.nextUrl.pathname;
-  const isWebhookRoute =
-    pathname.startsWith('/api/inbound-email') ||
-    pathname === '/api/twilio/voice' ||
-    pathname === '/api/twilio/status' ||
-    pathname === '/api/billing/webhook' ||
-    pathname === '/api/billing/callback';
 
-  if (isWebhookRoute) {
+  const publicRoutes = [
+    "/",
+    "/erp",
+    "/admin/login",
+    "/customer/login",
+    "/customer/signup",
+    "/customer/erp-signup",
+  ];
+
+  const isPublicPage = publicRoutes.includes(pathname);
+
+  const isPublicAsset =
+    pathname.startsWith("/documents/") ||
+    pathname.startsWith("/legal-pages/");
+
+  const isWebhook =
+    pathname.startsWith("/api/inbound-email") ||
+    pathname === "/api/twilio/voice" ||
+    pathname === "/api/twilio/status";
+
+  if (isPublicPage || isPublicAsset || isWebhook) {
     return NextResponse.next({ request });
   }
 
@@ -28,8 +40,12 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+
           response = NextResponse.next({ request });
+
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -42,25 +58,15 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Pages anyone can visit without being logged in: the homepage,
-  // both login pages, and customer signup. Everything else, including
-  // the customer dashboard, requires a logged-in session.
-  const isPublicRoute =
-    request.nextUrl.pathname === '/' ||
-    request.nextUrl.pathname.startsWith('/admin/login') ||
-    request.nextUrl.pathname === '/customer/login' ||
-    request.nextUrl.pathname === '/customer/signup' ||
-    request.nextUrl.pathname === '/customer/erp-signup';
-
-  if (!user && !isPublicRoute) {
+  if (!user) {
+    // Do not redirect public login or signup pages.
+    // Keep admin and customer authentication separate.
     const url = request.nextUrl.clone();
-    url.pathname = request.nextUrl.pathname.startsWith('/customer') ? '/customer/login' : '/admin/login';
-    return NextResponse.redirect(url);
-  }
 
-  if (user && request.nextUrl.pathname.startsWith('/admin/login')) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
+    url.pathname = pathname.startsWith("/customer")
+      ? "/customer/login"
+      : "/admin/login";
+
     return NextResponse.redirect(url);
   }
 
@@ -68,5 +74,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
