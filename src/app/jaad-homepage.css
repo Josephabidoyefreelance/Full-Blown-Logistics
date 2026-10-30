@@ -1,0 +1,256 @@
+
+        :root{--jaad-red:#ed211b;--jaad-black:#080808;--jaad-ink:#171719;--jaad-muted:#626773;--jaad-line:#e5e6e8;--jaad-pale:#f6f6f5}
+        *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:84px}body{margin:0;background:#fff;color:var(--jaad-ink);font-family:Arial,Helvetica,sans-serif;font-size:13px}
+        a{color:inherit}.jaad-home{overflow:hidden}.jaad-wrap{width:min(1240px,calc(100% - 48px));margin:0 auto}
+        .jaad-topline{background:#111;color:#eee;font-size:11px;letter-spacing:.035em;padding:8px 0}.jaad-topline-inner{display:flex;justify-content:space-between;gap:16px}
+        .jaad-header{background:#050505;color:#fff;position:sticky;top:0;z-index:50;border-bottom:1px solid #242424}.jaad-nav{height:76px;display:flex;align-items:center;justify-content:space-between;gap:28px}.jaad-logo-link{display:flex;align-items:center;width:112px;height:60px;flex-shrink:0}.jaad-logo{width:100%;height:100%;object-fit:contain;object-position:left center}.jaad-navlinks{display:flex;align-items:center;gap:28px}.jaad-navlinks a{font-size:13px;font-weight:800;text-transform:uppercase;text-decoration:none;color:#f2f2f2;transition:color .2s}.jaad-navlinks a:hover{color:var(--jaad-red)}.jaad-nav-actions{display:flex;align-items:center;gap:14px;white-space:nowrap}.jaad-nav-login{display:inline-flex;align-items:center;padding:12px 14px;border-radius:4px;background:#ed211b;color:#fff;text-decoration:none;font-size:12px;font-weight:800;text-transform:uppercase}.jaad-nav-cta{background:var(--jaad-red);padding:12px 17px;border-radius:4px;font-size:12px;font-weight:800;text-transform:uppercase;text-decoration:none;color:#fff;white-space:nowrap}.jaad-menu{display:none;background:none;color:#fff;border:1px solid #444;border-radius:4px;padding:9px 12px}
+        .jaad-hero{background:linear-gradient(105deg,#f8f8f7 0%,#fff 52%,#f2f3f3 100%);position:relative}.jaad-hero:after{content:"";position:absolute;right:-130px;top:-130px;width:520px;height:520px;border:1px solid #e4e5e6;border-radius:50%;box-shadow:0 0 0 45px rgba(0,0,0,.018),0 0 0 90px rgba(0,0,0,.014);pointer-events:none}.jaad-hero-grid{min-height:540px;display:grid;grid-template-columns: .92fr 1.08fr;align-items:center;gap:56px;padding-top:52px;padding-bottom:52px;position:relative;z-index:1}.jaad-kicker{font-size:11px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:#252525;margin:0 0 20px}.jaad-kicker:before{content:none!important;display:none!important}.jaad-hero h1{font-size:clamp(36px,4.4vw,56px);line-height:1.08;letter-spacing:-.04em;margin:0 0 20px;font-weight:800;max-width:560px}.jaad-hero h1 span{color:var(--jaad-red)}.jaad-hero-copy{font-size:16px;line-height:1.75;color:#565b63;max-width:520px;margin:0 0 28px}.jaad-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.jaad-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:14px 19px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:700;min-height:46px}.jaad-btn-red{background:var(--jaad-red);color:#fff;border:1px solid var(--jaad-red)}.jaad-btn-red:hover{background:#c91a15}.jaad-btn-outline{border:1px solid #c9cbd0;background:#fff;color:#171719}.jaad-btn-outline:hover{border-color:#171719}.jaad-trust{display:flex;gap:22px;flex-wrap:wrap;margin-top:25px;font-size:12px;color:#50545b}.jaad-trust span:before{content:"✓";display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#e7f3ec;color:#177546;font-weight:800;margin-right:7px}
+        .jaad-visual{position:relative;min-width:0}.jaad-photo{height:370px;border-radius:5px;overflow:hidden;position:relative;background:linear-gradient(125deg,rgba(8,24,39,.12),rgba(8,24,39,.02)),url('/logistics-hero.jpg') center/cover,#d7dde0;box-shadow:0 24px 50px rgba(12,22,32,.13)}.jaad-photo-overlay{position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,20,32,.55),transparent 75%)}.jaad-photo-label{position:absolute;left:24px;bottom:24px;color:#fff;max-width:260px}.jaad-photo-label small{font-size:10px;text-transform:uppercase;letter-spacing:.16em}.jaad-photo-label strong{display:block;font-size:25px;line-height:1.12;margin-top:8px}.jaad-stat-card{position:absolute;right:-18px;bottom:-24px;background:#fff;border:1px solid #e8e8e8;border-radius:5px;padding:18px 20px;width:225px;box-shadow:0 15px 36px #00000014}.jaad-stat-card b{display:block;font-size:12px;margin-bottom:12px}.jaad-stat-row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #eee;padding-top:10px;margin-top:9px;font-size:11px;color:#60636b}.jaad-stat-row strong{color:#171719}
+        .jaad-metrics{border-top:1px solid #e9e9e9;border-bottom:1px solid #e9e9e9;background:#fff}.jaad-metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);padding:25px 0}.jaad-metric{padding:0 24px;border-left:1px solid #e5e5e5}.jaad-metric:first-child{border-left:0;padding-left:0}.jaad-metric strong{display:block;font-size:24px;letter-spacing:-.04em}.jaad-metric span{font-size:11px;color:#666b72;display:block;margin-top:6px}
+        .jaad-section{padding:86px 0}.jaad-section-heading{display:flex;align-items:end;justify-content:space-between;gap:30px;margin-bottom:30px}.jaad-section-heading .jaad-kicker{margin-bottom:13px}.jaad-section-heading h2{font-size:16px;line-height:1.35;letter-spacing:0;margin:0;max-width:550px}.jaad-section-heading p{font-size:14px;line-height:1.7;color:#626773;max-width:400px;margin:0}.jaad-services{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}.jaad-service{border:1px solid #e1e2e4;border-radius:5px;overflow:hidden;background:#fff;transition:transform .2s,box-shadow .2s}.jaad-service:hover{transform:translateY(-4px);box-shadow:0 14px 30px #0000000d}.jaad-service-art{height:185px;background:#e8ecee;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}.jaad-service-art img{width:100%;height:100%;object-fit:cover;display:block}.jaad-service-art:has(img):before,.jaad-service-art:has(img):after{display:none}.jaad-service-art:before,.jaad-service-art:after{content:"";position:absolute;border:1px solid #ffffffb0;transform:rotate(-22deg);width:180px;height:80px}.jaad-service-art:after{width:120px;height:120px;transform:rotate(24deg);right:-25px;top:-45px}.jaad-service-art span{font-size:38px;color:#1e2d38;z-index:1}.jaad-service-body{padding:20px}.jaad-service-num{font-size:10px;color:#7a7d82;font-weight:700;letter-spacing:.1em}.jaad-service h3{font-size:14px;margin:11px 0 9px;letter-spacing:0}.jaad-service p{font-size:12px;line-height:1.7;color:#666b72;margin:0 0 17px}.jaad-text-link{font-size:12px;font-weight:700;text-decoration:none;color:#171719}.jaad-text-link span{color:var(--jaad-red);margin-left:5px}
+        .jaad-about{background:#0b0b0c;color:#fff}.jaad-about-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.jaad-about h2{font-size:clamp(31px,3.5vw,44px);letter-spacing:-.045em;line-height:1.12;margin:0 0 18px}.jaad-about p{color:#c4c5c8;font-size:14px;line-height:1.8;max-width:520px}.jaad-about-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}.jaad-about-item{border:1px solid #353537;border-radius:4px;padding:20px}.jaad-about-item span{color:var(--jaad-red);font-size:22px}.jaad-about-item h3{font-size:14px;margin:14px 0 8px}.jaad-about-item p{font-size:12px;margin:0;color:#b9bbc0;line-height:1.7}
+        .jaad-erp-band{padding:75px 0;background:#f3f3f2}.jaad-erp-panel{background:#171719;color:#fff;border-radius:7px;padding:42px 46px;display:flex;align-items:center;justify-content:space-between;gap:30px;position:relative;overflow:hidden}.jaad-erp-panel:after{content:"";position:absolute;width:360px;height:360px;border:1px solid #4b2928;border-radius:50%;right:10%;top:-200px;box-shadow:0 0 0 30px #ffffff04,0 0 0 65px #ffffff03}.jaad-erp-copy{position:relative;z-index:1;max-width:700px}.jaad-erp-copy .jaad-kicker{color:#fff}.jaad-erp-copy h2{font-size:clamp(28px,3vw,38px);letter-spacing:-.04em;margin:0 0 12px}.jaad-erp-copy p{font-size:13px;line-height:1.8;color:#c6c6c9;margin:0;max-width:680px}.jaad-erp-panel .jaad-btn{position:relative;z-index:1;white-space:nowrap}
+        .jaad-contact-strip{background:#fff;padding:64px 0}.jaad-contact-inner{display:flex;align-items:center;justify-content:space-between;gap:25px}.jaad-contact-inner h2{font-size:clamp(27px,3vw,38px);letter-spacing:-.04em;margin:0 0 10px}.jaad-contact-inner p{font-size:13px;line-height:1.7;color:#666b72;margin:0;max-width:600px}
+        .jaad-footer{background:#050505;color:#f6f6f6;padding:54px 0 20px}.jaad-footer-grid{display:grid;grid-template-columns:1.35fr repeat(3,1fr);gap:48px;padding-bottom:40px}.jaad-footer-brand{width:112px;height:68px;object-fit:contain;object-position:left center;margin-bottom:14px}.jaad-footer-about p{font-size:12px;line-height:1.8;color:#bfc0c4;max-width:260px}.jaad-footer h3{font-size:12px;margin:5px 0 19px}.jaad-footer ul{list-style:none;margin:0;padding:0;display:grid;gap:13px}.jaad-footer li,.jaad-footer a{font-size:12px;color:#c7c7cb;text-decoration:none}.jaad-footer a:hover{color:#fff}.jaad-footer-contact{display:grid;gap:13px;margin-top:16px}.jaad-footer-contact a{display:flex;align-items:center;gap:10px}.jaad-contact-logo{width:23px;height:23px;object-fit:contain;display:block;flex:0 0 23px}.jaad-contact-icon{width:23px;height:23px;border:1px solid #777;border-radius:50%;display:inline-grid;place-items:center;color:#fff;flex:0 0 23px;font-size:12px}.jaad-footer-bottom{border-top:0;padding-top:0;text-align:center;font-size:11px;color:#bcbcc0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}.jaad-footer-legal{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:0;flex-wrap:wrap;width:100%;text-align:center}.jaad-footer-legal a{font-size:11px}
+        .jaad-chat-launch{position:fixed;right:24px;bottom:22px;z-index:100;width:58px;height:58px;border-radius:50%;border:1px solid #333;background:#050505;box-shadow:0 8px 25px #0003;display:grid;place-items:center;cursor:pointer}.jaad-chat-launch img{width:40px;height:32px;object-fit:contain}.jaad-chat-window{position:fixed;right:24px;bottom:94px;width:min(410px,calc(100vw - 32px));height:min(680px,calc(100vh - 115px));background:#fff;z-index:101;border:1px solid #dfe0e2;border-radius:8px;box-shadow:0 20px 60px #0003;display:flex;flex-direction:column;overflow:hidden}.jaad-chat-head{background:#050505;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;min-height:68px}.jaad-chat-head img{width:60px;height:40px;object-fit:contain}.jaad-chat-head button{background:transparent;border:0;color:#fff;font-size:23px;cursor:pointer}.jaad-chat-content{padding:17px;overflow:auto;flex:1}.jaad-chat-content h3{font-size:16px;margin:0 0 8px}.jaad-chat-content>p{font-size:12px;line-height:1.7;color:#646871;margin:0 0 16px}.jaad-chat-form{display:grid;gap:10px}.jaad-chat-form label{font-size:11px;font-weight:700;display:grid;gap:5px}.jaad-chat-form input,.jaad-chat-form select,.jaad-chat-form textarea{font:inherit;font-size:12px;padding:11px;border:1px solid #d8d9dc;border-radius:4px;width:100%;background:#fff;color:#171719}.jaad-chat-form button,.jaad-chat-send button{background:var(--jaad-red);border:0;border-radius:4px;padding:12px;color:#fff;font-size:12px;font-weight:700;cursor:pointer}.jaad-chat-notice{font-size:11px;color:#666;margin-top:10px;line-height:1.6}.jaad-chat-bubble{background:#f1f2f3;padding:10px 12px;border-radius:5px;font-size:12px;line-height:1.6;margin-bottom:9px;overflow-wrap:anywhere}.jaad-chat-send{display:flex;gap:8px;padding:12px;border-top:1px solid #e5e5e5}.jaad-chat-send input{flex:1;min-width:0;border:1px solid #d8d9dc;border-radius:4px;padding:11px;font-size:12px}.jaad-chat-send button{padding-inline:15px}
+        .jaad-faq{background:#f6f6f5;padding:76px 0}.jaad-faq-list{max-width:900px;margin:0 auto;border-top:1px solid #ddd}.jaad-faq-item{border-bottom:1px solid #ddd}.jaad-faq-question{width:100%;display:flex;justify-content:space-between;gap:18px;align-items:center;text-align:left;background:transparent;border:0;padding:19px 0;font-size:15px;font-weight:700;cursor:pointer;color:#171719}.jaad-faq-answer{font-size:13px;line-height:1.75;color:#555d66;padding:0 28px 20px 0}.jaad-document-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.jaad-document-links a{font-size:12px;color:#fff;text-decoration:underline}.jaad-chat-status{background:#fff8e6;border:1px solid #f1d58d;border-radius:4px;padding:10px;font-size:11px;line-height:1.6;margin-bottom:12px}
+        @media(max-width:900px){.jaad-navlinks{gap:15px}.jaad-navlinks a{font-size:12px}.jaad-nav-actions{gap:8px}.jaad-nav-login,.jaad-nav-cta{padding:10px 11px;font-size:10px}.jaad-hero-grid{grid-template-columns:1fr 1fr;gap:30px;min-height:480px}.jaad-photo{height:310px}.jaad-services{grid-template-columns:repeat(2,1fr)}.jaad-footer-grid{grid-template-columns:repeat(2,1fr);gap:34px}.jaad-about-grid{gap:35px}}
+        @media(max-width:650px){.jaad-wrap{width:calc(100% - 32px)}.jaad-topline-inner{justify-content:center;text-align:center}.jaad-topline-inner span:last-child{display:none}.jaad-nav{height:66px}.jaad-logo-link{width:90px;height:54px}.jaad-menu{display:block}.jaad-navlinks{display:none;position:absolute;top:66px;left:0;right:0;background:#050505;padding:18px 20px 22px;flex-direction:column;align-items:stretch;border-top:1px solid #333}.jaad-navlinks.open{display:flex}.jaad-navlinks a{padding:8px 0}.jaad-nav-actions{gap:5px}.jaad-nav-login,.jaad-nav-cta{padding:9px 8px;font-size:9px}.jaad-hero-grid{grid-template-columns:1fr;padding-top:48px;padding-bottom:55px;gap:38px}.jaad-hero h1{font-size:43px}.jaad-hero-copy{font-size:14px}.jaad-photo{height:270px}.jaad-stat-card{right:8px;width:190px}.jaad-metrics-grid{grid-template-columns:1fr 1fr;gap:22px;padding:23px 0}.jaad-metric{padding:0 12px;border-left:1px solid #e5e5e5}.jaad-metric:nth-child(odd){border-left:0;padding-left:0}.jaad-metric strong{font-size:21px}.jaad-section{padding:60px 0}.jaad-section-heading{display:block}.jaad-section-heading p{margin-top:15px}.jaad-services{grid-template-columns:1fr}.jaad-service-art{height:145px}.jaad-about-grid{grid-template-columns:1fr;gap:28px}.jaad-about-list{grid-template-columns:1fr 1fr}.jaad-erp-band{padding:48px 0}.jaad-erp-panel{padding:28px 22px;display:block}.jaad-erp-panel .jaad-btn{margin-top:23px}.jaad-contact-inner{display:block}.jaad-contact-inner .jaad-actions{margin-top:20px}.jaad-footer-grid{grid-template-columns:1fr 1fr;gap:30px 20px}.jaad-footer-grid>div:first-child{grid-column:1/-1}.jaad-footer-brand{height:56px}.jaad-chat-launch{right:16px;bottom:16px}.jaad-chat-window{right:16px;bottom:84px}}
+
+        .jaad-plane-photo{display:block;width:100%;height:clamp(300px,34vw,470px);object-fit:cover;object-position:center;border-radius:5px;box-shadow:0 24px 50px rgba(12,22,32,.13)}
+        .jaad-footer-grid{grid-template-columns:1.45fr 1fr 1.15fr .8fr}.jaad-footer-bottom{border-top:0!important}.jaad-footer-contact a{gap:11px}.jaad-contact-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;height:24px;border-radius:50%;font-size:14px;font-weight:700}.jaad-email-icon{background:#f0f0f0;color:#d9231e}.jaad-whatsapp-icon{background:#25d366;color:#fff}.jaad-instagram-icon{background:linear-gradient(135deg,#6755d9,#d62976,#f7a23b);color:#fff}.jaad-telegram-icon{background:#229ed9;color:#fff}.jaad-phone-icon{background:#fff;color:#111}
+        .jaad-chat-window{height:auto!important;max-height:min(640px,calc(100dvh - 110px))!important;min-height:0!important}.jaad-chat-content{padding-bottom:18px!important}.jaad-chat-notice{display:none!important}.jaad-chat-window .jaad-chat-content{overflow-y:auto;min-height:0}.jaad-chat-send{flex-shrink:0}
+        .jaad-footer-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+
+
+/* JAAD policy PDF modal: static global styles prevent late client-style injection. */
+
+ .jaad-policy-link{appearance:none;border:0;padding:0;background:transparent;color:inherit;font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.jaad-policy-link:hover{opacity:.78}
+ .jaad-pdf-modal-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.76)}
+ .jaad-pdf-modal{display:flex;flex-direction:column;width:min(1100px,100%);height:min(90vh,900px);overflow:hidden;background:#fff;color:#171719;border-radius:8px;box-shadow:0 25px 90px rgba(0,0,0,.45)}
+ .jaad-pdf-modal-header{min-height:66px;display:flex;align-items:center;gap:16px;padding:10px 18px;background:#050505;color:#fff;font:14px Arial,Helvetica,sans-serif}.jaad-pdf-modal-logo{display:block;width:88px;height:44px;object-fit:contain;object-position:left center;flex:0 0 auto}.jaad-pdf-modal-header strong{flex:1;font-size:13px;font-weight:600}.jaad-pdf-modal-header>button{border:0;background:transparent;color:#fff;cursor:pointer;font-size:30px;line-height:1;padding:0 4px}
+ .jaad-pdf-modal iframe{flex:1;width:100%;min-height:0;border:0}
+ @media(max-width:600px){.jaad-pdf-modal-backdrop{padding:8px}.jaad-pdf-modal{height:94vh;border-radius:4px}.jaad-pdf-modal-logo{width:70px;height:38px}.jaad-pdf-modal-header{gap:10px;padding:9px 12px}}
+
+.jaad-pdf-modal-title{flex:1;font-size:13px;font-weight:600;text-align:center}
+.jaad-pdf-modal-header>button{border:0;background:transparent;color:#fff;cursor:pointer;font-size:30px;line-height:1;padding:0 4px}
+@media(max-width:600px){.jaad-pdf-modal-header{gap:10px;padding:9px 12px}.jaad-pdf-modal-logo{width:70px;height:38px}}
+
+@media(max-width:900px){.erp-brand-group{gap:8px}.erp-back-button{padding:8px 10px;font-size:11px}.erp-nav{gap:12px}}
+@media(max-width:650px){.erp-nav{height:auto;min-height:76px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}.erp-brand-group{gap:8px}.erp-brand{width:62px;height:42px}.erp-back-button{padding:8px 10px}.erp-links{gap:12px}.erp-actions{gap:6px}.erp-button{padding:10px 11px}}
+
+/* JAAD final visual corrections */
+html,body{background:#080808;color-scheme:dark} body{font-family:Arial,Helvetica,sans-serif} .jaad-admin-access{display:inline-block;width:1px;height:1px;overflow:hidden;opacity:0;color:transparent;text-decoration:none;cursor:pointer} .jaad-admin-access:focus-visible{width:auto;height:auto;opacity:1;color:inherit} .jaad-pdf-modal{background:#fff;border-radius:0;box-shadow:none}.jaad-pdf-modal-header{background:#000!important;border:0!important;margin:0!important;padding:10px 18px!important;min-height:66px!important}.jaad-pdf-modal iframe{background:#fff;border:0!important;display:block}.erp-back-row{font-family:Arial,Helvetica,sans-serif}
+
+/* Legal document popup: reserve the document area and show feedback until the PDF loads. */
+.jaad-pdf-frame-wrap{position:relative;flex:1;min-height:0;background:#fff}
+.jaad-pdf-frame-wrap iframe{position:absolute;inset:0;width:100%;height:100%;background:#fff;border:0}
+.jaad-pdf-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;color:#222;font:14px Arial,Helvetica,sans-serif;pointer-events:none}
+
+/* Legal PDF modal polish: white document stage, no outer grey frame or padding gaps. */
+.jaad-pdf-modal-backdrop{background:rgba(0,0,0,.78);padding:16px}
+.jaad-pdf-modal{background:#fff!important;border:1px solid #fff!important;border-radius:0!important;box-shadow:none!important;overflow:hidden}
+.jaad-pdf-modal-header{background:#000!important;color:#fff!important;border:0!important;margin:0!important}
+.jaad-pdf-frame-wrap{position:relative;display:flex;flex:1;min-height:0;background:#fff;padding:0}
+.jaad-pdf-frame-wrap iframe{display:block;flex:1;width:100%;height:100%;min-height:0;border:0;background:#fff}
+.jaad-pdf-loading{position:absolute;inset:0;display:grid;place-items:center;background:#fff;color:#333;font:14px Arial,Helvetica,sans-serif;pointer-events:none}
+.jaad-pdf-modal-title{font-family:Arial,Helvetica,sans-serif;font-weight:700}
+@media(max-width:600px){.jaad-pdf-modal-backdrop{padding:6px}.jaad-pdf-modal{height:95vh;width:100%}}
+
+/* Admin-only route marker stays under Careers and is intentionally invisible to visitors. */
+.jaad-admin-access{display:inline-block;width:1px;height:1px;overflow:hidden;opacity:0;color:#050505!important;background:#050505;text-decoration:none;pointer-events:none}
+.jaad-admin-access:focus-visible{width:auto;height:auto;opacity:1;color:inherit!important}
+.jaad-policy-link{cursor:pointer}
+
+/* Legal links open an in-page PDF modal. Keep the buttons visually identical to footer links. */
+.jaad-policy-button{appearance:none;border:0;padding:0;margin:0;background:transparent;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
+.jaad-admin-access{font-size:0!important;line-height:0!important;width:1px!important;height:1px!important;min-width:1px!important;padding:0!important;margin:0!important;overflow:hidden!important;opacity:0!important;color:#050505!important;background:#050505!important;border:0!important;pointer-events:none!important}
+
+/* ERP footer: keep the admin-only entry immediately beneath Careers as a tiny black marker, not a visible text link. */
+.erp-admin-access-holder{line-height:1px!important;min-height:1px!important;height:1px!important;padding:0!important;margin:0!important;}
+.erp-admin-access{display:inline-block!important;width:6px!important;height:6px!important;min-width:6px!important;min-height:6px!important;padding:0!important;margin:0!important;overflow:hidden!important;opacity:1!important;color:#050505!important;background:#050505!important;border:0!important;font-size:0!important;line-height:0!important;text-decoration:none!important;vertical-align:top!important;cursor:pointer!important;pointer-events:auto!important;}
+.erp-admin-access:focus-visible{width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;opacity:1!important;color:#fff!important;background:#ed211b!important;font-size:11px!important;line-height:1.4!important;padding:4px 6px!important;}
+
+/* Final correction: admin-only marker stays directly under Careers. It is a tiny black clickable target, not visible text. */
+.jaad-admin-access{display:inline-block!important;width:6px!important;height:6px!important;min-width:6px!important;min-height:6px!important;padding:0!important;margin:0!important;overflow:hidden!important;opacity:1!important;color:#050505!important;background:#050505!important;border:0!important;font-size:0!important;line-height:0!important;pointer-events:auto!important;cursor:pointer!important;vertical-align:top!important}
+.jaad-admin-access:focus-visible{width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;opacity:1!important;color:#fff!important;background:#ed211b!important;font-size:11px!important;line-height:1.4!important;padding:4px 6px!important}
+.erp-admin-access-holder{display:block!important;line-height:6px!important;min-height:6px!important;height:6px!important;padding:0!important;margin:0!important;overflow:visible!important}
+.erp-admin-access{display:inline-block!important;width:6px!important;height:6px!important;min-width:6px!important;min-height:6px!important;padding:0!important;margin:0!important;overflow:hidden!important;opacity:1!important;color:#050505!important;background:#050505!important;border:0!important;font-size:0!important;line-height:0!important;pointer-events:auto!important;cursor:pointer!important;vertical-align:top!important}
+.erp-admin-access:focus-visible{width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;opacity:1!important;color:#fff!important;background:#ed211b!important;font-size:11px!important;line-height:1.4!important;padding:4px 6px!important}
+
+/* Final user-requested change only: small white admin access dot immediately under Careers. */
+.jaad-admin-access{display:inline-block!important;width:7px!important;height:7px!important;min-width:7px!important;min-height:7px!important;padding:0!important;margin:2px 0 0!important;overflow:hidden!important;opacity:1!important;color:transparent!important;background:#fff!important;border:0!important;border-radius:50%!important;font-size:0!important;line-height:0!important;text-decoration:none!important;pointer-events:auto!important;cursor:pointer!important;vertical-align:top!important}
+.jaad-admin-access:focus-visible{outline:2px solid #ed211b!important;outline-offset:3px!important;width:7px!important;height:7px!important;opacity:1!important}
+.erp-admin-access{display:inline-block!important;width:7px!important;height:7px!important;min-width:7px!important;min-height:7px!important;padding:0!important;margin:2px 0 0!important;overflow:hidden!important;opacity:1!important;color:transparent!important;background:#fff!important;border:0!important;border-radius:50%!important;font-size:0!important;line-height:0!important;text-decoration:none!important;pointer-events:auto!important;cursor:pointer!important;vertical-align:top!important}
+.erp-admin-access:focus-visible{outline:2px solid #ed211b!important;outline-offset:3px!important;width:7px!important;height:7px!important;opacity:1!important}
+
+/* Approved homepage option 9 — scoped to the hero only. */
+.jaad-hero-nine{background:radial-gradient(ellipse at 72% 50%,#14212b 0%,#081018 46%,#05090d 100%);color:#fff;isolation:isolate;overflow:hidden}
+.jaad-hero-nine:after{display:none}
+.jaad-nine-grid{min-height:510px;display:grid;grid-template-columns:43% 57%;align-items:center;position:relative;padding-top:62px;padding-bottom:70px}
+.jaad-nine-copy{position:relative;z-index:2}
+.jaad-nine-eyebrow{font-size:11px;letter-spacing:.14em;color:#f44346;font-weight:800;margin:0 0 20px}
+.jaad-hero-nine h1{font-size:clamp(36px,4.3vw,62px);line-height:1.08;color:#fff;max-width:620px;letter-spacing:-.05em}
+.jaad-hero-nine h1 span{color:#fff}
+.jaad-hero-nine .jaad-hero-copy{color:#c3cbd2;font-size:15px;max-width:430px}
+.jaad-nine-outline{border:1px solid #69717b;background:transparent;color:#fff}
+.jaad-nine-outline:hover{border-color:#fff;background:#ffffff12}
+.jaad-nine-map{position:relative;margin-left:-40px;width:calc(100% + 70px);opacity:.98}
+.jaad-nine-map svg{width:100%;height:auto;display:block;filter:drop-shadow(0 0 16px #ef212112)}
+@media(max-width:800px){.jaad-nine-grid{grid-template-columns:1fr;gap:10px;min-height:0;padding-top:55px;padding-bottom:25px}.jaad-nine-map{margin:0;width:100%}.jaad-hero-nine h1{font-size:clamp(36px,8vw,52px)}}
+
+/* JAAD approved Design 9: centered hero and light trails, brand red + black only. */
+.jaad-hero-nine{background:radial-gradient(ellipse at 50% 66%,#271012 0%,#10090a 38%,#050506 77%);position:relative;isolation:isolate;padding:0 0 0!important;overflow:hidden;color:#fff}
+.jaad-hero-nine::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 12% 54%,#c8232633,transparent 45%),radial-gradient(ellipse at 94% 52%,#e43b3b22,transparent 43%);pointer-events:none}
+.jaad-nine-centered{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:110px;padding-bottom:0}
+.jaad-nine-centered .jaad-nine-eyebrow{color:#f76a6a;letter-spacing:.23em;font-size:11px;margin:0 0 25px}
+.jaad-hero-nine .jaad-nine-centered h1{max-width:1050px;margin:0 auto;font-size:clamp(38px,5.1vw,72px);font-weight:800;line-height:1.07;letter-spacing:-.055em;color:#fff}
+.jaad-hero-nine .jaad-nine-centered h1 span{color:#f46b70;background:linear-gradient(115deg,#fff 0%,#ff777d 35%,#e52528 100%);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.jaad-hero-nine .jaad-nine-centered h1 em{font-style:italic;font-weight:600;color:#fff}
+.jaad-hero-nine .jaad-nine-centered .jaad-hero-copy{max-width:640px;margin:23px auto 24px;color:#bbb3b5;font-size:16px;line-height:1.55}
+.jaad-nine-centered .jaad-actions{display:flex;justify-content:center;gap:12px;position:relative;z-index:5}
+.jaad-nine-centered .jaad-btn{border-radius:50px;padding:15px 27px;font-size:14px;text-transform:none;letter-spacing:0}
+.jaad-nine-primary{background:#df2025;border:1px solid #ffb6b6;color:#fff;box-shadow:0 0 0 4px #fff1,0 0 20px #e8242a8c,0 0 45px #a6111566}
+.jaad-nine-primary:hover{background:#f02c31}
+.jaad-nine-centered .jaad-nine-outline{border:1px solid #9c555a;background:#130c0e;color:#f9eeee}
+.jaad-nine-lights{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
+.jaad-nine-lights i{position:absolute;display:block;width:145%;height:280px;left:-23%;top:40%;border-top:2px solid #ff777b;border-radius:50%;transform:rotate(10deg);box-shadow:0 -7px 23px #f2242455,0 -20px 75px #e1252525;opacity:.65}
+.jaad-nine-lights i:nth-child(2){top:46%;transform:rotate(-12deg);border-color:#ffb3b5;opacity:.5}
+.jaad-nine-lights i:nth-child(3){top:55%;transform:rotate(5deg);border-color:#9c191e;opacity:.6}
+.jaad-nine-lights i:nth-child(4){top:60%;transform:rotate(-7deg);border-color:#e42d32;opacity:.45}
+.jaad-nine-preview{margin:105px auto -90px;width:min(800px,100%);height:345px;border:1px solid #c85a64;border-radius:24px 24px 0 0;overflow:hidden;background:#090c10;box-shadow:0 0 0 5px #0008,0 0 55px #b5212b55;text-align:left;position:relative;z-index:3;color:#e6e6e9}
+.jaad-nine-preview-top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid #2d2b30;font-size:10px;letter-spacing:.09em;color:#aaa}
+.jaad-nine-preview-brand{color:#fff;font-weight:900;font-size:15px;letter-spacing:.02em}.jaad-nine-preview-brand b{color:#ed262a;font-size:10px}
+.jaad-nine-preview-live{color:#fb686a}
+.jaad-nine-preview-grid{display:grid;grid-template-columns:150px 1fr;height:calc(100% - 48px)}
+.jaad-nine-preview-sidebar{display:flex;flex-direction:column;gap:14px;padding:25px 16px;background:#0c0e12;border-right:1px solid #27252a;font-size:11px;color:#a2a1a6}
+.jaad-nine-preview-sidebar strong{background:#a41b2240;color:#fff;padding:10px;border-radius:7px}
+.jaad-nine-preview-main{padding:20px 24px}.jaad-nine-preview-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:16px}.jaad-nine-preview-heading small{font-size:10px;color:#9d9ca1}
+.jaad-nine-preview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.jaad-nine-preview-stats>div{padding:13px;background:#17191e;border:1px solid #292b31;border-radius:8px;display:flex;flex-direction:column;gap:6px}.jaad-nine-preview-stats small{font-size:9px;color:#aaa}.jaad-nine-preview-stats b{font-size:13px;color:#ff6d71}
+.jaad-nine-preview-map{height:120px;border:1px solid #342329;background:radial-gradient(ellipse at 50% 80%,#3b131b,#0b1015 75%);border-radius:8px;position:relative;overflow:hidden;padding:10px;font-size:9px;letter-spacing:.12em;color:#bbb}.jaad-nine-preview-map svg{position:absolute;inset:0;width:100%;height:100%;fill:#ff565b;stroke:#ff565b;stroke-width:2;filter:drop-shadow(0 0 7px #f33)}.jaad-nine-preview-map svg path{fill:none}
+@media(max-width:650px){.jaad-nine-centered{padding-top:75px}.jaad-hero-nine .jaad-nine-centered h1{font-size:clamp(34px,9vw,50px)}.jaad-hero-nine .jaad-nine-centered .jaad-hero-copy{font-size:14px}.jaad-nine-preview{margin-top:70px;height:275px}.jaad-nine-preview-grid{grid-template-columns:90px 1fr}.jaad-nine-preview-sidebar{font-size:9px;padding:14px 6px}.jaad-nine-preview-main{padding:12px}.jaad-nine-preview-heading small{display:none}.jaad-nine-preview-stats{gap:5px}.jaad-nine-preview-stats>div{padding:7px}.jaad-nine-preview-stats b{font-size:10px}.jaad-nine-centered .jaad-actions{flex-wrap:wrap}}
+
+/* Homepage Design 9: show the entire ERP preview before following section. */
+.jaad-hero-nine{overflow:visible!important}
+.jaad-nine-preview{height:auto!important;min-height:390px;margin-bottom:0!important;border-radius:24px!important;overflow:hidden!important}
+.jaad-nine-preview-grid{height:auto!important;min-height:340px}
+.jaad-nine-preview-main{min-width:0}
+.jaad-nine-preview-map{height:175px}
+.jaad-nine-preview-logo{width:95px;height:34px;object-fit:contain;object-position:left center}
+.jaad-hero-nine .jaad-nine-centered{padding-bottom:70px!important}
+.jaad-products-menu{position:relative;color:#f2f2f2}
+.jaad-products-menu summary{cursor:pointer;list-style:none;font-size:13px;font-weight:800;text-transform:uppercase}
+.jaad-products-menu summary::-webkit-details-marker{display:none}
+.jaad-products-menu summary span{color:#f24b4f;margin-left:5px}
+.jaad-products-menu[open] summary,.jaad-products-menu summary:hover{color:#ed211b}
+.jaad-products-dropdown{position:absolute;z-index:80;top:calc(100% + 15px);left:0;min-width:170px;padding:8px;border:1px solid #542026;border-radius:8px;background:#101013;box-shadow:0 15px 35px #0009}
+.jaad-products-dropdown a{display:block;padding:12px!important;white-space:nowrap;border-radius:5px}
+.jaad-products-dropdown a:hover{background:#331216}
+.jaad-footer .jaad-policy-button{cursor:pointer}
+@media(max-width:650px){.jaad-products-menu summary{padding:8px 0}.jaad-products-dropdown{position:static;margin-top:8px}.jaad-nine-preview{min-height:340px}.jaad-nine-preview-grid{min-height:300px}.jaad-nine-preview-map{height:150px}.jaad-nine-preview-top{padding:0 10px;font-size:8px}.jaad-nine-preview-logo{width:66px}.jaad-hero-nine .jaad-nine-centered{padding-bottom:45px!important}}
+
+/* Final homepage fixes: restore discreet admin access under Careers. */
+.jaad-footer .jaad-admin-access,
+.jaad-footer .jaad-admin-access:focus-visible {
+  display:inline-flex!important; width:9px!important; height:9px!important;
+  min-width:9px!important; padding:0!important; margin:3px 0 0 2px!important;
+  opacity:1!important; visibility:visible!important; overflow:visible!important;
+  pointer-events:auto!important; color:#fff!important; background:transparent!important;
+  font-size:16px!important; line-height:9px!important; text-decoration:none!important;
+}
+.jaad-footer .jaad-admin-access:hover { color:#f22!important; }
+.jaad-legal-readonly { position:relative; background:#f3f3f3!important; border-radius:5px!important; overflow:hidden; }
+.jaad-legal-pages { overflow:auto; height:100%; width:100%; padding:0 38px 24px; background:#eee; }
+.jaad-legal-page { position:relative; width:min(100%,850px); margin:0 auto 12px; background:#fff; box-shadow:0 1px 5px #0002; }
+.jaad-legal-page-image { display:block; width:100%; height:auto; }
+.jaad-legal-page-logo { position:absolute; right:3%; top:1.8%; width:75px; height:45px; object-fit:contain; background:#fff; }
+.jaad-legal-close { position:absolute; z-index:5; right:9px; top:9px; border:0; border-radius:50%; width:30px; height:30px; color:#111; background:#fff; cursor:pointer; font-size:23px; line-height:1; box-shadow:0 1px 5px #0003; }
+@media(max-width:600px){ .jaad-legal-pages{padding:0 6px 10px} .jaad-legal-page-logo{width:45px;height:26px} }
+
+
+/* Footer legal document modal ONLY. Preserve all homepage, footer and admin controls. */
+.jaad-pdf-modal.jaad-legal-readonly {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(794px, calc(100vw - 20px)) !important;
+  height: min(92vh, 1000px) !important;
+  background: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 70px rgba(0,0,0,.5) !important;
+}
+.jaad-legal-header {
+  display: flex;
+  flex: 0 0 62px;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  background: #050505;
+  padding: 7px 20px;
+}
+.jaad-legal-header-logo {
+  width: 95px;
+  height: 48px;
+  object-fit: contain;
+  object-position: right center;
+  display: block;
+}
+.jaad-legal-readonly .jaad-legal-close {
+  position: absolute !important;
+  top: 16px !important;
+  left: 15px !important;
+  right: auto !important;
+  z-index: 3;
+  border: 1px solid #555 !important;
+  background: #171717 !important;
+  color: white !important;
+  box-shadow: none !important;
+}
+.jaad-legal-readonly .jaad-legal-pages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: white !important;
+  scrollbar-gutter: auto;
+}
+.jaad-legal-readonly .jaad-legal-page {
+  display: block;
+  position: relative;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: white !important;
+  box-shadow: none !important;
+}
+.jaad-legal-readonly .jaad-legal-page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+}
+@media(max-width:600px) {
+  .jaad-pdf-modal.jaad-legal-readonly { width: calc(100vw - 12px) !important; height: 95vh !important; }
+  .jaad-legal-header { flex-basis: 54px; padding-right: 12px; }
+  .jaad-legal-header-logo { width: 78px; height: 42px; }
+}
+
+/* FAQ: left-align heading and every accordion row. No other sections affected. */
+.jaad-faq .jaad-section-heading{display:block;text-align:left;margin-bottom:24px;}
+.jaad-faq .jaad-section-heading h2{max-width:none;}
+.jaad-faq .jaad-faq-list{max-width:none;width:100%;margin:0;text-align:left;}
+.jaad-faq .jaad-faq-question{text-align:left;}
+/* Legal reader: single black header with brand on LEFT, clean continuous pages. */
+.jaad-legal-readonly .jaad-legal-header{justify-content:flex-start;padding-left:18px;padding-right:60px;}
+.jaad-legal-readonly .jaad-legal-header-logo{object-position:left center;}
+.jaad-legal-readonly .jaad-legal-close{left:auto!important;right:14px!important;}
+.jaad-legal-readonly .jaad-legal-page{line-height:0!important;}
