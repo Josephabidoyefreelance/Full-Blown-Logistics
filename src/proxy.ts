@@ -9,6 +9,8 @@ export async function proxy(request: NextRequest) {
     "/",
     "/erp",
     "/admin/login",
+    "/admin/forgot-password",
+    "/admin/reset-password",
     "/customer/login",
     "/customer/signup",
     "/customer/erp-signup",

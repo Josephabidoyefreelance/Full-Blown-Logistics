@@ -143,6 +143,7 @@ export default function AdminLoginPage() {
             {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-red-600 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">{loading?'Signing in…':'Sign in to JAAD →'}</button>
           </form>
+          <p className="text-xs text-center mt-3"><Link href="/admin/forgot-password" className="text-red-600 underline hover:text-red-700">Forgot password?</Link></p>
           <p className="text-xs text-zinc-500 mt-5 text-center">JAAD internal administration only</p>
         </section>
       </div>
