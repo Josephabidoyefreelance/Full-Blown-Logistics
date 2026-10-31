@@ -25,15 +25,15 @@ export default function PolicyPdfLink({ title, href, className = "" }: Props) {
     return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; };
   }, [open]);
   return <>
-    <button type="button" className={`jaad-policy-link jaad-policy-button ${className}`.trim()} onClick={() => setOpen(true)}>{title}</button>
+    <button type="button" className={`jaad-policy-link jaad-policy-button ${className}`.trim()} style={{display:"inline",padding:0,margin:0,border:0,background:"transparent",color:"inherit",font:"inherit",cursor:"pointer",textDecoration:"underline"}} onClick={() => setOpen(true)}>{title}</button>
     {open && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }} style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(0,0,0,.82)",display:"flex",justifyContent:"center",alignItems:"center",padding:16}}>
       <section role="dialog" aria-modal="true" aria-label={title} style={{width:"min(760px,100%)",height:"min(88vh,950px)",background:"#fff",display:"flex",flexDirection:"column",overflow:"hidden",borderRadius:8,boxShadow:"0 16px 50px rgba(0,0,0,.5)"}}>
         <header style={{flexShrink:0,background:"#080808",color:"#fff",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,padding:"12px 18px",minHeight:62}}>
           <div style={{display:"flex",alignItems:"center",gap:16,minWidth:0}}><img src="/jaad-logo.png" alt="JAAD Logistics" style={{width:86,height:38,objectFit:"contain"}} /><span style={{fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</span></div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close document" style={{border:"1px solid #666",borderRadius:"50%",background:"#222",color:"white",width:34,height:34,cursor:"pointer",fontSize:22,lineHeight:"30px",flexShrink:0}}>×</button>
         </header>
-        <div style={{flex:1,overflowY:"auto",background:"#f4f4f4",padding:"12px 8px"}}>
-          {pages.length ? pages.map((name,index) => <img key={name} src={`/legal-pages/${name}.webp`} alt={`${title} page ${index+1}`} loading={index===0?"eager":"lazy"} style={{display:"block",width:"100%",height:"auto",margin:"0 auto 12px",background:"white"}} />) : <p style={{color:"#111",padding:20}}>Document not available.</p>}
+        <div style={{flex:1,overflowY:"auto",background:"#fff",padding:0}}>
+          {pages.length ? pages.map((name,index) => <img key={name} src={`/legal-pages/${name}.webp`} alt={`${title} page ${index+1}`} loading={index===0?"eager":"lazy"} style={{display:"block",width:"100%",height:"auto",margin:0,background:"white"}} />) : <p style={{color:"#111",padding:20}}>Document not available.</p>}
         </div>
       </section>
     </div>}

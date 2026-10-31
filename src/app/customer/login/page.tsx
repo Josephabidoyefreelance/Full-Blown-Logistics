@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
-import { LegalDocModal, useLegalModal } from '@/components/legal-modal';
+import PolicyPdfLink from '@/components/PolicyPdfLink';
 import TurnstileBox from '@/components/turnstile-box';
 
 function readErrorMessage(err: unknown, fallback: string) {
@@ -28,7 +28,6 @@ export default function CustomerLoginPage() {
   const [cooldown, setCooldown] = useState(0);
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
-  const { openDoc, setOpenDoc } = useLegalModal();
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -409,12 +408,10 @@ export default function CustomerLoginPage() {
         <p className="jaad-legal-footer">
           By continuing, you agree to
           <br />
-          <button onClick={() => setOpenDoc('terms-of-use')} className="jaad-legal">Terms of Service</button> and{' '}
-          <button onClick={() => setOpenDoc('privacy-policy')} className="jaad-legal">Privacy Policy</button>.
+          <PolicyPdfLink title="Terms of Service" href="/documents/JAAD-LOGISTICS-Terms-of-Service.pdf" className="underline" /> and{' '}
+          <PolicyPdfLink title="Privacy Policy" href="/documents/JAAD-LOGISTICS-Privacy-Policy.pdf" className="underline" />.
         </p>
       </div>
-
-      <LegalDocModal docKey={openDoc} onClose={() => setOpenDoc(null)} />
     </div>
   );
 }
