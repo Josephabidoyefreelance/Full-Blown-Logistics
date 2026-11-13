@@ -3,6 +3,20 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  // Keep customer workspaces locked until tenant isolation is verified.
+  if (
+    process.env.CUSTOMER_ERP_TENANT_MODE !== "enabled" &&
+    (
+      request.nextUrl.pathname === "/customer/dashboard/workspace" ||
+      request.nextUrl.pathname.startsWith("/customer/dashboard/workspace/")
+    )
+  ) {
+    return new NextResponse(
+      "Customer ERP workspace is locked pending tenant-isolation verification.",
+      { status: 503 }
+    );
+  }
+
   const pathname = request.nextUrl.pathname;
 
   const publicRoutes = [
@@ -12,6 +26,8 @@ export async function proxy(request: NextRequest) {
     "/admin/forgot-password",
     "/admin/reset-password",
     "/customer/login",
+    "/customer/reset-password",
+    "/customer/customer/reset-password",
     "/customer/signup",
     "/customer/erp-signup",
   ];
@@ -23,6 +39,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/legal-pages/");
 
   const isWebhook =
+    pathname === "/api/security/turnstile" ||
+    pathname === "/api/turnstile" ||
     pathname.startsWith("/api/inbound-email") ||
     pathname === "/api/twilio/voice" ||
     pathname === "/api/twilio/status";
