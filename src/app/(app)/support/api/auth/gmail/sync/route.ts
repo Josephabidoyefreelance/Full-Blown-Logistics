@@ -38,6 +38,12 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: 'Sign in to JAAD ERP first.' }, { status: 401 });
 
   try {
+    const { data: tenantProfile, error: tenantError } = await sessionClient.from('profiles')
+      .select('company_id, status').eq('id', user.id).maybeSingle();
+    if (tenantError || !tenantProfile?.company_id || String(tenantProfile.status ?? 'active').toLowerCase() !== 'active') {
+      return NextResponse.json({ error: 'An active company workspace is required.' }, { status: 403 });
+    }
+    const companyId = tenantProfile.company_id;
     const admin = adminClient();
     const { data: connection, error: connectionError } = await admin.from('gmail_connections')
       .select('gmail_address, encrypted_refresh_token').eq('user_id', user.id).maybeSingle();
@@ -70,7 +76,7 @@ export async function POST() {
       if (!detailResponse.ok) { skipped++; continue; }
 
       const { data: already, error: existsError } = await admin.from('support_emails').select('id')
-        .eq('gmail_account', connection.gmail_address).eq('gmail_message_id', detail.id).maybeSingle();
+        .eq('company_id', companyId).eq('gmail_account', connection.gmail_address).eq('gmail_message_id', detail.id).maybeSingle();
       if (existsError) throw existsError;
       if (already) { skipped++; continue; }
 
@@ -92,7 +98,7 @@ export async function POST() {
         if (!attachment.data) continue;
         const bytes = Buffer.from(attachment.data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
         const filename = cleanFilename(part.filename || 'attachment');
-        const storagePath = `${user.id}/${connection.gmail_address}/${detail.id}/${filename}`;
+        const storagePath = `${companyId}/${user.id}/${connection.gmail_address}/${detail.id}/${filename}`;
         const { error: uploadError } = await admin.storage.from('email-attachments').upload(storagePath, bytes, {
           contentType: part.mimeType || 'application/octet-stream', upsert: true,
         });
@@ -115,6 +121,7 @@ export async function POST() {
       const parsedDate = dateHeader ? new Date(dateHeader) : new Date(Number(detail.internalDate || Date.now()));
       const createdAt = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString();
       const { error: insertError } = await admin.from('support_emails').insert({
+        company_id: companyId,
         direction: 'inbound', from_address: fromAddress, to_address: toAddress, subject, body,
         status: 'Received', read: false, created_at: createdAt, attachments: attachmentMetadata,
         gmail_account: connection.gmail_address, gmail_message_id: detail.id, gmail_thread_id: detail.threadId || null,

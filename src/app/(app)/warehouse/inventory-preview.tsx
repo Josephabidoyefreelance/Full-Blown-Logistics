@@ -103,7 +103,7 @@ export default function InventoryPreview({ item, children }: { item: Item; child
             </div>
 
             <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <EditItemForm item={item} />
+              {item.id ? <EditItemForm item={{ ...item, id: item.id }} /> : null}
               <button type="button" onClick={printDetails} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700">Print / Save as PDF</button>
               <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Close</button>
             </div>

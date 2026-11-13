@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+
 // Add this to your root layout at src/app/layout.tsx
 // Replace the existing `export const metadata` block with this:
 

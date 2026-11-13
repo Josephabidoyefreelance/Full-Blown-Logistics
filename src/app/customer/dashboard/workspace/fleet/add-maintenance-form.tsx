@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createMaintenanceRecord } from './actions';
@@ -7,6 +8,7 @@ const input = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 te
 const label = 'mb-1 block text-xs font-medium text-neutral-500';
 
 export default function AddMaintenanceForm({ vehicles }: { vehicles: { id: string; plate: string }[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -40,7 +42,7 @@ export default function AddMaintenanceForm({ vehicles }: { vehicles: { id: strin
               <div><label className={label}>Vehicle</label><select name="vehicle_id" required className={input}><option value="">Select vehicle</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.plate}</option>)}</select></div>
               <div><label className={label}>Service date</label><input type="date" name="service_date" className={input} /></div>
               <div className="md:col-span-2"><label className={label}>Work / repair description</label><textarea name="description" required rows={3} placeholder="e.g. Engine service, brake replacement, tyres..." className={input} /></div>
-              <div><label className={label}>Estimated / actual cost (₦)</label><input type="number" min="0" name="cost" className={input} /></div>
+              <div><label className={label}>Estimated / actual cost ({currency})</label><input type="number" min="0" name="cost" className={input} /></div>
               <div><label className={label}>Status</label><select name="status" defaultValue="Scheduled" className={input}><option>Scheduled</option><option>In Progress</option><option>Completed</option></select></div>
             </div>
 

@@ -1,0 +1,12 @@
+{
+  "original": {
+    "src/app/customer/login/page.tsx": "ceb6446f5c7ca86f6eed43435d56a37a18bb9361ce914064f4f210cd3b3dd525",
+    "src/app/customer/signup/page.tsx": "4bb7e6602ec5841d03720054ce83179b8c81c5d94867644dee6f160d2a1fc462",
+    "src/app/customer/reset-password/page.tsx": "0a43efb9c5637916f46556fd6ee7ff93d2c953a1995fb52184f0fd962a3cac41"
+  },
+  "patched": {
+    "src/app/customer/login/page.tsx": "703c45640f86349a4dc9292c990696d59c8893a20a2d107dd16556d9d47cff8b",
+    "src/app/customer/signup/page.tsx": "66b89b43d46562f7998a75a09961e0051a7409cb217428e2080c15c0fd789624",
+    "src/app/customer/reset-password/page.tsx": "2ca87c8372a32b0ae884cbdc7539d61d232fa6e85f12ec0794d4fe32e4d6c98c"
+  }
+}

@@ -218,9 +218,17 @@ export default function CustomerDashboard() {
 
       setUserId(user.id);
 
+      // The server validates the selected workspace against current RLS-backed membership.
+      const activeResponse = await fetch('/api/customer/active-tenant', { cache: 'no-store' });
+      const active = activeResponse.ok ? await activeResponse.json() as { customerId: string | null } : null;
+      if (!active?.customerId) {
+        router.replace('/customer/dashboard/select-workspace');
+        return;
+      }
       const { data: ownerRow, error } = await supabase
         .from('customers')
         .select('id, name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id')
+        .eq('id', active.customerId)
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -233,7 +241,9 @@ export default function CustomerDashboard() {
           .from('customer_team_members')
           .select('name, role, status, permitted_modules, customers(id, name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id)')
           .eq('user_id', user.id)
-          .neq('status', 'Removed')
+          .eq('customer_id', active.customerId)
+          .eq('status', 'Active')
+          .not('accepted_at', 'is', null)
           .maybeSingle();
 
         const parentCustomer = membership?.customers
@@ -241,13 +251,7 @@ export default function CustomerDashboard() {
           : null;
 
         if (membership && parentCustomer) {
-          let effectiveStatus = membership.status;
-
-          // First login after being invited: accept it now, silently.
-          if (effectiveStatus === 'Invited') {
-            await supabase.rpc('accept_staff_invite');
-            effectiveStatus = 'Active';
-          }
+          const effectiveStatus = membership.status;
 
           if (effectiveStatus === 'Active') {
             resolvedCustomer = parentCustomer;
@@ -416,7 +420,9 @@ export default function CustomerDashboard() {
       if (userError) throw userError;
       if (!user) throw new Error('Not signed in.');
 
-      const ext = file.name.split('.').pop();
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Use a PNG, JPG, or WebP image.');
+      if (file.size > 3 * 1024 * 1024) throw new Error('Image must be 3 MB or smaller.');
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
       const path = `${user.id}/${Date.now()}.${ext}`;
       console.log('[avatar] uploading to path', path);
 
@@ -547,12 +553,20 @@ export default function CustomerDashboard() {
     try {
       if (!effectiveUserId) throw new Error('Not signed in.');
 
-      const ext = file.name.split('.').pop();
-      const path = `${effectiveUserId}/${Date.now()}.${ext}`;
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Use a PNG, JPG, or WebP image.');
+      if (file.size > 3 * 1024 * 1024) throw new Error('Image must be 3 MB or smaller.');
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      // Logo objects belong in the customer record's UUID folder, not the auth-user folder.
+      // This matches the tenant-owner storage policies and avoids overwriting other files.
+      const { data: tenantRow, error: tenantError } = await supabase
+        .from('customers').select('id').eq('user_id', effectiveUserId).maybeSingle();
+      if (tenantError) throw tenantError;
+      if (!tenantRow) throw new Error('No company record is linked to this login.');
+      const path = `${tenantRow.id}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('logos')
-        .upload(path, file, { upsert: true });
+        .upload(path, file, { upsert: false, contentType: file.type });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from('logos').getPublicUrl(path);
@@ -562,6 +576,7 @@ export default function CustomerDashboard() {
         .from('customers')
         .update({ logo_url: logoUrl })
         .eq('user_id', effectiveUserId)
+        .eq('id', tenantRow.id)
         .select('id');
       if (updateError) throw updateError;
       if (!updateData || updateData.length === 0) {
@@ -1060,7 +1075,7 @@ export default function CustomerDashboard() {
                               customerName={customer?.name ?? null}
                             />
                             <div className="text-[12px] text-[var(--subtext)]">
-                              {booking ? `${booking.origin} \u2192 ${booking.destination}` : booking?.tracking_no}
+                              {booking ? `${booking.origin} \u2192 ${booking.destination}` : '—'}
                             </div>
                           </div>
                           <div className="flex items-center gap-3">

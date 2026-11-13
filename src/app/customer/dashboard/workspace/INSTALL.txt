@@ -1,0 +1,9 @@
+STAGE 7: Global customer workspace membership check
+
+1. Replace src/app/customer/dashboard/workspace/layout.tsx with the included file.
+2. Restart Next.js.
+3. Test existing and newly registered company accounts.
+
+This fixes canonical company/profile membership checks for ALL tenants.
+It does NOT unlock CRM or bypass the safety lock. CRM APIs and RLS still require verification.
+No SQL. No design changes.

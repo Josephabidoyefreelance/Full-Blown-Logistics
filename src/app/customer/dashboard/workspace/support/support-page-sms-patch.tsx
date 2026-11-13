@@ -102,10 +102,10 @@ export default async function SupportPage({
 
       {['tickets', 'livechat', 'teamchat', 'kb'].includes(view) && (
         <div className="mb-4 flex shrink-0 gap-5 border-b border-neutral-200 text-sm font-semibold dark:border-neutral-800">
-          <a href="/customer/dashboard/workspace/support?view=tickets" className={`pb-2 ${view === 'tickets' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Tickets</a>
-          <a href="/customer/dashboard/workspace/support?view=livechat" className={`pb-2 ${view === 'livechat' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Live chat</a>
-          <a href="/customer/dashboard/workspace/support?view=teamchat" className={`pb-2 ${view === 'teamchat' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Team chat</a>
-          <a href="/customer/dashboard/workspace/support?view=kb" className={`pb-2 ${view === 'kb' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Knowledge base</a>
+          <a href="/support?view=tickets" className={`pb-2 ${view === 'tickets' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Tickets</a>
+          <a href="/support?view=livechat" className={`pb-2 ${view === 'livechat' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Live chat</a>
+          <a href="/support?view=teamchat" className={`pb-2 ${view === 'teamchat' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Team chat</a>
+          <a href="/support?view=kb" className={`pb-2 ${view === 'kb' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}>Knowledge base</a>
         </div>
       )}
 

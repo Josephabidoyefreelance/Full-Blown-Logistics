@@ -34,7 +34,7 @@ function pdfEscape(value: string) { return value.replace(/\\/g, '\\\\').replace(
 function textCommand(x: number, y: number, value: string, size = 8, bold = false) {
   return `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${pdfEscape(ascii(value, 90))}) Tj ET\n`;
 }
-function makePdf(pages: string[][]) {
+function makePdf(pages: string[][][]) {
   const objects: string[] = [];
   const add = (value: string) => { objects.push(value); return objects.length; };
   const catalogId = add('');
@@ -118,7 +118,7 @@ export async function GET() {
       ]);
     }
     if (!rows.length) rows.push(['No time records yet', '', '', '', '', '', '', '', '']);
-    const chunks: string[][] = [];
+    const chunks: string[][][] = [];
     for (let i = 0; i < rows.length; i += 34) chunks.push(rows.slice(i, i + 34));
     const pdf = makePdf(chunks.length ? chunks : [[]]);
     return new Response(new Uint8Array(pdf), {

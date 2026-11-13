@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState } from 'react';
 
@@ -25,8 +26,9 @@ export default function QuotationModal({
   amount: number;
   status: string;
 }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
-  const VAT_RATE = 0.075;
+  const VAT_RATE = taxRate / 100;
   const subtotal = amount;
   const vat = Math.round(subtotal * VAT_RATE);
   const grandTotal = subtotal + vat;
@@ -102,7 +104,7 @@ export default function QuotationModal({
                   <span>{nairaFmt(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-neutral-600">
-                  <span>VAT, 7.5%</span>
+                  <span>VAT, {taxRate}%</span>
                   <span>{nairaFmt(vat)}</span>
                 </div>
                 <div className="flex justify-between border-t-2 border-neutral-900 pt-2 text-base font-bold">

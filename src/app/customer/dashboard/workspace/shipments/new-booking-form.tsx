@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createBooking } from './actions';
@@ -22,6 +23,7 @@ const emptyItem = (): CargoItem => ({
 });
 
 export default function NewBookingForm() {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ export default function NewBookingForm() {
             <input name="weight" placeholder="e.g. 2.4t" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Declared value, NGN</label>
+            <label className={labelClass}>Declared value, {currency}</label>
             <input type="number" name="declared_value" className={inputClass} />
           </div>
         </div>
@@ -230,7 +232,7 @@ export default function NewBookingForm() {
             <input name="declared_value_customs" placeholder="e.g. NCV" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Insurance amount, NGN</label>
+            <label className={labelClass}>Insurance amount, {currency}</label>
             <input type="number" name="insurance_amount" className={inputClass} />
           </div>
           <div>

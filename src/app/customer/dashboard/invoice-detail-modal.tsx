@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 type InvoiceItemRow = { id: string; description: string; amount: number };
@@ -23,10 +22,14 @@ export default function InvoiceDetailTrigger({
   invoice,
   booking,
   customerName,
+  companyLogoUrl,
+  companyAddress,
 }: {
   invoice: Invoice;
   booking: Booking | null;
   customerName: string | null;
+  companyLogoUrl?: string | null;
+  companyAddress?: string | null;
 }) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
@@ -97,11 +100,11 @@ export default function InvoiceDetailTrigger({
             </div>
 
             <div className="mb-8 flex items-start justify-between border-b border-neutral-200 pb-6">
-              <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="JAAD Logistics" width={44} height={44} />
-                <div>
-                  <div className="text-lg font-bold leading-tight text-neutral-900">JAAD Logistics</div>
-                  <div className="text-[12px] text-neutral-500">Haulage &amp; Freight</div>
+              <div className="flex min-w-0 items-center gap-3">
+                {companyLogoUrl ? <img src={companyLogoUrl} alt={`${customerName || 'Company'} logo`} className="h-11 w-11 shrink-0 object-contain" /> : null}
+                <div className="min-w-0">
+                  <div className="text-lg font-bold leading-tight text-neutral-900">{customerName || 'Company'}</div>
+                  {companyAddress ? <div className="mt-1 max-w-xs text-[12px] text-neutral-500">{companyAddress}</div> : null}
                 </div>
               </div>
               <div className="text-right">

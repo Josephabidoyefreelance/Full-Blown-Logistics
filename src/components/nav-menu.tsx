@@ -7,7 +7,7 @@ import type { NAV } from '@/lib/nav';
 
 type IconProps = { className?: string };
 
-const ICONS: Record<string, (props: IconProps) => JSX.Element> = {
+const ICONS: Record<string, (props: IconProps) => React.ReactElement> = {
   'layout-dashboard': ({ className }) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>
       <rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" />
@@ -127,13 +127,19 @@ const ICONS: Record<string, (props: IconProps) => JSX.Element> = {
 
 function Icon({ name, className }: { name?: string; className?: string }) {
   const Cmp = name ? ICONS[name] : undefined;
-  if (!Cmp) return null;
-  return <Cmp className={className} />;
+  if (Cmp) return <Cmp className={className} />;
+  // Keep navigation visually consistent when a module uses an icon name that
+  // is not yet present in this component's icon registry.
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8 12h8M12 8v8" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function IconChip({ name, color }: { name?: string; color?: string }) {
-  if (!name) return null;
-  const c = color ?? '#888';
+  const c = color ?? '#a3a3a3';
   return (
     <span
       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"

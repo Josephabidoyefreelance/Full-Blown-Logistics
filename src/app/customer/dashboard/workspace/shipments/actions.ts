@@ -2,6 +2,16 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { requireCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney } from '@/lib/customer-workspace-money';
+
+
+// Explicit selected tenant plus subscription AND staff role checks.
+// Never infer customer workspace access from the JAAD administrator profile.
+async function shipmentCompanyId(_db: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
+  const access = await requireCustomerModule('shipments');
+  return access.ok ? access.context.companyId : null;
+}
 
 function revalidateShipmentViews() {
   revalidatePath('/customer/dashboard/workspace/shipments');
@@ -11,6 +21,8 @@ function revalidateShipmentViews() {
 
 export async function createBooking(formData: FormData) {
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
 
   const customerName = String(formData.get('customer_name'));
   const origin = String(formData.get('origin'));
@@ -55,6 +67,7 @@ export async function createBooking(formData: FormData) {
   const { data: booking, error } = await supabase
     .from('bookings')
     .insert({
+      company_id: companyId,
       customer_name: customerName,
       origin,
       destination,
@@ -89,6 +102,7 @@ export async function createBooking(formData: FormData) {
     const rows = cargoItems
       .filter((it) => it.description?.trim())
       .map((it) => ({
+        company_id: companyId,
         booking_id: booking.id,
         description: it.description,
         quantity: it.quantity,
@@ -114,9 +128,12 @@ export async function updateBookingStatus(id: string, status: string) {
   const allowed = ['Pending', 'Assigned', 'In Transit', 'Delivered', 'Exception', 'Cancelled'];
   if (!id || !allowed.includes(status)) return { error: 'Invalid shipment status.' };
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
   const { data, error } = await supabase
     .from('bookings')
     .update({ status })
+    .eq('company_id', companyId)
     .eq('id', id)
     .select('id, status')
     .maybeSingle();
@@ -127,11 +144,16 @@ export async function updateBookingStatus(id: string, status: string) {
 }
 
 export async function generateInvoiceForBooking(bookingId: string) {
+  const financeAccess = await requireCustomerModule('finance');
+  if (!financeAccess.ok) return {error:'This subscription does not include invoicing.', invoiceId:null};
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required.", invoiceId: null };
 
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select('customer_name, type, origin, destination, declared_value')
+    .eq('company_id', companyId)
     .eq('id', bookingId)
     .single();
 
@@ -142,6 +164,7 @@ export async function generateInvoiceForBooking(bookingId: string) {
   const { data: latestInvoice } = await supabase
     .from('invoices')
     .select('invoice_no')
+    .eq('company_id', companyId)
     .order('invoice_no', { ascending: false })
     .limit(1);
 
@@ -153,18 +176,22 @@ export async function generateInvoiceForBooking(bookingId: string) {
   }
   const invoiceNo = 'INV-' + String(nextNum).padStart(5, '0');
 
+  const {taxRate} = await loadWorkspaceMoney(supabase, companyId);
+  const taxFraction = taxRate / 100;
+
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
     .insert({
+      company_id: companyId,
       invoice_no: invoiceNo,
       customer_name: booking.customer_name,
       amount: booking.declared_value,
       status: 'Pending',
       invoice_date: new Date().toISOString().slice(0, 10),
       linked_booking_id: bookingId,
-      tax_rate: 7.5,
-      tax_amount: Math.round(Number(booking.declared_value || 0) * 0.075 * 100) / 100,
-      total_amount: Math.round(Number(booking.declared_value || 0) * 1.075 * 100) / 100,
+      tax_rate: Math.round(taxRate * 100) / 100,
+      tax_amount: Math.round(Number(booking.declared_value || 0) * taxFraction * 100) / 100,
+      total_amount: Math.round(Number(booking.declared_value || 0) * (1 + taxFraction) * 100) / 100,
     })
     .select('id')
     .single();
@@ -174,6 +201,7 @@ export async function generateInvoiceForBooking(bookingId: string) {
   }
 
   const { error: itemError } = await supabase.from('invoice_items').insert({
+    company_id: companyId,
     invoice_id: invoice.id,
     description: `${booking.type} logistics service, ${booking.origin} to ${booking.destination}`,
     amount: booking.declared_value,
@@ -190,6 +218,8 @@ export async function generateInvoiceForBooking(bookingId: string) {
 
 export async function createManifest(formData: FormData) {
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
 
   const driverName = String(formData.get('driver_name') || '');
   const vehicleNumber = String(formData.get('vehicle_number') || '');
@@ -206,10 +236,21 @@ export async function createManifest(formData: FormData) {
   if (bookingIds.length === 0) {
     return { error: 'Select at least one shipment to include on this manifest.' };
   }
+  if (!Array.isArray(bookingIds) || bookingIds.length > 100 || bookingIds.some(id => typeof id !== 'string')) {
+    return { error: 'Invalid shipment selection.' };
+  }
+  const uniqueIds = [...new Set(bookingIds)];
+  const { data: tenantBookings, error: tenantBookingsError } = await supabase.from('bookings')
+    .select('id').eq('company_id', companyId).in('id', uniqueIds);
+  if (tenantBookingsError || tenantBookings?.length !== uniqueIds.length) {
+    return { error: 'One or more shipments do not belong to this company.' };
+  }
+  bookingIds = uniqueIds;
 
   const { data: latest } = await supabase
     .from('manifests')
     .select('manifest_no')
+    .eq('company_id', companyId)
     .order('manifest_no', { ascending: false })
     .limit(1);
 
@@ -229,6 +270,7 @@ export async function createManifest(formData: FormData) {
   const { data: manifest, error } = await supabase
     .from('manifests')
     .insert({
+      company_id: companyId,
       manifest_no: manifestNo,
       driver_name: driverName,
       vehicle_number: vehicleNumber,
@@ -242,7 +284,7 @@ export async function createManifest(formData: FormData) {
     return { error: error?.message ?? 'Could not create manifest' };
   }
 
-  const links = bookingIds.map((id) => ({ manifest_id: manifest.id, booking_id: id }));
+  const links = bookingIds.map((id) => ({ company_id: companyId, manifest_id: manifest.id, booking_id: id }));
   const { error: linkError } = await supabase.from('manifest_bookings').insert(links);
   if (linkError) {
     return { error: linkError.message };
@@ -254,6 +296,8 @@ export async function createManifest(formData: FormData) {
 
 export async function recordProofOfDelivery(formData: FormData) {
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
 
   const bookingId = String(formData.get('booking_id') || '');
   const receivedBy = String(formData.get('received_by') || '');
@@ -266,7 +310,12 @@ export async function recordProofOfDelivery(formData: FormData) {
     return { error: 'Enter who received the shipment.' };
   }
 
+  const { data: tenantBooking } = await supabase.from('bookings').select('id')
+    .eq('company_id', companyId).eq('id', bookingId).maybeSingle();
+  if (!tenantBooking) return { error: 'Shipment not found in your company.' };
+
   const { error } = await supabase.from('proof_of_delivery').insert({
+    company_id: companyId,
     booking_id: bookingId,
     received_by: receivedBy,
     recorded_by: recordedBy || null,
@@ -283,7 +332,9 @@ export async function recordProofOfDelivery(formData: FormData) {
 
 export async function updatePodStatus(id: string, status: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from('proof_of_delivery').update({ status }).eq('id', id);
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
+  const { error } = await supabase.from('proof_of_delivery').update({ status }).eq('company_id', companyId).eq('id', id);
   if (error) return { error: error.message };
   revalidateShipmentViews();
   return { error: null };
@@ -291,6 +342,8 @@ export async function updatePodStatus(id: string, status: string) {
 
 export async function createReturn(formData: FormData) {
   const supabase = await createClient();
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
 
   const bookingId = String(formData.get('booking_id') || '');
   const reason = String(formData.get('reason') || '');
@@ -306,6 +359,7 @@ export async function createReturn(formData: FormData) {
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .select('tracking_no')
+    .eq('company_id', companyId)
     .eq('id', bookingId)
     .single();
 
@@ -314,6 +368,7 @@ export async function createReturn(formData: FormData) {
   }
 
   const { error: insertError } = await supabase.from('returns').insert({
+    company_id: companyId,
     booking_id: bookingId,
     tracking_no: booking.tracking_no,
     reason,
@@ -331,7 +386,9 @@ export async function createReturn(formData: FormData) {
 
 export async function updateReturnStatus(id: string, status: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from('returns').update({ status }).eq('id', id);
+  const companyId = await shipmentCompanyId(supabase);
+  if (!companyId) return { error: "Active company membership required." };
+  const { error } = await supabase.from('returns').update({ status }).eq('company_id', companyId).eq('id', id);
   if (error) return { error: error.message };
   revalidateShipmentViews();
   return { error: null };

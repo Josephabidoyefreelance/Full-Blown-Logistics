@@ -1,9 +1,11 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createPayrollEntry } from './actions';
 
 export default function NewPayrollForm() {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export default function NewPayrollForm() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-500">Gross pay (₦)</label>
+                  <label className="mb-1 block text-xs font-medium text-neutral-500">Gross pay ({currency})</label>
                   <input
                     type="number"
                     name="gross_pay"
@@ -86,7 +88,7 @@ export default function NewPayrollForm() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-500">Deductions (₦)</label>
+                  <label className="mb-1 block text-xs font-medium text-neutral-500">Deductions ({currency})</label>
                   <input
                     type="number"
                     name="deductions"

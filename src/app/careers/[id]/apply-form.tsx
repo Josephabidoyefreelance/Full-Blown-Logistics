@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { submitApplication } from './actions';
 
-export default function ApplyForm({ jobTitle }: { jobTitle: string }) {
+export default function ApplyForm({ jobTitle, postingId }: { jobTitle: string; postingId: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -34,6 +34,7 @@ export default function ApplyForm({ jobTitle }: { jobTitle: string }) {
       className="space-y-3"
     >
       <input type="hidden" name="role_applied_for" value={jobTitle} />
+      <input type="hidden" name="posting_id" value={postingId} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

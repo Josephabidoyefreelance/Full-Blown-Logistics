@@ -1,8 +1,5 @@
-import { redirect } from 'next/navigation';
-import { requireAdminContext } from '@/lib/admin-security';
-
-export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
-  const result = await requireAdminContext(['Super Admin']);
-  if (!result.ok) redirect('/customer/dashboard');
+// Admin login must be accessible before authentication.
+// Access to the dashboard and admin APIs is checked separately.
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

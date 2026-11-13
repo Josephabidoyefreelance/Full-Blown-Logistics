@@ -1,0 +1,17 @@
+Target structure (Next.js App Router route group shown as (app)):
+
+(app)/
+  erp/
+    README-MULTI-TENANT.md
+    STRUCTURE.txt
+    companies/       # company onboarding/profile route area
+    workspace/       # customer ERP workspace route area
+    lib/             # tenant context/authorization helpers after schema audit
+    migrations/      # reviewed, versioned Supabase migrations
+    tests/           # cross-tenant and entitlement tests
+
+Existing modules remain in place initially:
+  crm/ customers/ dashboard/ drivers/ finance/ fleet/ hr/
+  warehouse/ support/ shipments/ reports/ calendar/ clock-tracker/
+
+The folders are reserved scaffolding only; they do not contain fake data or insecure placeholder tenant checks.

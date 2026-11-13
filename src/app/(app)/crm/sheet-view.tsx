@@ -63,7 +63,8 @@ function rawValue(cells: Record<string, string>, ref: string, seen: Set<string>)
     const n = Number(raw.replace(/,/g, ''));
     return Number.isFinite(n) ? n : 0;
   }
-  return evaluateFormula(raw, cells, new Set([...seen, key]));
+  const result = evaluateFormula(raw, cells, new Set([...seen, key]));
+  return typeof result === 'number' ? result : 0;
 }
 function evaluateFormula(raw: string, cells: Record<string, string>, seen = new Set<string>()) {
   let expr = raw.trim().slice(1).toUpperCase();

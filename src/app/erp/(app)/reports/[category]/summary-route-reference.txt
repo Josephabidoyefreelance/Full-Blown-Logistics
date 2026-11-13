@@ -1,0 +1,2 @@
+The summary endpoint is a separate route and must be installed at src/app/api/reports/summary/route.ts.
+The actual route source is in ../summary/route.ts inside this package.

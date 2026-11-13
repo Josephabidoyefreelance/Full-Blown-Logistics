@@ -1,16 +1,32 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { getCustomerTenantContext } from '@/lib/customer-tenant';
 import { revalidatePath } from 'next/cache';
+import { requireCustomerModule } from '@/lib/customer-tenant';
+
+
+// Resolve the authenticated tenant on every server action; never trust a client company ID.
+async function sheetTenant() {
+  const access = await requireCustomerModule('crm');
+  if (!access.ok || !access.context.fullCrmAccess) return null;
+  return access.context.companyId;
+}
+
+async function ownsSheet(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string, tabId: string) {
+  if (!tabId) return false;
+  const { data, error } = await supabase.from('crm_sheet_tabs')
+    .select('id').eq('id', tabId).eq('company_id', companyId).maybeSingle();
+  return !error && !!data;
+}
 
 export async function getSheetTabs() {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable", tabs: [] };
   const { data, error } = await supabase
     .from('crm_sheet_tabs')
     .select('id, name, position, created_at, column_widths, row_heights')
+    .eq('company_id', companyId)
     .order('position', { ascending: true })
     .order('created_at', { ascending: true });
 
@@ -19,7 +35,7 @@ export async function getSheetTabs() {
   if (!data?.length) {
     const { data: created, error: createError } = await supabase
       .from('crm_sheet_tabs')
-      .insert({ name: 'Sheet 1', position: 0 })
+      .insert({ company_id: companyId, name: 'Sheet 1', position: 0 })
       .select('id, name, position, created_at, column_widths, row_heights')
       .single();
     if (createError) return { error: createError.message, tabs: [] };
@@ -30,12 +46,13 @@ export async function getSheetTabs() {
 }
 
 export async function createSheetTab(name?: string) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable", tab: null };
   const { data: last } = await supabase
     .from('crm_sheet_tabs')
     .select('position')
+    .eq('company_id', companyId)
     .order('position', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -45,7 +62,7 @@ export async function createSheetTab(name?: string) {
 
   const { data, error } = await supabase
     .from('crm_sheet_tabs')
-    .insert({ name: tabName, position })
+    .insert({ company_id: companyId, name: tabName, position })
     .select('id, name, position, created_at, column_widths, row_heights')
     .single();
 
@@ -55,13 +72,13 @@ export async function createSheetTab(name?: string) {
 }
 
 export async function renameSheetTab(id: string, name: string) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const cleanName = String(name || '').trim();
   if (!id || !cleanName) return { error: 'Sheet name is required.' };
 
   const supabase = await createClient();
-  const { error } = await supabase.from('crm_sheet_tabs').update({ name: cleanName }).eq('id', id);
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable" };
+  const { error } = await supabase.from('crm_sheet_tabs').update({ name: cleanName }).eq('id', id).eq('company_id', companyId);
   if (error) return { error: error.message };
 
   revalidatePath('/customer/dashboard/workspace/crm');
@@ -69,16 +86,16 @@ export async function renameSheetTab(id: string, name: string) {
 }
 
 export async function deleteSheetTab(id: string) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   if (!id) return { error: 'Sheet id is required.' };
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable" };
   const { count, error: countError } = await supabase
     .from('crm_sheet_tabs')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true }).eq('company_id', companyId);
   if (countError) return { error: countError.message };
   if ((count ?? 0) <= 1) return { error: 'At least one sheet must remain.' };
-  const { error } = await supabase.from('crm_sheet_tabs').delete().eq('id', id);
+  const { error } = await supabase.from('crm_sheet_tabs').delete().eq('id', id).eq('company_id', companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
@@ -89,26 +106,28 @@ export async function updateSheetLayout(
   columnWidths: Record<string, number>,
   rowHeights: Record<string, number>,
 ) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable" };
+  if (!(await ownsSheet(supabase, companyId, tabId))) return { error: "Sheet not found in your company" };
   const { error } = await supabase
     .from('crm_sheet_tabs')
     .update({ column_widths: columnWidths, row_heights: rowHeights })
-    .eq('id', tabId);
+    .eq('id', tabId).eq('company_id', companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
 }
 
 export async function getSheetCells(tabId: string) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable", cells: [] };
+  if (!(await ownsSheet(supabase, companyId, tabId))) return { error: "Sheet not found in your company" , cells: [] };
   const { data, error } = await supabase
     .from('crm_sheet_cells')
     .select('row_index, col_index, value, style')
-    .eq('sheet_id', tabId);
+    .eq('sheet_id', tabId).eq('company_id', companyId);
 
   if (error) return { error: error.message, cells: [] };
   return { error: null, cells: data ?? [] };
@@ -120,11 +139,13 @@ export async function updateSheetCell(
   colIndex: number,
   value: string,
 ) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable" };
+  if (!(await ownsSheet(supabase, companyId, tabId))) return { error: "Sheet not found in your company" };
   const { error } = await supabase.from('crm_sheet_cells').upsert(
     {
+      company_id: companyId,
       sheet_id: tabId,
       row_index: rowIndex,
       col_index: colIndex,
@@ -145,21 +166,23 @@ export async function updateSheetCellStyle(
   colIndex: number,
   style: Record<string, string | number | boolean>,
 ) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) throw new Error('The full CRM spreadsheet requires the ₦20,000/month Premium plan.');
   const supabase = await createClient();
+  const companyId = await sheetTenant();
+  if (!companyId) return { error: "Company workspace unavailable" };
+  if (!(await ownsSheet(supabase, companyId, tabId))) return { error: "Sheet not found in your company" };
   const { data: existing } = await supabase
     .from('crm_sheet_cells')
     .select('id')
     .eq('sheet_id', tabId)
+    .eq('company_id', companyId)
     .eq('row_index', rowIndex)
     .eq('col_index', colIndex)
     .maybeSingle();
 
   const payload = { style, updated_at: new Date().toISOString() };
   const { error } = existing?.id
-    ? await supabase.from('crm_sheet_cells').update(payload).eq('id', existing.id)
-    : await supabase.from('crm_sheet_cells').insert({ sheet_id: tabId, row_index: rowIndex, col_index: colIndex, value: '', ...payload });
+    ? await supabase.from('crm_sheet_cells').update(payload).eq('id', existing.id).eq('company_id', companyId)
+    : await supabase.from('crm_sheet_cells').insert({ company_id: companyId, sheet_id: tabId, row_index: rowIndex, col_index: colIndex, value: '', ...payload });
 
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');

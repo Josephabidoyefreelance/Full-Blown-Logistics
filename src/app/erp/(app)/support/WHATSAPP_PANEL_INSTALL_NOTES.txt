@@ -1,0 +1,11 @@
+JAAD ERP WhatsApp panel replacement
+
+Replace the existing WhatsApp panel component with whatsapp-panel.tsx. Keep a backup of the current file first.
+
+Includes: WhatsApp-style layout, removes the confusing connection/helper notice, CRM contact picker UI, theme choices in the three-dot menu, and a voice-call control placeholder.
+
+IMPORTANT: For the CRM contact picker to list real CRM records, the parent page must pass a `crmContacts` prop shaped like [{ id, name, phone, company? }]. This file remains compatible with the existing <WhatsappPanel history={...} /> call, but in that case it will show a note that CRM contacts are not connected yet.
+
+IMPORTANT: The voice-call button does not place real WhatsApp calls by itself. Real calling requires WhatsApp Business Calling API/account capability and a backend integration. The button displays this limitation rather than pretending a call was placed.
+
+This replacement has not been installed into your app, run, or deployed from here.

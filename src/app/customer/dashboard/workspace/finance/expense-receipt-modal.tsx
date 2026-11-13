@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState } from 'react';
 
@@ -19,6 +20,7 @@ export default function ExpenseReceiptModal({
   date: string;
   status: string;
 }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const isPaid = status === 'Paid';
   const stampColor = isPaid ? 'text-green-600 border-green-600' : 'text-amber-600 border-amber-600';

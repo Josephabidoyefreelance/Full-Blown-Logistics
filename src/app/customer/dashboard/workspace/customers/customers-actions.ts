@@ -2,29 +2,46 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { requireCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney } from '@/lib/customer-workspace-money';
+
+async function getScope() {
+  const access = await requireCustomerModule('customers');
+  if (!access.ok) return { error: 'Customer Management access is not available for this account.', companyId: null };
+  return { error: null, companyId: access.context.companyId };
+}
+
 
 export async function updateCustomerStatus(id: string, status: string) {
+  const scope = await getScope();
+  if (!scope.companyId) return { error: scope.error };
   const supabase = await createClient();
-  const { error } = await supabase.from('customers').update({ status }).eq('id', id);
+  const { error } = await supabase.from('customers').update({ status }).eq('company_id', scope.companyId).eq('id', id);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/customers');
   return { error: null };
 }
 
 export async function updateCustomerAssignedTo(id: string, assignedTo: string | null) {
+  const scope = await getScope();
+  if (!scope.companyId) return { error: scope.error };
   const supabase = await createClient();
-  const { error } = await supabase.from('customers').update({ assigned_to: assignedTo }).eq('id', id);
+  const { error } = await supabase.from('customers').update({ assigned_to: assignedTo }).eq('company_id', scope.companyId).eq('id', id);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/customers');
   return { error: null };
 }
 
 export async function createCustomer(formData: FormData) {
+  const scope = await getScope();
+  if (!scope.companyId) return { error: scope.error };
   const supabase = await createClient();
+  const {currency: defaultCurrency, taxRate: defaultTaxRate} = await loadWorkspaceMoney(supabase, scope.companyId);
 
   const assignedTo = String(formData.get('assigned_to') || '');
 
   const { error } = await supabase.from('customers').insert({
+    company_id: scope.companyId,
     name: String(formData.get('name')),
     type: String(formData.get('type') || 'B2B'),
     contact: String(formData.get('contact') || ''),
@@ -33,8 +50,8 @@ export async function createCustomer(formData: FormData) {
     status: String(formData.get('status') || 'Active'),
     client_since: String(formData.get('client_since') || new Date().getFullYear()),
     assigned_to: assignedTo || null,
-    currency: String(formData.get('currency') || 'NGN'),
-    tax_rate: Number(formData.get('tax_rate') || 7.5),
+    currency: String(formData.get('currency') || defaultCurrency),
+    tax_rate: Number(formData.get('tax_rate') ?? defaultTaxRate),
   });
 
   if (error) return { error: error.message };
@@ -43,7 +60,10 @@ export async function createCustomer(formData: FormData) {
 }
 
 export async function updateCustomerDetails(id: string, formData: FormData) {
+  const scope = await getScope();
+  if (!scope.companyId) return { error: scope.error };
   const supabase = await createClient();
+  const {currency: defaultCurrency, taxRate: defaultTaxRate} = await loadWorkspaceMoney(supabase, scope.companyId);
 
   const assignedTo = String(formData.get('assigned_to') || '');
 
@@ -57,9 +77,10 @@ export async function updateCustomerDetails(id: string, formData: FormData) {
       balance: Number(formData.get('balance') || 0),
       client_since: String(formData.get('client_since') || ''),
       assigned_to: assignedTo || null,
-      currency: String(formData.get('currency') || 'NGN'),
-      tax_rate: Number(formData.get('tax_rate') || 7.5),
+      currency: String(formData.get('currency') || defaultCurrency),
+      tax_rate: Number(formData.get('tax_rate') ?? defaultTaxRate),
     })
+    .eq('company_id', scope.companyId)
     .eq('id', id);
 
   if (error) return { error: error.message };
@@ -68,22 +89,27 @@ export async function updateCustomerDetails(id: string, formData: FormData) {
 }
 
 export async function importCustomersFromLeads() {
+  const scope = await getScope();
+  if (!scope.companyId) return { error: scope.error, imported: 0, skipped: 0 };
   const supabase = await createClient();
 
   const { data: wonLeads, error: leadsError } = await supabase
     .from('leads')
     .select('company, contact_name, phone, value, assigned_to')
+    .eq('company_id', scope.companyId)
     .eq('status', 'Won');
 
   if (leadsError) return { error: leadsError.message, imported: 0, skipped: 0 };
   if (!wonLeads?.length) return { error: null, imported: 0, skipped: 0 };
 
-  const { data: existing } = await supabase.from('customers').select('name');
+  const { data: existing, error: existingError } = await supabase.from('customers').select('name').eq('company_id', scope.companyId);
+  if (existingError) return { error: existingError.message, imported: 0, skipped: 0 };
   const existingNames = new Set((existing ?? []).map((c) => (c.name || '').toLowerCase()));
 
   const toInsert = wonLeads
     .filter((l) => !existingNames.has((l.company || '').toLowerCase()))
     .map((l) => ({
+      company_id: scope.companyId,
       name: l.company,
       type: 'B2B',
       contact: [l.contact_name, l.phone].filter(Boolean).join(', '),

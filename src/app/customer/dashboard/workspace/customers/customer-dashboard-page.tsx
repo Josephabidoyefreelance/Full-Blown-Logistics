@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 type Tab = 'overview' | 'shipments' | 'track' | 'invoices' | 'support' | 'profile';
 
@@ -17,6 +18,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function CustomerDashboard() {
+  const { format: moneyText } = useCustomerWorkspaceMoney();
   const supabase = createClient();
   const router = useRouter();
 
@@ -123,7 +125,7 @@ export default function CustomerDashboard() {
               {[
                 ['Active shipments', '0'],
                 ['Delivered this month', '0'],
-                ['Account balance', customer?.balance ? `\u20a6${customer.balance.toLocaleString()}` : '\u20a60'],
+                ['Account balance', moneyText(Number(customer?.balance ?? 0))],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-lg border border-[#eceef0] bg-white p-5">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-[#6c6c72]">{label}</div>

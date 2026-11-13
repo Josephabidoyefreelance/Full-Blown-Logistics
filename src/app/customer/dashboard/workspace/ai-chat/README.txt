@@ -1,7 +1,7 @@
 # JAAD ERP AI Assistant — Next.js App Router package
 
 ## Files
-- `app/ai-chat/page.tsx`: the AI Assistant page at `/customer/dashboard/workspace/ai-chat`
+- `app/ai-chat/page.tsx`: the AI Assistant page at `/ai-chat`
 - `app/api/ai-assistant/chat/route.ts`: server-side AI API endpoint
 - `.env.example`: environment variable template
 

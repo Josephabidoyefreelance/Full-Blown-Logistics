@@ -179,7 +179,7 @@ export default async function FleetPage({
                 <form method="get" className="flex items-center gap-2">
                   <input type="hidden" name="view" value="vehicles" />
                   <input name="q" defaultValue={query} placeholder="Search plate, type or insurer" className="h-8 w-64 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 outline-none focus:border-red-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100" />
-                  <button className="h-8 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900">Search</button>
+                  <button className="h-8 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 dark:bg-neutral-700 dark:text-white">Search</button>
                   {query && <a href="/fleet?view=vehicles" className="text-[10px] text-neutral-500 hover:text-red-600">Clear</a>}
                 </form>
                 <div className="flex gap-2 text-[11px] text-neutral-500">

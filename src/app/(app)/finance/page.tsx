@@ -14,6 +14,7 @@ import NewExpenseForm from './new-expense-form';
 import NewPayrollForm from './new-payroll-form';
 import NewPurchaseOrderForm from './new-purchase-order-form';
 import NewQuotationForm from './new-quotation-form';
+import SubscriptionReview from './subscription-review';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -166,7 +167,10 @@ export default async function FinancePage({
           <a href="/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
           <a href="/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
           <a href="/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
+          <a href="/finance?view=subscriptions" className={tabClass('subscriptions')}>Subscriptions</a>
         </div>
+
+        {view === 'subscriptions' && <SubscriptionReview />}
 
         {view === 'overview' && (
           <div className="space-y-2">

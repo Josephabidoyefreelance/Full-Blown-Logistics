@@ -1,9 +1,42 @@
-# JAAD Customer ERP workspace
+# JAAD Customer Dashboard — ERP Workspace Port
 
-The customer ERP workspace lives at `/customer/dashboard/workspace`. The root `/customer/dashboard` route preserves the existing shipment-customer portal for accounts that are not linked to a company; users whose `profiles.company_id` is set are sent to the ERP workspace.
+This archive is based on the uploaded `customer(3).zip` and adds a customer ERP workspace using the uploaded `(app).zip` as the source for module UI and components.
 
-The workspace mirrors the admin module screens while keeping admin-only routes out of the customer navigation. Access is based on `profiles.company_id`, the matching `companies` row, and an active `company_subscriptions` record. Row-level security is provided by `supabase/migrations/20261017_customer_multitenant_isolation.sql`.
+## What changed
+- Preserved the existing customer portal and its current tabs/features.
+- Added an **Open Full ERP Workspace** button in the customer portal sidebar.
+- Added `/customer/dashboard/workspace` with navigation for:
+  - Shipments
+  - Customers
+  - Drivers
+  - Fleet
+  - Warehouse
+  - Finance
+  - HR
+  - CRM & Leads
+  - Support
+  - Reports
+  - Calendar
+  - Clock Tracker
+  - AI Chat
+- Copied each module's page and companion components/actions into `customer/dashboard/workspace/<module>/`.
+- Rewrote common internal links/revalidation paths to the customer workspace where possible.
+- Did **not** copy the admin-only `/admin` module.
+- Did **not** copy the `/packages` module, per instruction.
 
-**Safety gate:** `CUSTOMER_ERP_TENANT_MODE` must remain unset until the migration is reviewed against the live database, tenant data and relationship policies are verified, and legacy chat/email attachment storage has been converted to company-scoped private paths with signed URLs. Do not set it to `enabled` just to bypass the setup screen.
+## Important safety gate
+The copied admin pages were built for the admin's global data view. The uploaded module pages do not consistently filter their database queries by a customer/tenant ID. Enabling them without tenant-level isolation could expose another business's records.
 
-See `/README-INSTALL.md` in the integration patch for merge steps, package permissions, and the tenant isolation test checklist.
+For that reason, `customer/dashboard/workspace/layout.tsx` fails closed unless this environment variable is set:
+
+`CUSTOMER_ERP_TENANT_MODE=enabled`
+
+**Do not set this variable yet.** First scope every module query and mutation to the signed-in customer's tenant and verify Supabase RLS policies. The gate is intentionally present so this port does not accidentally expose global admin data to customer accounts. When tenant isolation is complete, the gate can be enabled and tested.
+
+## Install
+1. Make a backup of your current project.
+2. Extract this ZIP.
+3. Copy/merge the included `customer/` folder into your project's existing `customer/` folder, preserving other project files.
+4. Restart the dev server (`npm run dev`).
+
+This archive does not include or replace the admin dashboard, global middleware/proxy, project dependencies, or Supabase migrations. It is a customer-only ZIP.

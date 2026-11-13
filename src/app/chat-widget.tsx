@@ -192,7 +192,7 @@ export default function ChatWidget() {
           </div>
 
           {!started ? (
-            <div className="space-y-2.5 overflow-y-auto p-4 text-sm">
+            <div className="jaad-chat-scroll space-y-2.5 overflow-y-auto p-4 text-sm">
               <p className="mb-1 text-[#0b0b0d]">Hi! Tell us a bit about yourself so our team can help you properly.</p>
               <input
                 value={name}
@@ -231,7 +231,7 @@ export default function ChatWidget() {
             </div>
           ) : (
             <>
-              <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-[#f5f5f6] p-3">
+              <div ref={scrollRef} className="jaad-chat-scroll flex-1 space-y-2 overflow-y-auto bg-[#f5f5f6] p-3">
                 {messages.length === 0 && (
                   <div className="pt-6 text-center text-xs text-[#6c6c72]">No messages yet, say hello.</div>
                 )}

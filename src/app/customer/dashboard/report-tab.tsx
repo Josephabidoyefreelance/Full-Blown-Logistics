@@ -9,6 +9,7 @@ type Props = {
   symbol: string;
   revenue: number;
   tax: number;
+  taxRate?: number;
   income: number;
   shippingFee: number;
 };
@@ -19,6 +20,7 @@ export default function ReportTab({
   symbol,
   revenue,
   tax,
+  taxRate = 7.5,
   income,
   shippingFee,
 }: Props) {
@@ -32,7 +34,7 @@ export default function ReportTab({
     rows.push(['Currency', currency]);
     rows.push([]);
     rows.push(['Revenue', `${symbol}${revenue}`]);
-    rows.push(['Tax (7.5%)', `${symbol}${tax}`]);
+    rows.push([`Tax (${taxRate}%)`, `${symbol}${tax}`]);
     rows.push(['Profit', `${symbol}${profit}`]);
     rows.push(['Shipping paid to JAAD (NGN)', `\u20a6${shippingFee}`]);
     rows.push(['Expenses (NGN)', `\u20a6${expenses}`]);

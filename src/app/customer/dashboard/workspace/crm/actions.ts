@@ -2,15 +2,25 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { getCustomerTenantContext } from '@/lib/customer-tenant';
+import { requireCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney } from '@/lib/customer-workspace-money';
+
+async function crmTenant() {
+  const access = await requireCustomerModule('crm');
+  return access.ok ? access.context : null;
+}
+
 
 const VALID_LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Proposal Sent', 'Won', 'Lost'];
 
 export async function createLead(formData: FormData) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
   const value = Number(formData.get('value') || 0);
 
   const { error } = await supabase.from('leads').insert({
+    company_id: tenant.companyId,
     company: String(formData.get('company')),
     contact_name: String(formData.get('contact_name')),
     job_title: String(formData.get('job_title') || ''),
@@ -31,9 +41,11 @@ export async function createLead(formData: FormData) {
 }
 
 export async function updateLeadStatus(id: string, status: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   if (!id || !VALID_LEAD_STATUSES.includes(status)) return { error: 'Invalid lead status.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('leads').update({ status }).eq('id', id);
+  const { error } = await supabase.from('leads').update({ status }).eq('id', id).eq('company_id', tenant.companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   revalidatePath('/customer/dashboard/workspace');
@@ -41,22 +53,39 @@ export async function updateLeadStatus(id: string, status: string) {
 }
 
 export async function updateLeadPriority(id: string, priority: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('leads').update({ priority }).eq('id', id);
+  const { error } = await supabase.from('leads').update({ priority }).eq('id', id).eq('company_id', tenant.companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
 }
 
 export async function updateLeadAssignedTo(id: string, assignedTo: string | null) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('leads').update({ assigned_to: assignedTo }).eq('id', id);
+  // Never assign a tenant's lead to a profile belonging to another company.
+  if (assignedTo) {
+    const { data: staff, error: staffError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', assignedTo)
+      .eq('company_id', tenant.companyId)
+      .eq('status', 'Active')
+      .maybeSingle();
+    if (staffError || !staff) return { error: 'Assignee is not an active member of this company.' };
+  }
+  const { error } = await supabase.from('leads').update({ assigned_to: assignedTo }).eq('id', id).eq('company_id', tenant.companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
 }
 
 export async function updateLeadDetails(id: string, formData: FormData) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
   const value = Number(formData.get('value') || 0);
 
@@ -73,7 +102,7 @@ export async function updateLeadDetails(id: string, formData: FormData) {
       destination: String(formData.get('destination') || ''),
       value,
     })
-    .eq('id', id);
+    .eq('id', id).eq('company_id', tenant.companyId);
 
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
@@ -81,21 +110,30 @@ export async function updateLeadDetails(id: string, formData: FormData) {
 }
 
 export async function addLeadNote(leadId: string, note: string, authorName: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
+  const { data: ownedLead } = await supabase.from('leads').select('id').eq('id', leadId).eq('company_id', tenant.companyId).maybeSingle();
+  if (!ownedLead) return { error: 'Lead not found in your workspace.' };
   const { error } = await supabase
     .from('lead_notes')
-    .insert({ lead_id: leadId, note, author_name: authorName });
+    .insert({ company_id: tenant.companyId, lead_id: leadId, note, author_name: authorName });
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
 }
 
 export async function getLeadNotes(leadId: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.', notes: [] };
   const supabase = await createClient();
+  const { data: ownedLead, error: leadError } = await supabase
+    .from('leads').select('id').eq('id', leadId).eq('company_id', tenant.companyId).maybeSingle();
+  if (leadError || !ownedLead) return { error: 'Lead not found in your workspace.', notes: [] };
   const { data, error } = await supabase
     .from('lead_notes')
     .select('id, note, author_name, created_at')
-    .eq('lead_id', leadId)
+    .eq('lead_id', leadId).eq('company_id', tenant.companyId)
     .order('created_at', { ascending: true });
 
   if (error) return { error: error.message, notes: [] };
@@ -103,11 +141,13 @@ export async function getLeadNotes(leadId: string) {
 }
 
 export async function updateLeadCallbackDate(id: string, callbackDate: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   const supabase = await createClient();
   const { error } = await supabase
     .from('leads')
     .update({ callback_date: callbackDate || null })
-    .eq('id', id);
+    .eq('id', id).eq('company_id', tenant.companyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/crm');
   return { error: null };
@@ -131,8 +171,8 @@ const VALID_SOURCES = ['Website', 'Referral', 'Cold Call', 'Social Media', 'Trad
 const VALID_PRIORITIES = ['Hot', 'Warm', 'Cold'];
 
 export async function importLeads(rows: ImportRow[]) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant?.fullCrmAccess) return { error: 'Bulk lead import requires the ₦20,000/month Premium plan.', imported: 0, skipped: rows.length };
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.', imported: 0, skipped: 0 };
   const supabase = await createClient();
 
   const toInsert: Record<string, unknown>[] = [];
@@ -149,6 +189,7 @@ export async function importLeads(rows: ImportRow[]) {
     }
 
     toInsert.push({
+      company_id: tenant.companyId,
       company,
       contact_name,
       job_title: String(row.job_title || ''),
@@ -176,20 +217,24 @@ export async function importLeads(rows: ImportRow[]) {
 }
 
 export async function convertLeadToCustomer(id: string) {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.' };
   if (!id) return { error: 'Missing lead id.' };
   const supabase = await createClient();
 
   const { data: lead, error: fetchError } = await supabase
     .from('leads')
     .select('id, company, contact_name, email, phone, assigned_to, value')
-    .eq('id', id)
+    .eq('id', id).eq('company_id', tenant.companyId)
     .single();
 
   if (fetchError || !lead) {
     return { error: fetchError?.message ?? 'Could not find that lead.' };
   }
 
+  const { currency, taxRate } = await loadWorkspaceMoney(supabase, tenant.companyId);
   const { error: insertError } = await supabase.from('customers').insert({
+    company_id: tenant.companyId,
     name: lead.company || lead.contact_name,
     type: 'B2B',
     contact: lead.phone || lead.email || '',
@@ -198,13 +243,13 @@ export async function convertLeadToCustomer(id: string) {
     status: 'Active',
     client_since: new Date().getFullYear(),
     assigned_to: lead.assigned_to,
-    currency: 'NGN',
-    tax_rate: 7.5,
+    currency,
+    tax_rate: taxRate,
   });
 
   if (insertError) return { error: insertError.message };
 
-  const { error: deleteError } = await supabase.from('leads').delete().eq('id', id);
+  const { error: deleteError } = await supabase.from('leads').delete().eq('id', id).eq('company_id', tenant.companyId);
   if (deleteError) return { error: deleteError.message };
 
   revalidatePath('/customer/dashboard/workspace/crm');
@@ -214,11 +259,13 @@ export async function convertLeadToCustomer(id: string) {
 
 
 export async function seedDemoLeads() {
+  const tenant = await crmTenant();
+  if (!tenant) return { error: 'CRM access denied.', inserted: 0 };
   const supabase = await createClient();
 
   const { count, error: countError } = await supabase
     .from('leads')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true }).eq('company_id', tenant.companyId);
 
   if (countError) return { error: countError.message, inserted: 0 };
   if ((count ?? 0) > 0) return { error: null, inserted: 0 };
@@ -310,7 +357,7 @@ export async function seedDemoLeads() {
     },
   ];
 
-  const { error } = await supabase.from('leads').insert(demoLeads);
+  const { error } = await supabase.from('leads').insert(demoLeads.map(row => ({ ...row, company_id: tenant.companyId })));
   if (error) return { error: error.message, inserted: 0 };
 
   revalidatePath('/customer/dashboard/workspace/crm');

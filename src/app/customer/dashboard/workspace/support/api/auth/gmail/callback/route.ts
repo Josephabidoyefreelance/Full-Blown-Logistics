@@ -22,9 +22,9 @@ export async function GET(request: Request) {
   const expectedState = cookieStore.get('jaad_gmail_oauth_state')?.value;
   cookieStore.delete('jaad_gmail_oauth_state');
 
-  if (googleError) return NextResponse.redirect(new URL(`/customer/dashboard/workspace/support?view=email&gmail_error=${encodeURIComponent(googleError)}`, request.url));
+  if (googleError) return NextResponse.redirect(new URL(`/support?view=email&gmail_error=${encodeURIComponent(googleError)}`, request.url));
   if (!code || !state || !expectedState || state !== expectedState) {
-    return NextResponse.redirect(new URL('/customer/dashboard/workspace/support?view=email&gmail_error=invalid_state', request.url));
+    return NextResponse.redirect(new URL('/support?view=email&gmail_error=invalid_state', request.url));
   }
 
   const supabase = await createClient();
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
   if (!clientId || !clientSecret || !redirectUri) {
-    return NextResponse.redirect(new URL('/customer/dashboard/workspace/support?view=email&gmail_error=missing_google_config', request.url));
+    return NextResponse.redirect(new URL('/support?view=email&gmail_error=missing_google_config', request.url));
   }
 
   try {
@@ -68,9 +68,9 @@ export async function GET(request: Request) {
       connected_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
     if (saveError) throw saveError;
-    return NextResponse.redirect(new URL('/customer/dashboard/workspace/support?view=email&gmail_connected=1', request.url));
+    return NextResponse.redirect(new URL('/support?view=email&gmail_connected=1', request.url));
   } catch (error) {
     console.error('Gmail OAuth callback failed:', error);
-    return NextResponse.redirect(new URL('/customer/dashboard/workspace/support?view=email&gmail_error=connection_failed', request.url));
+    return NextResponse.redirect(new URL('/support?view=email&gmail_error=connection_failed', request.url));
   }
 }

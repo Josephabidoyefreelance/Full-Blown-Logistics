@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState, useTransition } from 'react';
 import StatusSwitch from './status-switch';
@@ -63,6 +64,7 @@ function EditField({
 }
 
 export default function CustomerDetailTrigger({ customer, staff }: { customer: Customer; staff: Staff[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -124,7 +126,7 @@ export default function CustomerDetailTrigger({ customer, staff }: { customer: C
                   <Field label="Credit limit" value={nairaFmt(customer.credit_limit)} />
                   <Field label="Balance" value={customer.balance ? nairaFmt(customer.balance) : '—'} />
                   <Field label="Client since" value={customer.client_since || '—'} />
-                  <Field label="Currency" value={customer.currency || 'NGN'} />
+                  <Field label="Currency" value={customer.currency || currency} />
                   <Field label="Tax rate" value={`${customer.tax_rate ?? 7.5}%`} />
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
@@ -161,13 +163,13 @@ export default function CustomerDetailTrigger({ customer, staff }: { customer: C
                   <EditField label="Type" name="type" defaultValue={customer.type} />
                   <EditField label="Contact" name="contact" defaultValue={customer.contact ?? ''} />
                   <EditField
-                    label="Credit limit, NGN"
+                    label="Credit limit, {currency}"
                     name="credit_limit"
                     defaultValue={String(customer.credit_limit ?? '')}
                     type="number"
                   />
                   <EditField
-                    label="Balance, NGN"
+                    label="Balance, {currency}"
                     name="balance"
                     defaultValue={String(customer.balance ?? '')}
                     type="number"
@@ -177,7 +179,7 @@ export default function CustomerDetailTrigger({ customer, staff }: { customer: C
                     <label className="mb-1 block text-xs font-semibold text-neutral-600 dark:text-neutral-400">Currency</label>
                     <select
                       name="currency"
-                      defaultValue={customer.currency ?? 'NGN'}
+                      defaultValue={customer.currency ?? currency}
                       className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                     >
                       {CURRENCY_OPTIONS.map((c) => (

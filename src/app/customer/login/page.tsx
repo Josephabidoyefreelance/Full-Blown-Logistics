@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import PolicyPdfLink from '@/components/PolicyPdfLink';
 import TurnstileBox from '@/components/turnstile-box';
+import { createClient as createEphemeralAuthClient } from '@supabase/supabase-js';
 
 function readErrorMessage(err: unknown, fallback: string) {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -19,8 +20,13 @@ export default function CustomerLoginPage() {
   const supabase = createClient();
   const router = useRouter();
 
-  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [step, setStep] = useState<'email' | 'code' | 'recovery' | 'recovery-code'>('email');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +47,12 @@ export default function CustomerLoginPage() {
       setError('Enter your email.');
       return;
     }
+    if (!password) {
+      setError('Enter your password before requesting an email code.');
+      return;
+    }
     setError(null);
+    setNotice(null);
     setCode('');
 
     // Local development bypass only: keep Cloudflare verification enabled in production.
@@ -84,6 +95,23 @@ export default function CustomerLoginPage() {
 
     let authError: { message: string } | null = null;
     try {
+      // Check the password using an isolated, non-persisted auth client so a
+      // password-only session is never installed into the browser's ERP client.
+      const checkClient = createEphemeralAuthClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+      );
+      const { error: passwordError, data: passwordData } =
+        await checkClient.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      if (passwordError || !passwordData.user) {
+        setLoading(false);
+        setError('Incorrect email or password. If your account predates passwords, use Set or reset password.');
+        return;
+      }
+      // End only this isolated local session; preserve any other signed-in app.
+      await checkClient.auth.signOut({ scope: 'local' });
+
       const result = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { shouldCreateUser: false },
@@ -91,7 +119,7 @@ export default function CustomerLoginPage() {
       authError = result.error;
     } catch (err) {
       setLoading(false);
-      setError(readErrorMessage(err, "Could not connect to Supabase. Check your connection and try again."));
+      setError(readErrorMessage(err, 'Could not verify your password or send an email code. Please try again.'));
       return;
     }
 
@@ -103,6 +131,100 @@ export default function CustomerLoginPage() {
     }
     setStep('code');
     setCooldown(30);
+  }
+
+  // Password recovery for existing email-code-only accounts and forgotten passwords.
+  // Email ownership is verified before changing the Supabase password.
+  async function sendRecoveryCode() {
+    if (!email.trim()) {
+      setError('Enter your account email.');
+      return;
+    }
+    if (process.env.NODE_ENV !== 'development') {
+      if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !captchaToken) {
+        setError('Complete the Cloudflare security check first.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const response = await fetch('/api/security/turnstile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: captchaToken, action: 'customer_login' }),
+        });
+        const verdict = await response.json().catch(() => ({}));
+        if (!response.ok || !verdict.success) {
+          setError('Security verification failed. Please try again.');
+          setCaptchaToken('');
+          setCaptchaResetKey((key) => key + 1);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        setError('Could not complete the security check. Try again.');
+        setLoading(false);
+        return;
+      }
+      setCaptchaToken('');
+      setCaptchaResetKey((key) => key + 1);
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: sendError } = await supabase.auth.signInWithOtp({
+        email: email.trim().toLowerCase(),
+        options: { shouldCreateUser: false },
+      });
+      if (sendError) {
+        setError(readErrorMessage(sendError, 'Could not send the recovery code.'));
+        return;
+      }
+      setStep('recovery-code');
+      setCooldown(30);
+    } catch (err) {
+      setError(readErrorMessage(err, 'Could not send the recovery code.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyRecoveryCode() {
+    if (!/^\d{6,8}$/.test(code.trim())) {
+      setError('Enter your latest email verification code.');
+      return;
+    }
+    if (password.length < 8 || password !== confirmPassword) {
+      setError('Enter a matching new password with at least 8 characters.');
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    try {
+      const { data, error: codeError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: code.trim(),
+        type: 'email',
+      });
+      if (codeError || !data.user) {
+        setError('Code expired or invalid. Request a new code.');
+        return;
+      }
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) {
+        setError(readErrorMessage(updateError, 'Could not set your password.'));
+        return;
+      }
+      await supabase.auth.signOut();
+      setPassword('');
+      setConfirmPassword('');
+      setCode('');
+      setStep('email');
+      setNotice('Password saved. Sign in with your password, then verify the email code.');
+    } catch (err) {
+      setError(readErrorMessage(err, 'Could not verify the recovery code.'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function verifyCode() {
@@ -147,9 +269,6 @@ export default function CustomerLoginPage() {
       setError('Could not verify your authenticated account. Please sign in again.');
       return;
     }
-
-    const isCustomerTestAccount =
-      verifiedIdentity.user.email?.trim().toLowerCase() === 'josephabidoyefreelance@outlook.com';
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -212,22 +331,17 @@ export default function CustomerLoginPage() {
       return;
     }
 
-    // Existing test-account exception preserved; this is not a substitute
-    // for server-side subscription checks and tenant isolation.
-    if (!isCustomerTestAccount && subscriptionStatus !== 'active') {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError(subscriptionStatus === 'past_due'
-        ? 'Your subscription payment is overdue. Please renew to regain access.'
-        : 'Your company workspace exists, but its subscription is not active. Please contact support to activate a plan.');
-      return;
-    }
+    // Authentication and workspace membership are separate from billing entitlement.
+    // Expired customers may sign in to view their account and renew; server-side
+    // subscription checks must still protect paid ERP modules.
+    void subscriptionStatus;
 
     if (!remember && typeof window !== 'undefined') {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) sessionStorage.setItem('jaad_session_only', '1');
     }
 
+    setPassword('');
     setLoading(false);
     router.push('/customer/dashboard');
   }
@@ -251,9 +365,11 @@ export default function CustomerLoginPage() {
         .jaad-card-body input:not([type="checkbox"]),.jaad-card-body select{display:block;width:100%;min-width:0;box-sizing:border-box;border:1px solid #d8dbe2!important;border-radius:9px!important;background:#eaf1ff!important;padding:12px 13px!important;color:#111114!important;font-size:13px!important;line-height:1.35!important;outline:none;box-shadow:none!important}
         .jaad-card-body input:not([type="checkbox"]):focus,.jaad-card-body select:focus{border-color:#e5231b!important;box-shadow:0 0 0 3px #e5231b18!important}
         .jaad-card-body input[type="checkbox"]{accent-color:#16a34a;flex:0 0 auto}
-        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal){box-sizing:border-box;min-height:43px;border:0;border-radius:9px;background:#e5231b;color:#fff;font-size:12px;font-weight:800;line-height:1.25;padding:12px 14px;cursor:pointer}
-        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal):hover{background:#c91c16}
+        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal):not(.jaad-password-toggle){box-sizing:border-box;min-height:43px;border:0;border-radius:9px;background:#e5231b;color:#fff;font-size:12px;font-weight:800;line-height:1.25;padding:12px 14px;cursor:pointer}
+        .jaad-card-body button:not(.jaad-secondary):not(.jaad-legal):not(.jaad-password-toggle):hover{background:#c91c16}
         .jaad-card-body button:disabled{opacity:.6;cursor:not-allowed}
+        .jaad-card-body button.jaad-password-toggle{position:absolute!important;right:12px!important;top:0!important;bottom:0!important;transform:none!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-height:0!important;height:100%!important;padding:6px 8px!important;margin:0!important;background:transparent!important;border:0!important;border-radius:5px!important;box-shadow:none!important;color:#62626b!important;font-size:12px!important;font-weight:650!important;line-height:1.25!important;cursor:pointer!important}
+        .jaad-card-body button.jaad-password-toggle:hover{background:transparent!important;color:#e5231b!important}
         .jaad-card-body .jaad-secondary{display:block;width:100%;min-height:0!important;margin-top:12px!important;padding:7px 4px!important;border:0!important;background:transparent!important;color:#62626b!important;font-size:12px!important;font-weight:650!important}
         .jaad-card-body .jaad-secondary:hover{color:#e5231b!important}
         .jaad-card-body .jaad-legal{min-height:0!important;padding:0!important;background:transparent!important;color:inherit!important;border:0!important;font-size:inherit!important;font-weight:inherit!important;text-decoration:underline;cursor:pointer}
@@ -303,7 +419,7 @@ export default function CustomerLoginPage() {
           <div className="jaad-card-body">
             <h1 className="text-center text-2xl font-bold text-[#0b0b0d]">Sign In</h1>
 
-            {step === 'email' ? (
+            {step === 'email' || step === 'recovery' ? (
               <>
                 <div className="mt-7">
                   <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Email</label>
@@ -311,10 +427,44 @@ export default function CustomerLoginPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendCode()}
+                    onKeyDown={(e) => e.key === 'Enter' && (step === 'email' ? sendCode() : sendRecoveryCode())}
+                    autoComplete="email"
                     className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                   />
                 </div>
+
+                {step === 'email' && (
+                  <div className="mt-4">
+                    <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && sendCode()}
+                        autoComplete="current-password"
+                        className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 pr-20 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="jaad-password-toggle absolute right-3 inset-y-0 flex h-full items-center justify-center rounded bg-transparent px-2 text-xs font-semibold text-[#62626b] hover:text-[#e5231b]"
+                      >
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {step === 'recovery' && (
+                  <div className="mt-3 text-[12px] text-[#62626b]">
+                    We will email a code to verify account ownership before you set a password.
+                    <button type="button" className="ml-2 font-semibold text-[#e5231b] underline" onClick={() => { setStep('email'); setError(null); }}>
+                      Back to sign in
+                    </button>
+                  </div>
+                )}
 
                 <label className="jaad-remember">
                   <input
@@ -335,14 +485,15 @@ export default function CustomerLoginPage() {
                     />
                   </div>
                 )}
+                {notice && <p role="status" className="mt-3 text-xs font-semibold text-green-700">{notice}</p>}
                 {error && <p role="alert" className="jaad-auth-error">{error}</p>}
 
                 <button
-                  onClick={sendCode}
+                  onClick={step === 'email' ? sendCode : sendRecoveryCode}
                   disabled={loading || cooldown > 0}
                   className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-3.5 text-[13px] font-extrabold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
                 >
-                  {loading ? 'Sending code...' : cooldown > 0 ? `Wait ${cooldown}s` : 'Send Code'}
+                  {loading ? 'Sending code...' : cooldown > 0 ? `Wait ${cooldown}s` : step === 'email' ? 'Send Code' : 'Send Password Reset Code'}
                   {!loading && cooldown === 0 && (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14M13 6l6 6-6 6" />
@@ -353,7 +504,7 @@ export default function CustomerLoginPage() {
             ) : (
               <>
                 <p className="mx-auto mt-2 max-w-[260px] text-center text-[13px] text-[#8a8a90]">
-                  Enter the code we sent to {email}.
+                  {step === 'recovery-code' ? 'Enter the recovery code we sent to' : 'Enter the code we sent to'} {email}.
                 </p>
 
                 <div className="mt-6">
@@ -369,29 +520,69 @@ export default function CustomerLoginPage() {
                   />
                 </div>
 
+                {step === 'recovery-code' && (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">New password</label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          autoComplete="new-password"
+                          className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 pr-20 text-sm outline-none"
+                        />
+                        <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((shown) => !shown)} className="jaad-password-toggle absolute right-3 inset-y-0 flex h-full items-center justify-center rounded bg-transparent px-2 text-xs font-semibold text-[#62626b] hover:text-[#e5231b]">
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Confirm new password</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          autoComplete="new-password"
+                          className="w-full rounded-full border-0 bg-[#ececec] px-5 py-3.5 pr-20 text-sm outline-none"
+                        />
+                        <button type="button" aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'} onClick={() => setShowConfirmPassword((shown) => !shown)} className="jaad-password-toggle absolute right-3 inset-y-0 flex h-full items-center justify-center rounded bg-transparent px-2 text-xs font-semibold text-[#62626b] hover:text-[#e5231b]">
+                          {showConfirmPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {error && <p role="alert" className="jaad-auth-error">{error}</p>}
 
                 <button
-                  onClick={verifyCode}
+                  onClick={step === 'code' ? verifyCode : verifyRecoveryCode}
                   disabled={loading}
                   className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-[9px] bg-[#e5231b] py-3.5 text-[13px] font-extrabold text-white transition hover:bg-[#c91c16] disabled:opacity-60"
                 >
-                  {loading ? 'Verifying...' : 'Sign In'}
+                  {loading ? 'Verifying...' : step === 'code' ? 'Sign In' : 'Save Password'}
                   {!loading && (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M5 12h14M13 6l6 6-6 6" />
                     </svg>
                   )}
                 </button>
+                {process.env.NODE_ENV !== 'development' && (
+                  <div className="jaad-turnstile">
+                    <TurnstileBox action="customer_login" resetKey={captchaResetKey} onToken={setCaptchaToken} />
+                  </div>
+                )}
                 <button
-                  onClick={sendCode}
+                  onClick={step === 'code' ? sendCode : sendRecoveryCode}
                   disabled={loading || cooldown > 0}
                   className="jaad-secondary"
                 >
                   {cooldown > 0 ? `Request another code in ${cooldown}s` : 'Send a new code'}
                 </button>
                 <button
-                  onClick={() => { setStep('email'); setCode(''); setError(null); }}
+                  onClick={() => { setStep(step === 'code' ? 'email' : 'recovery'); setCode(''); setError(null); }}
                   className="jaad-secondary"
                 >
                   Use a different email
@@ -402,15 +593,18 @@ export default function CustomerLoginPage() {
             <p className="jaad-account-link">
               Don&apos;t have an account yet? <Link href="/customer/signup" className="font-semibold text-[#e5231b] underline">Create Account</Link>
             </p>
+            <p className="mt-2 text-center text-[12px]">
+              <Link href="/customer/reset-password" className="font-semibold text-[#e5231b] underline">Reset password</Link>
+            </p>
           </div>
         </div>
 
-        <p className="jaad-legal-footer">
+        <div className="jaad-legal-footer">
           By continuing, you agree to
           <br />
           <PolicyPdfLink title="Terms of Service" href="/documents/JAAD-LOGISTICS-Terms-of-Service.pdf" className="underline" /> and{' '}
           <PolicyPdfLink title="Privacy Policy" href="/documents/JAAD-LOGISTICS-Privacy-Policy.pdf" className="underline" />.
-        </p>
+        </div>
       </div>
     </div>
   );

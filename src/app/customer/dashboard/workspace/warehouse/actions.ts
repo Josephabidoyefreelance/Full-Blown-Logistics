@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { requireCustomerModule } from '@/lib/customer-tenant';
 import { revalidatePath } from 'next/cache';
 import { LOW_STOCK_THRESHOLD } from './constants';
 
@@ -50,12 +51,14 @@ function buildPayload(formData: FormData) {
 }
 
 export async function createInventoryItem(formData: FormData) {
+  const access = await requireCustomerModule('warehouse');
+  if (!access.ok) return { error: 'Workspace access denied.' };
   const supabase = await createClient();
   const payload = buildPayload(formData);
 
   if (!payload.name) return { error: 'Item name is required.' };
 
-  const { error } = await supabase.from('inventory_items').insert(payload);
+  const { error } = await supabase.from('inventory_items').insert({ ...payload, company_id: access.context.companyId });
   if (error) return { error: error.message };
 
   revalidatePath('/customer/dashboard/workspace/warehouse');
@@ -64,6 +67,8 @@ export async function createInventoryItem(formData: FormData) {
 }
 
 export async function updateInventoryItem(formData: FormData) {
+  const access = await requireCustomerModule('warehouse');
+  if (!access.ok) return { error: 'Workspace access denied.' };
   const supabase = await createClient();
   const id = String(formData.get('id') ?? '').trim();
   const payload = buildPayload(formData);
@@ -71,7 +76,7 @@ export async function updateInventoryItem(formData: FormData) {
   if (!id) return { error: 'Missing item id.' };
   if (!payload.sku || !payload.name) return { error: 'SKU and item name are required.' };
 
-  const { error } = await supabase.from('inventory_items').update(payload).eq('id', id);
+  const { error } = await supabase.from('inventory_items').update(payload).eq('id', id).eq('company_id', access.context.companyId);
   if (error) return { error: error.message };
 
   revalidatePath('/customer/dashboard/workspace/warehouse');
@@ -80,9 +85,11 @@ export async function updateInventoryItem(formData: FormData) {
 }
 
 export async function deleteInventoryItem(id: string) {
+  const access = await requireCustomerModule('warehouse');
+  if (!access.ok) return { error: 'Workspace access denied.' };
   if (!id) return { error: 'Missing item id.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('inventory_items').delete().eq('id', id);
+  const { error } = await supabase.from('inventory_items').delete().eq('id', id).eq('company_id', access.context.companyId);
   if (error) return { error: error.message };
 
   revalidatePath('/customer/dashboard/workspace/warehouse');

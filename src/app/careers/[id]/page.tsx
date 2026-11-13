@@ -43,7 +43,7 @@ export default async function CareerApplyPage({
           </div>
 
           <h2 className="mb-3 text-sm font-semibold text-neutral-900">Apply for this role</h2>
-          <ApplyForm jobTitle={posting.title} />
+          <ApplyForm jobTitle={posting.title} postingId={posting.id} />
         </div>
       </div>
     </div>

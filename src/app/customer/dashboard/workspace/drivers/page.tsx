@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { requireCustomerModule, redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import { revalidatePath } from 'next/cache';
 import { createDriver } from './actions';
 import StatusSwitch from './status-switch';
@@ -30,6 +31,8 @@ function clean(value: FormDataEntryValue | null) {
 
 export async function updateDriver(formData: FormData) {
   'use server';
+  const access = await requireCustomerModule('drivers');
+  if (!access.ok) throw new Error('Workspace access denied.');
   const id = String(formData.get('id') ?? '').trim();
   const name = String(formData.get('name') ?? '').trim();
   const license_no = String(formData.get('license_no') ?? '').trim();
@@ -46,7 +49,7 @@ export async function updateDriver(formData: FormData) {
     previous_employer_phone: clean(formData.get('previous_employer_phone')), previous_employer_address: clean(formData.get('previous_employer_address')),
     previous_employment_start: clean(formData.get('previous_employment_start')), previous_employment_end: clean(formData.get('previous_employment_end')),
     id_type: clean(formData.get('id_type')), id_number: clean(formData.get('id_number')), emergency_notes: clean(formData.get('emergency_notes')),
-  }).eq('id', id);
+  }).eq('id', id).eq('company_id', access.context.companyId);
   if (error) throw new Error(error.message);
   revalidatePath('/customer/dashboard/workspace/drivers');
   revalidatePath('/customer/dashboard/workspace');
@@ -60,7 +63,7 @@ function AddDriverForm() {
         <div className="flex max-h-[72vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
           <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"><div><h2 className="text-sm font-semibold">Add driver</h2><p className="text-[10px] text-neutral-500">Biodata, identity, documents, next of kin and employment.</p></div><span className="text-xs text-neutral-400">Scroll to complete</span></div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-            <form action={createDriver} className="space-y-3">
+            <form action={async (formData: FormData) => { "use server"; const result = await createDriver(formData); if (result?.error) throw new Error(result.error); }} className="space-y-3">
               <section><h3 className={sectionTitle}>Personal details</h3><div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div className="sm:col-span-2"><label className={labelClass}>Full name *</label><input name="name" required className={inputClass} /></div>
                 <div><label className={labelClass}>Status</label><select name="status" defaultValue="Available" className={inputClass}>{STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}</select></div>
@@ -84,11 +87,12 @@ function AddDriverForm() {
 }
 
 export default async function DriversPage({ searchParams }: { searchParams: Promise<{ view?: string; status?: string }> }) {
+  const tenant = await redirectIfNotCustomerModule('drivers');
   const params = await searchParams;
   const view = params.view === 'performance' ? 'performance' : 'profiles';
   const selectedStatus = params.status ?? 'All';
   const supabase = await createClient();
-  const { data: drivers, error } = await supabase.from('drivers').select('id,name,license_no,license_expiry,status,trips_completed,communication_rating,punctuality_rating,neatness_rating,composure_rating,phone,email,address,date_of_birth,gender,nationality,blood_group,next_of_kin_name,next_of_kin_relationship,next_of_kin_phone,next_of_kin_address,previous_employer,previous_employer_phone,previous_employer_address,previous_employment_start,previous_employment_end,id_type,id_number,photo_path,id_document_path,license_document_path,emergency_notes').order('name');
+  const { data: drivers, error } = await supabase.from('drivers').select('id,name,license_no,license_expiry,status,trips_completed,communication_rating,punctuality_rating,neatness_rating,composure_rating,phone,email,address,date_of_birth,gender,nationality,blood_group,next_of_kin_name,next_of_kin_relationship,next_of_kin_phone,next_of_kin_address,previous_employer,previous_employer_phone,previous_employer_address,previous_employment_start,previous_employment_end,id_type,id_number,photo_path,id_document_path,license_document_path,emergency_notes').eq('company_id', tenant.companyId).order('name');
   const all = drivers ?? [];
   const filtered = selectedStatus === 'All' ? all : all.filter(d => d.status === selectedStatus);
   const available = all.filter(d => d.status === 'Available').length;
@@ -115,15 +119,15 @@ export default async function DriversPage({ searchParams }: { searchParams: Prom
 
     <div className="mb-4 flex flex-wrap items-center gap-2">
       {[
-        ['All', all.length, '/customer/dashboard/workspace/drivers?view=profiles&status=All'],
-        ['Available', available, '/customer/dashboard/workspace/drivers?view=profiles&status=Available'],
-        ['On trip', onTrip, '/customer/dashboard/workspace/drivers?view=profiles&status=On%20trip'],
-        ['Off duty', offDuty, '/customer/dashboard/workspace/drivers?view=profiles&status=Off%20duty'],
+        ['All', all.length, '/drivers?view=profiles&status=All'],
+        ['Available', available, '/drivers?view=profiles&status=Available'],
+        ['On trip', onTrip, '/drivers?view=profiles&status=On%20trip'],
+        ['Off duty', offDuty, '/drivers?view=profiles&status=Off%20duty'],
       ].map(([label,value,href]) => <a key={String(label)} href={String(href)} className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:border-red-200 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">{label} <b>{value}</b></a>)}
     </div>
 
     <div className="mb-5 flex gap-6 border-b border-neutral-200 dark:border-neutral-800">
-      {TABS.map(t => <a key={t.key} href={`/customer/dashboard/workspace/drivers?view=${t.key}${selectedStatus !== 'All' ? `&status=${encodeURIComponent(selectedStatus)}` : ''}`} className={`pb-2.5 text-sm font-medium ${view === t.key ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}`}>{t.label}</a>)}
+      {TABS.map(t => <a key={t.key} href={`/drivers?view=${t.key}${selectedStatus !== 'All' ? `&status=${encodeURIComponent(selectedStatus)}` : ''}`} className={`pb-2.5 text-sm font-medium ${view === t.key ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}`}>{t.label}</a>)}
     </div>
     {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">Could not load drivers: {error.message}</p>}
 

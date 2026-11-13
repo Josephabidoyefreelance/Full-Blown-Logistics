@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { updateLiveChatStatus, sendLiveChatMessage, uploadLiveChatFile } from './actions';
 import MessageContent from './message-content';
+import NewTicketForm from './new-ticket-form';
 
 type Chat = {
   id: string;
@@ -184,6 +185,7 @@ export default function LiveChatPanel({ chats, messages }: { chats: Chat[]; mess
             {selected && <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-neutral-500"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[selected.status] ?? '#888' }} />{selected.status}</span>}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <NewTicketForm triggerLabel="Ticket" customerName={selected?.customer_name ?? ""} initialChannel="Live Chat" />
             {selected && <>
               <button type="button" onClick={downloadTranscript} className="rounded-lg border border-neutral-200 px-2.5 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800" title="Download this customer's transcript">Download chat</button>
               {selected.status !== 'Pending' && selected.status !== 'Resolved' && <button type="button" disabled={isPending} onClick={() => moveTo('Pending')} className="rounded-lg border border-amber-300 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-900 dark:text-amber-300">Move to pending</button>}

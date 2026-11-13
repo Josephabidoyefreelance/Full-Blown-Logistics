@@ -1,0 +1,34 @@
+JAAD ERP — PRIORITY 1 — SINGLE CONSOLIDATED REVIEW PACKAGE
+29 October 2026
+
+STATUS: NOT READY FOR PRODUCTION. DO NOT DEPLOY THIS PACKAGE AS-IS.
+
+WHAT IS INCLUDED
+- Existing preliminary registration -> JAAD central CRM patch (not live-tested).
+- Migration to add registration_user_id and a unique index for duplicate-safe leads (NOT executed).
+- This audit and release checklist.
+
+IMPORTANT: This ZIP is a REVIEW PACKAGE, not a complete application or production deployment.
+It intentionally does not include the homepage, footer, Admin login dot, or working calling components.
+
+SIX PRIORITY 1 WORKSTREAMS
+1 Registration -> Admin CRM & Leads: Preliminary patch included. Must verify leads schema, JAAD platform company ownership, and signup retries; no production backfill yet.
+2 Customer registration/login: NOT VERIFIED. Test email confirmation, signup, reset, owner login, staff login, dashboard redirects and lockouts.
+3 Multi-tenant isolation: NOT VERIFIED. Test cross-company SELECT/INSERT/UPDATE/DELETE, Storage, invoice and CRM access with distinct real user tokens.
+4 Subscriptions: NOT VERIFIED. Test Basic/Standard/Premium entitlement checks, expired accounts, renewal, plan downgrade and server-side route enforcement.
+5 Flutterwave bank transfers: BLOCKED. Current checkout/webhook/callback in provided full source are Paystack implementations. Need provider-specific checkout, signed webhook verification, transaction verification, amount/currency/company/reference checks and idempotent activation; test in sandbox before live credentials.
+6 Database/API security: NOT VERIFIED. Live customers table has UPDATE on all columns for anon and authenticated. Need coordinated column grants, RLS, trusted service routes and migration after backups. Do not run blind REVOKE on live system.
+
+RELEASE GATES
+- Production database snapshot and rollback plan.
+- Production environment variables configured securely; never put service_role/payment secrets in NEXT_PUBLIC variables.
+- Successful local npm ci and npm run build on actual current working project.
+- Successful verified signup -> exactly one JAAD central CRM lead; customer cannot see it.
+- Password reset, signup/login, multi-tenant, package entitlement and expiry tests.
+- Flutterwave sandbox payment, forged webhook, duplicate webhook, wrong amount and failed payment tests.
+- Manual deployment and live smoke tests; observe logs/alerts before announcing launch.
+
+WARNING: Prior patch's CRM company resolution assumes exactly one active Super Admin company. Confirm that assumption in live data before deployment. Registration may succeed before lead capture fails, so the frontend must handle crmLeadRecorded:false without creating a second business.
+
+WORKING UI MUST REMAIN UNTOUCHED
+Homepage Design 9 red/black, footer links, discreet white Admin login dot, call panel and no-auto-redial behavior.

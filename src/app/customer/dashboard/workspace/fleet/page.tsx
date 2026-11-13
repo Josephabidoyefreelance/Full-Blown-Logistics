@@ -1,4 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
+import { getCustomerBillingWorkspace } from '@/lib/customer-billing-workspace';
+import { loadWorkspaceMoney, moneyText } from '@/lib/customer-workspace-money';
+import { redirect } from 'next/navigation';
 import FleetLiveRefresh from './live-refresh';
 import FleetStatusSwitch from './status-switch';
 import NewVehicleForm from './new-vehicle-form';
@@ -52,24 +56,34 @@ export default async function FleetPage({
   const view = TABS.some((tab) => tab.key === params.view) ? (params.view as (typeof TABS)[number]['key']) : 'vehicles';
   const query = String(params.q ?? '').trim();
 
+  const tenant = await redirectIfNotCustomerModule('fleet');
   const supabase = await createClient();
+  const workspace = await getCustomerBillingWorkspace();
+  if (!workspace || workspace.company.id !== tenant.companyId) redirect('/customer/dashboard/select-workspace');
+  const {currency} = await loadWorkspaceMoney(supabase, workspace.company.id);
+  const money = (amount: number | null | undefined) => moneyText(amount, currency);
 
-  const [{ data: vehicles, error: vehiclesError }, { data: allVehicles }, { data: insuranceRows, error: insuranceError }, { data: maintenanceRows, error: maintenanceError }] =
+  const [{ data: vehicles, error: vehiclesError }, { data: allVehicles }] = await Promise.all([
+    supabase.from('fleet_vehicles')
+      .select('id, plate, type, status, next_service_date, insurer')
+      .eq('company_id', tenant.companyId)
+      .in('status', ['Available', 'In Transit', 'Idle']).order('plate'),
+    supabase.from('fleet_vehicles')
+      .select('id, plate, type, status, next_service_date, insurer')
+      .eq('company_id', tenant.companyId).order('plate'),
+  ]);
+  const ownedVehicleIds = (allVehicles ?? []).map(vehicle => vehicle.id);
+  // fleet_insurance lacks company_id: scope by verified owned parent vehicles.
+  const [{ data: insuranceRows, error: insuranceError }, { data: maintenanceRows, error: maintenanceError }] =
     await Promise.all([
-      supabase
-        .from('fleet_vehicles')
-        .select('id, plate, type, status, next_service_date, insurer')
-        .in('status', ['Available', 'In Transit', 'Idle'])
-        .order('plate'),
-      supabase.from('fleet_vehicles').select('id, plate, type, status, next_service_date, insurer').order('plate'),
-      supabase
-        .from('fleet_insurance')
-        .select('id, vehicle_id, insurer, policy_number, coverage_type, premium, start_date, expiry_date')
-        .order('expiry_date', { ascending: true }),
-      supabase
-        .from('fleet_maintenance')
+      ownedVehicleIds.length
+        ? supabase.from('fleet_insurance')
+            .select('id, vehicle_id, insurer, policy_number, coverage_type, premium, start_date, expiry_date')
+            .in('vehicle_id', ownedVehicleIds).order('expiry_date', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      supabase.from('fleet_maintenance')
         .select('id, vehicle_id, description, cost, service_date, status')
-        .order('service_date', { ascending: false }),
+        .eq('company_id', tenant.companyId).order('service_date', { ascending: false }),
     ]);
 
   const vehicleList = (vehicles ?? []).filter((v) => {
@@ -156,7 +170,7 @@ export default async function FleetPage({
           {TABS.map((tab) => (
             <a
               key={tab.key}
-              href={`/customer/dashboard/workspace/fleet?view=${tab.key}`}
+              href={`/fleet?view=${tab.key}`}
               className={`border-b-2 px-1 pb-2.5 text-sm font-medium ${
                 view === tab.key
                   ? 'border-red-600 text-neutral-900 dark:text-neutral-100'
@@ -180,7 +194,7 @@ export default async function FleetPage({
                   <input type="hidden" name="view" value="vehicles" />
                   <input name="q" defaultValue={query} placeholder="Search plate, type or insurer" className="h-8 w-64 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 outline-none focus:border-red-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100" />
                   <button className="h-8 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900">Search</button>
-                  {query && <a href="/customer/dashboard/workspace/fleet?view=vehicles" className="text-[10px] text-neutral-500 hover:text-red-600">Clear</a>}
+                  {query && <a href="/fleet?view=vehicles" className="text-[10px] text-neutral-500 hover:text-red-600">Clear</a>}
                 </form>
                 <div className="flex gap-2 text-[11px] text-neutral-500">
                   <span>{counts.available} available</span><span>•</span><span>{counts.transit} in transit</span><span>•</span><span>{counts.maintenance} in maintenance</span>

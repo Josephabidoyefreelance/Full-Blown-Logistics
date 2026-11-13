@@ -1,0 +1,1 @@
+Targeted patches from JAAD-Remaining-Errors.zip. These are not a complete 65-error fix. Back up project, extract preserving src paths, run npx tsc --noEmit. Missing action implementations/components require their source files and database schema. Do not deploy until all errors and runtime tests pass.

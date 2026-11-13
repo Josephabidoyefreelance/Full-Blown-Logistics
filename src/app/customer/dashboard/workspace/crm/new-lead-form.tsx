@@ -1,10 +1,12 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createLead } from './actions';
 
 export default function NewLeadForm() {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export default function NewLeadForm() {
           </div>
         </div>
 
-        <label className={labelClass}>Estimated deal value, NGN</label>
+        <label className={labelClass}>Estimated deal value, {currency}</label>
         <input type="number" name="value" className={`mb-3 ${inputClass}`} />
 
         {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}

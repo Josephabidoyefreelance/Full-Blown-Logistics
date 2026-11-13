@@ -8,13 +8,15 @@ import ProfileMenu from '@/components/profile-menu';
 import PageTitle from '@/components/page-title';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  await redirectIfNotCustomerModule('hr');
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) redirect('/customer/login');
+
+  // Enforce customer subscription and plan entitlement before rendering HR.
+  await redirectIfNotCustomerModule('hr');
 
   const [{ data: profile }, { data: notifications }] = await Promise.all([
     supabase

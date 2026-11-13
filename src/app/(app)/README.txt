@@ -1,0 +1,1 @@
+Restore src/app/(app)/layout.tsx from this archive. This restores the original admin shell from your uploaded (app)(20261026-155457).zip. Keep the root src/app/layout.tsx unchanged. Then run npm run build.

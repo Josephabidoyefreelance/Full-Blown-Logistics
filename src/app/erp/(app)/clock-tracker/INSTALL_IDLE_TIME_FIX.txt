@@ -1,0 +1,24 @@
+JAAD ERP CLOCK TRACKER — IDLE TIME FIX (TARGETED)
+
+This patch changes only these four Clock Tracker files:
+- src/app/(app)/clock-tracker/clock-button.tsx
+- src/app/(app)/clock-tracker/actions.ts
+- src/app/(app)/clock-tracker/live-work-time.tsx
+- src/app/(app)/clock-tracker/page.tsx
+
+WHAT IT FIXES
+- Auto-pause after 5 minutes without activity.
+- Time spent with the ERP tab hidden counts toward the same 5-minute inactivity threshold.
+- If the browser throttles the timer in a background tab, the recorded pause starts at the correct threshold (last activity + 5 minutes), not only when the worker returns.
+- Idle Time in My Time Report updates live while an active session is paused for inactivity.
+- When the worker resumes or clocks out, the pause duration is saved into idle_seconds and excluded from working duration.
+- Manual pauses do not get added to Idle Time; only automatic idle pauses do.
+
+INSTALL
+1. Back up the four existing files.
+2. Merge the files from src/app/(app)/clock-tracker/ into the same path in your project. Do not copy the outer folder as a nested directory.
+3. Restart Next.js (Ctrl+C, then npm run dev).
+4. Test: clock in, do not interact for 5 minutes, confirm status becomes Paused; leave it paused for 2 minutes and verify Idle Time increases; Resume and confirm Duration does not increase during the pause.
+
+NOTE
+Client-side idle detection depends on the browser being open and able to execute code. A closed browser, device sleep, or network loss may delay the UI response. The saved pause timestamp is corrected on return when the tab becomes visible again. This patch does not modify the PDF route or unrelated files.

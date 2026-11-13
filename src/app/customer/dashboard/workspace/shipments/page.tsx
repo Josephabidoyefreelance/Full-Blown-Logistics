@@ -1,4 +1,7 @@
+import { loadWorkspaceMoney, moneyText } from '@/lib/customer-workspace-money';
 import { createClient } from '@/lib/supabase/server';
+import { getCustomerTenantContext } from '@/lib/customer-tenant';
+import { redirect } from 'next/navigation';
 import StatusSwitch from './status-switch';
 import NewBookingForm from './new-booking-form';
 import ExportBookingsButton from './export-bookings-button';
@@ -13,9 +16,7 @@ import PodStatusSwitch from './pod-status-switch';
 import ShipmentLiveRefresh from './live-refresh';
 import DispatchBoard from './dispatch-board';
 
-function nairaFmt(n: number) {
-  return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
-}
+
 
 const TABS = [
   { key: 'bookings', label: 'Bookings' },
@@ -32,15 +33,21 @@ export default async function ShipmentsPage({
   searchParams: Promise<{ view?: string; q?: string; tracking?: string }>;
 }) {
   const { view = 'bookings', q = '', tracking = '' } = await searchParams;
+  const tenant = await getCustomerTenantContext();
+  if (!tenant) redirect('/customer/dashboard');
+  const companyId = tenant.companyId;
   const supabase = await createClient();
+  const { currency } = await loadWorkspaceMoney(supabase, companyId);
+  const nairaFmt = (n: number) => moneyText(n, currency);
 
-  const { data: staff } = await supabase.from('profiles').select('id, full_name').order('full_name');
+  const { data: staff } = await supabase.from('profiles').select('id, full_name').eq('company_id', companyId).order('full_name');
 
   const { data: bookings, error } = await supabase
     .from('bookings')
     .select(
       'id, tracking_no, customer_name, origin, destination, type, status, pickup_date, declared_value, weight, sender_name, sender_address, sender_email, sender_phone, receiver_name, receiver_address, receiver_phone, vehicle_number, driver_name, driver_phone, checked_by, dispatched_by, declared_value_customs, insurance_amount, freight_terms'
     )
+    .eq('company_id', companyId)
     .order('pickup_date', { ascending: false });
 
   const bookingIds = (bookings ?? []).map((b) => b.id);
@@ -49,13 +56,14 @@ export default async function ShipmentsPage({
     ? await supabase
         .from('invoices')
         .select('id, invoice_no, status, amount, linked_booking_id')
+        .eq('company_id', companyId)
         .in('linked_booking_id', bookingIds)
     : { data: [] as { id: string; invoice_no: string; status: string; amount: number; linked_booking_id: string }[] };
 
   const invoiceIds = (invoicesForBookings ?? []).map((i) => i.id);
 
   const { data: invoiceItemsForInvoices } = invoiceIds.length
-    ? await supabase.from('invoice_items').select('id, invoice_id, description, amount').in('invoice_id', invoiceIds)
+    ? await supabase.from('invoice_items').select('id, invoice_id, description, amount').eq('company_id', companyId).in('invoice_id', invoiceIds)
     : { data: [] as { id: string; invoice_id: string; description: string; amount: number }[] };
 
   const invoiceByBookingId = new Map(
@@ -80,6 +88,7 @@ export default async function ShipmentsPage({
     ? await supabase
         .from('booking_cargo_items')
         .select('id, booking_id, description, quantity, gross_weight, unit, rate_class, chargeable_weight')
+        .eq('company_id', companyId)
         .in('booking_id', bookingIds)
     : { data: [] as CargoItemRow[] };
 
@@ -93,6 +102,7 @@ export default async function ShipmentsPage({
   const { data: manifests } = await supabase
     .from('manifests')
     .select('id, manifest_no, driver_name, vehicle_number, route, manifest_date')
+    .eq('company_id', companyId)
     .order('manifest_date', { ascending: false });
 
   const manifestIds = (manifests ?? []).map((m) => m.id);
@@ -121,6 +131,7 @@ export default async function ShipmentsPage({
   const { data: podRecords } = await supabase
     .from('proof_of_delivery')
     .select('id, booking_id, received_by, delivered_at, recorded_by, status')
+    .eq('company_id', companyId)
     .order('delivered_at', { ascending: false });
 
   const podBookingIds = new Set((podRecords ?? []).map((p) => p.booking_id));
@@ -129,6 +140,7 @@ export default async function ShipmentsPage({
   const { data: returnsRecords } = await supabase
     .from('returns')
     .select('id, booking_id, reason, status, created_at, recorded_by')
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false });
 
   const eligibleForReturn = (bookings ?? []).filter((b) => b.status === 'Delivered');
@@ -168,7 +180,7 @@ export default async function ShipmentsPage({
         {TABS.map((t) => (
           <a
             key={t.key}
-            href={`/customer/dashboard/workspace/shipments?view=${t.key}`}
+            href={`/shipments?view=${t.key}`}
             className={`pb-2 ${view === t.key ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}
           >
             {t.label}

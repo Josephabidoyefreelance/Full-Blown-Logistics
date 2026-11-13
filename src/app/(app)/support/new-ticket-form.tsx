@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { createTicket } from './actions';
 
-export default function NewTicketForm() {
+export default function NewTicketForm({ triggerLabel = "+ New ticket", customerName = "", initialChannel = "Email" }: { triggerLabel?: string; customerName?: string; initialChannel?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export default function NewTicketForm() {
         onClick={() => setOpen(true)}
         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
       >
-        + New ticket
+        {triggerLabel}
       </button>
 
       {open && (
@@ -55,6 +55,7 @@ export default function NewTicketForm() {
                 <label className="mb-1 block text-xs font-medium text-neutral-500">Customer</label>
                 <input
                   name="customer_name"
+                  defaultValue={customerName}
                   required
                   placeholder="Zenith Manufacturing"
                   className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
@@ -87,7 +88,7 @@ export default function NewTicketForm() {
                   <label className="mb-1 block text-xs font-medium text-neutral-500">Channel</label>
                   <select
                     name="channel"
-                    defaultValue="Email"
+                    defaultValue={initialChannel}
                     className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
                   >
                     <option value="Email">Email</option>

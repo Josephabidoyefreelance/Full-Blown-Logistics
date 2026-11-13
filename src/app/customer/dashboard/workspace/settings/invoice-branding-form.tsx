@@ -24,10 +24,10 @@ export default function InvoiceBrandingForm({ companyId, initial, logoUrl }: { c
         const supabase = createClient();
         let logoPath = values.logo_path;
         if (file) {
-          if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)) throw new Error('Upload a PNG, JPG, WEBP or SVG image.');
+          if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Upload a PNG, JPG or WEBP image.');
           if (file.size > 5 * 1024 * 1024) throw new Error('Logo must be 5 MB or smaller.');
           const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-          const safeExt = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(ext) ? ext : 'png';
+          const safeExt = ['png', 'jpg', 'jpeg', 'webp'].includes(ext) ? ext : 'png';
           logoPath = `${companyId}/invoice-logo-${Date.now()}.${safeExt}`;
           const { error: uploadError } = await supabase.storage.from('jaad-invoice-logos').upload(logoPath, file, { upsert: true, contentType: file.type });
           if (uploadError) throw new Error(uploadError.message);
@@ -58,7 +58,7 @@ export default function InvoiceBrandingForm({ companyId, initial, logoUrl }: { c
 
   const field = 'w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 dark:border-neutral-700 dark:bg-neutral-950';
   return <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 sm:p-6">
-    <div className="mb-5 flex flex-wrap items-center gap-4">{currentLogo ? <img src={currentLogo} alt="Company invoice logo" className="h-16 w-16 rounded-lg border border-neutral-200 bg-white object-contain p-1 dark:border-neutral-700" /> : <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-2xl text-neutral-400 dark:border-neutral-700">＋</div>}<div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Company invoice logo</h3><p className="mt-1 text-xs text-neutral-500">PNG, JPG, WEBP or SVG · maximum 5 MB</p><input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs" /></div></div>
+    <div className="mb-5 flex flex-wrap items-center gap-4">{currentLogo ? <img src={currentLogo} alt="Company invoice logo" className="h-16 w-16 rounded-lg border border-neutral-200 bg-white object-contain p-1 dark:border-neutral-700" /> : <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-2xl text-neutral-400 dark:border-neutral-700">＋</div>}<div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Company invoice logo</h3><p className="mt-1 text-xs text-neutral-500">PNG, JPG or WEBP · maximum 5 MB</p><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs" /></div></div>
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Registered company name<input className={`${field} mt-1.5`} value={values.legal_name} onChange={(e) => update('legal_name', e.target.value)} maxLength={160} /></label>
       <label className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Business phone<input className={`${field} mt-1.5`} value={values.phone} onChange={(e) => update('phone', e.target.value)} maxLength={60} /></label>

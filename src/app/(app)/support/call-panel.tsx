@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { logSupportCall, updateSupportCallStatus } from './actions';
+import { logSupportCall, updateSupportCallStatus, saveSupportCallSid } from './actions';
 import type { Device as TwilioDeviceType, Call as TwilioCallType } from '@twilio/voice-sdk';
 
 type Call = { id: string; number: string; status: string; created_at: string };
@@ -39,6 +39,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const intentionalHangupRef = useRef(false);
   const dialingRef = useRef(false);
+  const activeCallRef = useRef<TwilioCallType | null>(null);
+  const callAttemptRef = useRef(0);
   const router = useRouter();
   const [device, setDevice] = useState<TwilioDeviceType | null>(null);
   const [activeCall, setActiveCall] = useState<TwilioCallType | null>(null);
@@ -46,6 +48,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
   const incomingRecordIdRef = useRef<string | null>(null);
   const [voiceReady, setVoiceReady] = useState(false);
   const [callState, setCallState] = useState('Connecting phone…');
+  const [callMuted, setCallMuted] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -95,7 +99,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
           });
           incoming.on('disconnect', async () => {
             setIncomingCall(null);
-            setActiveCall(null);
+            activeCallRef.current = null;
+          setActiveCall(null);
             setCallState('Ready to call');
             const id = incomingRecordIdRef.current;
             if (id) await updateSupportCallStatus(id, 'Inbound Answered');
@@ -104,7 +109,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
           });
           incoming.on('cancel', async () => {
             setIncomingCall(null);
-            setActiveCall(null);
+            activeCallRef.current = null;
+          setActiveCall(null);
             setCallState('Ready to call');
             const id = incomingRecordIdRef.current;
             if (id) await updateSupportCallStatus(id, 'Inbound Missed');
@@ -113,7 +119,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
           });
           incoming.on('reject', async () => {
             setIncomingCall(null);
-            setActiveCall(null);
+            activeCallRef.current = null;
+          setActiveCall(null);
             setCallState('Ready to call');
             const id = incomingRecordIdRef.current;
             if (id) await updateSupportCallStatus(id, 'Inbound Declined');
@@ -122,7 +129,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
           });
           incoming.on('error', async () => {
             setIncomingCall(null);
-            setActiveCall(null);
+            activeCallRef.current = null;
+          setActiveCall(null);
             setCallState('Ready to call');
             const id = incomingRecordIdRef.current;
             if (id) await updateSupportCallStatus(id, 'Inbound Failed');
@@ -205,8 +213,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
     setNotice(null);
   }
 
-  function submitCall(fd: FormData) {
-    const destination = String(fd.get('number') ?? '').trim().replace(/[\s().-]/g, '');
+  function submitCall() {
+    const destination = number.trim().replace(/[\s().-]/g, '');
     if (!destination) {
       setError('Enter a phone number before placing a call.');
       return;
@@ -219,7 +227,8 @@ export default function CallPanel({ history }: { history: Call[] }) {
       setError('The JAAD phone is not connected yet. Check Twilio configuration and reload this page.');
       return;
     }
-    if (dialingRef.current || activeCall) return;
+    if (dialingRef.current || activeCallRef.current || activeCall) return;
+    const attempt = ++callAttemptRef.current;
     dialingRef.current = true;
 
     setError(null);
@@ -229,7 +238,15 @@ export default function CallPanel({ history }: { history: Call[] }) {
         intentionalHangupRef.current = false;
         setCallState(`Calling ${destination}…`);
         const call = await device.connect({ params: { To: destination } });
+        if (attempt !== callAttemptRef.current || intentionalHangupRef.current) {
+          call.disconnect();
+          dialingRef.current = false;
+          return;
+        }
+        activeCallRef.current = call;
         setActiveCall(call);
+        setCallMuted(false);
+        setSpeakerOn(false);
         dialingRef.current = false;
 
         // Save the local Voice SDK lifecycle to the same history row. This works
@@ -239,6 +256,12 @@ export default function CallPanel({ history }: { history: Call[] }) {
         let wasAccepted = false;
         let statusWriteInProgress = false;
         let terminalStatus: string | null = null;
+        const saveProviderSid = async () => {
+          const sid = String(call.parameters?.CallSid ?? '');
+          if (!supportCallId || !/^CA[a-f0-9]{32}$/i.test(sid)) return;
+          const result = await saveSupportCallSid(supportCallId, sid);
+          if (result.error) setNotice(`Call SID could not be saved: ${result.error}`);
+        };
 
         const persistStatus = async (status: string) => {
           if (!supportCallId) {
@@ -269,6 +292,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
           void persistStatus('Ringing');
         });
         call.on('accept', () => {
+          void saveProviderSid();
           wasAccepted = true;
           setCallState(`Connected to ${destination}`);
           void persistStatus('Answered');
@@ -276,7 +300,11 @@ export default function CallPanel({ history }: { history: Call[] }) {
         call.on('reject', () => {
           dialingRef.current = false;
           terminalStatus = 'Declined / Busy';
+          activeCallRef.current = null;
+          activeCallRef.current = null;
           setActiveCall(null);
+          setCallMuted(false);
+          setSpeakerOn(false);
           setCallState('Ready to call');
           setNotice(null);
           void persistStatus(terminalStatus);
@@ -286,7 +314,11 @@ export default function CallPanel({ history }: { history: Call[] }) {
           dialingRef.current = false;
           const wasUserHangup = intentionalHangupRef.current;
           intentionalHangupRef.current = false;
+          activeCallRef.current = null;
+          activeCallRef.current = null;
           setActiveCall(null);
+          setCallMuted(false);
+          setSpeakerOn(false);
           setCallState('Ready to call');
           if (!wasAccepted) {
             terminalStatus = wasUserHangup ? 'Declined / Busy' : (terminalStatus || 'Unanswered');
@@ -298,7 +330,11 @@ export default function CallPanel({ history }: { history: Call[] }) {
           dialingRef.current = false;
           const wasUserHangup = intentionalHangupRef.current;
           intentionalHangupRef.current = false;
+          activeCallRef.current = null;
+          activeCallRef.current = null;
           setActiveCall(null);
+          setCallMuted(false);
+          setSpeakerOn(false);
           setCallState('Ready to call');
           setNotice(null);
           const finalStatus = wasAccepted ? 'Answered' : (terminalStatus || (wasUserHangup ? 'Declined / Busy' : 'Unanswered'));
@@ -316,7 +352,11 @@ export default function CallPanel({ history }: { history: Call[] }) {
             /gateway.*HANGUP|HANGUP.*gateway/i.test(message) ||
             /UnknownError.*General Error|General Error/i.test(message);
           const wasUserHangup = intentionalHangupRef.current;
+          activeCallRef.current = null;
+          activeCallRef.current = null;
           setActiveCall(null);
+          setCallMuted(false);
+          setSpeakerOn(false);
           setCallState('Ready to call');
           if (isExpectedCallEnd) {
             setError(null);
@@ -339,6 +379,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
           setNotice(`Call started, but call history could not be saved: ${result.error}`);
         } else if (result?.id) {
           supportCallId = result.id;
+          void saveProviderSid();
           if (pendingStatus) {
             const nextStatus = pendingStatus;
             pendingStatus = null;
@@ -351,6 +392,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
         }
       } catch (err) {
         dialingRef.current = false;
+        if (attempt !== callAttemptRef.current || intentionalHangupRef.current) return;
         setActiveCall(null);
         setCallState('Ready to call');
         const message = String((err as any)?.message ?? err ?? '');
@@ -412,7 +454,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
       </div>
 
       <div className="w-full min-w-0" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 370px)", alignItems: "stretch", gap: "18px" }}>
-          <div className="flex min-h-0 flex-col rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" style={{ height: "min(58vh, 520px)", minHeight: "260px" }}>
+          <div className="flex min-h-0 flex-col rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" style={{ height: "clamp(330px, calc(100dvh - 470px), 520px)", minHeight: "330px" }}>
             <div className="flex shrink-0 items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
               <div>
                 <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Recent calls</h3>
@@ -443,7 +485,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
             )}
           </div>
 
-          <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" style={{ height: "min(58vh, 520px)", minHeight: "260px" }}>
+          <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900" style={{ height: "clamp(330px, calc(100dvh - 470px), 520px)", minHeight: "330px" }}>
             <div className="bg-neutral-950 px-4 py-2.5 text-white">
               <div className="flex items-center justify-between">
                 <div>
@@ -454,7 +496,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
               </div>
             </div>
 
-            <form ref={formRef} action={submitCall} className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden p-3">
+            <form ref={formRef} onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden p-3">
               {incomingCall && (
                 <div className="mb-2 rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-2 text-center">
                   <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Incoming call</p>
@@ -482,7 +524,7 @@ export default function CallPanel({ history }: { history: Call[] }) {
                 <button type="button" aria-label="Delete last digit" title="Delete last digit" onClick={() => setNumber((current) => current.slice(0, -1))} className="rounded-md px-2 py-1 text-lg text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700">⌫</button>
               </div>
 
-              <div className="mx-auto mt-2 min-h-0 w-full flex-1 grid grid-cols-3 grid-rows-4 gap-1.5">
+              <div className="mx-auto mt-2 grid min-h-0 w-full flex-1 grid-cols-3 grid-rows-4 gap-1.5 overflow-hidden">
                 {keypadRows.flat().map(({ digit, letters }) => (
                   <button
                     key={digit}
@@ -496,34 +538,59 @@ export default function CallPanel({ history }: { history: Call[] }) {
                 ))}
               </div>
 
-              <div className="mt-2 flex shrink-0 items-center justify-center gap-3">
+              {activeCall && <div className="mt-1 flex shrink-0 items-center justify-center gap-2" aria-label="In-call audio controls">
+                <button type="button" aria-pressed={callMuted} onClick={() => { try { activeCall.mute(!callMuted); setCallMuted(!callMuted); } catch { setError('Mute control is not available for this call.'); } }} className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold dark:border-neutral-700">{callMuted ? 'Unmute' : 'Mute'}</button>
+
+              </div>}
+              <div className="mt-1 flex shrink-0 items-center justify-center gap-2 pb-1">
+                {activeCall && (                <button type="button" aria-pressed={speakerOn} onClick={async () => {
+                  try {
+                    const audio = device?.audio;
+                    if (!audio?.speakerDevices?.set) { setNotice('Speaker selection is not supported by this browser. Use your system audio output settings.'); return; }
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const outputs = devices.filter((item) => item.kind === 'audiooutput');
+                    const alternate = outputs.find((item) => item.deviceId !== 'default' && item.deviceId !== 'communications');
+                    if (!alternate) { setNotice('No alternative speaker detected. Select your speaker in the operating system.'); return; }
+                    await audio.speakerDevices.set(speakerOn ? 'default' : alternate.deviceId);
+                    setSpeakerOn(!speakerOn);
+                    setNotice(speakerOn ? 'Default audio output selected.' : `Audio output: ${alternate.label || 'external speaker'}`);
+                  } catch { setNotice('Speaker switching is unavailable. Check browser audio permissions or system sound settings.'); }
+                }} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800" aria-label={speakerOn ? "Use default audio output" : "Switch to speaker"} title={speakerOn ? "Default audio" : "Speaker"}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 9a5 5 0 0 1 0 6"/><path d="M18 6a9 9 0 0 1 0 12"/></svg></button>
+                )}
                 <button type="button" onClick={() => { setNumber(''); setError(null); setNotice(null); }} className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">Clear</button>
-                {activeCall ? (
+                {(activeCall || isPending) ? (
                   <button
                     type="button"
                     aria-label="End call"
                     title="End call"
                     onClick={() => {
-                      if (!activeCall) return;
+                      if (!activeCall && !isPending) return;
                       intentionalHangupRef.current = true;
+                      ++callAttemptRef.current;
+                      dialingRef.current = false;
                       setCallState('Ending call…');
-                      activeCall.disconnect();
+                      if (activeCall) activeCall.disconnect();
+                      else device?.disconnectAll();
+                      activeCallRef.current = null;
+                      setActiveCall(null);
+                      setCallState('Ready to call');
                     }}
                     className="inline-flex h-14 w-14 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-md transition hover:brightness-95 active:scale-95"
                     style={{ backgroundColor: '#dc2626', border: '1px solid #b91c1c' }}
                   >
-                    <span aria-hidden="true" className="inline-block rotate-[135deg]">☎</span>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7"><path d="M12 8c-3.75 0-7.2 1.25-9.95 3.35A2.7 2.7 0 0 0 1 13.5V16a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-1.65a14.4 14.4 0 0 1 8 0V16a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-2.5c0-.86-.39-1.65-1.05-2.15C19.2 9.25 15.75 8 12 8Z"/></svg>
                   </button>
                 ) : (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={submitCall}
                     aria-label="Start call"
                     title={isPending ? 'Calling…' : 'Call'}
                     disabled={isPending || !voiceReady || dialingRef.current}
                     className="inline-flex h-14 w-14 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-md transition hover:brightness-95 active:scale-95 disabled:cursor-wait disabled:opacity-80"
                     style={{ backgroundColor: '#16a34a', border: '1px solid #15803d' }}
                   >
-                    <span aria-hidden="true">☎</span>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.56 3.57.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2Z"/></svg>
                   </button>
                 )}
               </div>

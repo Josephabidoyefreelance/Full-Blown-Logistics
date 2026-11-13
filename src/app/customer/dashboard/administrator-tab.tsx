@@ -5,18 +5,21 @@ import { createClient } from '@/lib/supabase/client';
 import { STAFF_ROLE_OPTIONS } from './roles-config';
 
 const ALL_MODULES: { key: string; label: string }[] = [
-  { key: 'overview', label: 'Overview (Dashboard)' },
-  { key: 'inventory', label: 'Inventory' },
-  { key: 'leads', label: 'Leads' },
-  { key: 'shipments', label: 'My Shipments' },
-  { key: 'track', label: 'Track' },
-  { key: 'invoices', label: 'Invoices' },
-  { key: 'notes', label: 'Notes' },
-  { key: 'report', label: 'Report' },
-  { key: 'support', label: 'Support' },
-  { key: 'profile', label: 'Profile' },
-  { key: 'calculator', label: 'Calculator' },
-  { key: 'utilities', label: 'Utilities' },
+  { key: 'overview', label: 'Dashboard' },
+  { key: 'crm', label: 'CRM & Leads' },
+  { key: 'customers', label: 'Customer Management' },
+  { key: 'shipments', label: 'Shipment Operations' },
+  { key: 'fleet', label: 'Fleet' },
+  { key: 'drivers', label: 'Driver Management' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'finance', label: 'Finance' },
+  { key: 'hr', label: 'HR & Careers' },
+  { key: 'reports', label: 'Reports' },
+  { key: 'clock-tracker', label: 'Clock Tracker' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'ai-chat', label: 'AI Assistant' },
+  { key: 'support', label: 'Support & Communications' },
+  { key: 'packages', label: 'Packages' },
 ];
 
 const STATUS_OPTIONS = ['Active', 'Leave', 'Suspended'] as const;
@@ -455,7 +458,7 @@ export default function AdministratorTab({ customerId }: { customerId: string })
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                 {ALL_MODULES.map((mod) => (
-                  <label key={mod.key} className="flex items-center gap-2 text-[13px] text-[var(--text)]">
+                  <label key={mod.key} className="flex min-w-0 items-start gap-2 rounded-md px-1 py-1 text-[13px] leading-5 text-white">
                     <input
                       type="checkbox"
                       checked={member.permitted_modules.includes(mod.key)}
@@ -493,10 +496,10 @@ export default function AdministratorTab({ customerId }: { customerId: string })
       </div>
 
       {inviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/75 p-4 backdrop-blur-[3px]">
           <form
             onSubmit={handleInvite}
-            className="w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--card)] p-6"
+            className="my-auto w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border border-neutral-600 bg-[#171717] p-5 text-white shadow-2xl sm:p-7"
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-bold text-[var(--text)]">Invite staff</h3>
@@ -505,7 +508,7 @@ export default function AdministratorTab({ customerId }: { customerId: string })
               </button>
             </div>
 
-            <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Email</label>
                 <input
@@ -539,13 +542,13 @@ export default function AdministratorTab({ customerId }: { customerId: string })
               </select>
             </div>
 
-            <div className="mb-5">
+            <div className="mb-6">
               <label className="mb-2 block text-[11px] font-semibold uppercase text-[var(--subtext)]">
                 Tabs this person can see
               </label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 {ALL_MODULES.map((mod) => (
-                  <label key={mod.key} className="flex items-center gap-2 text-[13px] text-[var(--text)]">
+                  <label key={mod.key} className="flex min-w-0 items-start gap-2 rounded-md px-1 py-1 text-[13px] leading-5 text-white">
                     <input
                       type="checkbox"
                       checked={inviteModules.has(mod.key)}
@@ -559,7 +562,7 @@ export default function AdministratorTab({ customerId }: { customerId: string })
 
             {error && <p className="mb-3 text-sm text-[var(--error-text)]">{error}</p>}
 
-            <div className="flex justify-end gap-2">
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t border-neutral-700 bg-[#171717] pt-4">
               <button
                 type="button"
                 onClick={() => setInviteOpen(false)}

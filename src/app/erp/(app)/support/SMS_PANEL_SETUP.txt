@@ -1,0 +1,9 @@
+JAAD ERP SMS PANEL UPDATE
+
+1. Back up your current app/support/sms-panel.tsx.
+2. Replace it with sms-panel-updated.tsx (rename the replacement to sms-panel.tsx).
+3. Keep the existing ./actions import and sendSupportSms action.
+
+IMPORTANT: The Inbox UI is prepared to accept an `inbox` prop containing inbound SMS records. The current panel/page shown in the uploaded source only provides `history` (sent SMS). To make real received SMS appear, the server page must query inbound SMS records and pass them as `inbox`, and the SMS provider (for example, Termii or Twilio) must be configured to deliver inbound messages to a webhook that stores those records. This component alone cannot receive carrier SMS.
+
+The three summary cards calculate counts from the arrays passed to the component. Total SMS = sent history count + inbox count. Drafts are stored in browser localStorage, not in the database, so they are device/browser-specific.

@@ -1,9 +1,11 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createQuotation } from './actions';
 
 export default function NewQuotationForm() {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function NewQuotationForm() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-neutral-500">Amount (₦)</label>
+                  <label className="mb-1 block text-xs font-medium text-neutral-500">Amount ({currency})</label>
                   <input
                     type="number"
                     name="amount"

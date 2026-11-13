@@ -48,8 +48,8 @@ In Google Cloud, enable Gmail API, configure OAuth consent, add the mailbox as a
 ## Test in this order
 
 1. Start Next.js and sign into JAAD ERP.
-2. Open `/customer/dashboard/workspace/support?view=livechat`; verify existing conversations appear, select a chat, send a reply, upload a small file, resolve/reopen, and download a transcript.
-3. Open `/customer/dashboard/workspace/support?view=email`; click **Sync Gmail** and authorize the exact Gmail mailbox that receives customer replies.
+2. Open `/support?view=livechat`; verify existing conversations appear, select a chat, send a reply, upload a small file, resolve/reopen, and download a transcript.
+3. Open `/support?view=email`; click **Sync Gmail** and authorize the exact Gmail mailbox that receives customer replies.
 4. Click **Sync Gmail** again if necessary, then send a test message to that Gmail mailbox and sync again. The inbox sync is manual plus periodic while the Email panel is open.
 5. Attach a small file in Compose and send it. Check both the CRM record and the recipient's mailbox.
 6. If Resend shows **Bounced**, inspect the bounce reason. Gmail inbox sync does not fix outbound sender verification or bounced mail.

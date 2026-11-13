@@ -37,6 +37,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const permittedModules = Array.isArray(role?.permitted_modules)
     ? (role.permitted_modules as string[])
     : [];
+  // Customer company accounts must never render the JAAD internal operations shell.
+  // Preserve existing operations roles and Super Admin navigation.
+  const roleName = String(role?.name ?? '').trim().toLowerCase();
+  if (!isSuperAdmin && (
+    roleName.includes('customer') ||
+    roleName === 'company owner' ||
+    roleName === 'company member'
+  )) {
+    redirect('/customer/dashboard/packages');
+  }
+
   const fullName = profile?.full_name ?? '';
 
   const filteredNav = isSuperAdmin

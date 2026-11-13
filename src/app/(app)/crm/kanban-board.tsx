@@ -168,7 +168,7 @@ export default function KanbanBoard({ leads, staff }: { leads: Lead[]; staff: St
                   }`}
                 >
                   <div onClick={(event) => event.stopPropagation()}>
-                    <LeadDetailTrigger lead={lead} staff={staff} />
+                    <LeadDetailTrigger lead={{ ...lead, value: Number(lead.value) || 0 }} staff={staff} />
                   </div>
                   <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                     {lead.contact_name} · {nairaFmt(lead.value)}

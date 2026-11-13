@@ -1,0 +1,1 @@
+Copy the two files into the matching paths in jaad-backend. Do not change the security lock or set CUSTOMER_ERP_TENANT_MODE=enabled. This fixes 14-day trial creation and entitlement recognition, not workspace module tenant isolation. Test signup with a NEW email and company. Existing test account is unchanged.

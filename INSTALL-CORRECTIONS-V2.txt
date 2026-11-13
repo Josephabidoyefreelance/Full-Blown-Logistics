@@ -1,0 +1,17 @@
+JAAD Logistics – Policy PDF and ERP layout corrections (v2)
+
+Included:
+- Black document header with the JAAD logo and document title.
+- White document canvas with a visible loading state while the browser PDF viewer paints.
+- Delayed iframe reveal to reduce the initial blank/dark PDF canvas flash.
+- Direct-PDF fallback link if the iframe errors.
+- ERP “Back to website” remains outside and above the ERP navigation header.
+- Retains existing footer legal links and discreet admin access target.
+
+Install:
+1. Back up your current files.
+2. Merge the contents of the jaad-redesigned-homepage folder into your project, preserving relative paths.
+3. Do not replace .env files, auth, database, or unrelated ERP modules.
+4. Restart the Next.js dev server and test / and /erp.
+
+Test note: built from the available source archive. The complete local application was not available here to run in a browser, so verify locally before deployment. Native PDF rendering time varies by browser/device.

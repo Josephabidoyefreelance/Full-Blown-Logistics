@@ -60,7 +60,7 @@ function AddDriverForm() {
         <div className="flex max-h-[72vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-950">
           <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"><div><h2 className="text-sm font-semibold">Add driver</h2><p className="text-[10px] text-neutral-500">Biodata, identity, documents, next of kin and employment.</p></div><span className="text-xs text-neutral-400">Scroll to complete</span></div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-            <form action={createDriver} className="space-y-3">
+            <form action={async (formData: FormData) => { "use server"; const result = await createDriver(formData); if (result?.error) throw new Error(result.error); }} className="space-y-3">
               <section><h3 className={sectionTitle}>Personal details</h3><div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div className="sm:col-span-2"><label className={labelClass}>Full name *</label><input name="name" required className={inputClass} /></div>
                 <div><label className={labelClass}>Status</label><select name="status" defaultValue="Available" className={inputClass}>{STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}</select></div>

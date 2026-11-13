@@ -43,7 +43,13 @@ export async function POST(request: NextRequest) {
   formData.forEach((value, key) => { params[key] = String(value); });
 
   // Validate the callback when the auth token is configured.
-  if (authToken) {
+  if (!authToken) {
+    return NextResponse.json(
+      { error: 'Twilio callback verification is not configured.' },
+      { status: 503 }
+    );
+  }
+  {
     const signature = request.headers.get('x-twilio-signature') ?? '';
     const callbackUrl = request.url;
     if (!signature || !twilio.validateRequest(authToken, signature, callbackUrl, params)) {
@@ -52,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const rawStatus = String(params.DialCallStatus ?? params.CallStatus ?? 'unknown');
-  const callSid = String(params.DialCallSid ?? params.CallSid ?? '').trim();
+  const callSid = String(params.CallSid ?? params.DialCallSid ?? '').trim();
   const destination = String(params.To ?? params.Called ?? '').trim();
   const label = statusLabel(rawStatus);
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -60,51 +66,38 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    // Voice <Dial action> callbacks include the destination and DialCallStatus.
-    // Update the newest matching call attempt so the existing history row changes in place.
-    let query = supabase
-      .from('support_calls')
-      .select('id, number, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(30);
-
-    if (destination) query = query.eq('number', destination);
-
-    const { data: rows, error: readError } = await query;
-    if (readError) {
-      console.error('Could not find support call for Twilio callback:', readError.message);
-      return NextResponse.json({ error: 'Could not find call history.' }, { status: 500 });
+    // Never guess a tenant's call using phone numbers or recent history.
+    if (!callSid) {
+      return NextResponse.json({ error: 'Missing Twilio Call SID.' }, { status: 400 });
     }
 
-    const target = (rows ?? []).find((row) =>
-      ['Initiated via Twilio', 'Call attempt logged', 'Ringing'].includes(String(row.status))
-    );
+    const { data: target, error: readError } = await supabase
+      .from('support_calls')
+      .select('id, company_id')
+      .eq('twilio_call_sid', callSid)
+      .maybeSingle();
 
-    if (!target) {
-      // Still acknowledge valid Twilio callbacks; avoid creating duplicate call rows.
-      console.warn('Twilio callback received but no matching pending support_calls row was found.', {
-        status: rawStatus,
-        callSid: callSid ? `${callSid.slice(0, 8)}…` : '',
-        destination,
-      });
+    if (readError) {
+      console.error('Twilio call lookup failed:', readError.message);
+      return NextResponse.json({ error: 'Call lookup failed.' }, { status: 500 });
+    }
+
+    if (!target || !target.company_id) {
+      console.warn('No tenant-owned support call matches this Twilio Call SID.');
       return new NextResponse('', { status: 204 });
     }
 
-    const patch: Record<string, string> = { status: label };
-    // Optional migration adds this column. If it's not present yet, retry without it.
-    if (callSid) patch.twilio_call_sid = callSid;
-
-    let { error: updateError } = await supabase.from('support_calls').update(patch).eq('id', target.id);
-    if (updateError && callSid && /twilio_call_sid|column/i.test(updateError.message)) {
-      const fallback = await supabase.from('support_calls').update({ status: label }).eq('id', target.id);
-      updateError = fallback.error;
-    }
+    const { error: updateError } = await supabase
+      .from('support_calls')
+      .update({ status: label })
+      .eq('id', target.id)
+      .eq('company_id', target.company_id)
+      .eq('twilio_call_sid', callSid);
 
     if (updateError) {
-      console.error('Could not update support call status:', updateError.message);
-      return NextResponse.json({ error: 'Could not update call status.' }, { status: 500 });
+      console.error('Twilio call status update failed:', updateError.message);
+      return NextResponse.json({ error: 'Call status update failed.' }, { status: 500 });
     }
-
     return new NextResponse('', { status: 204 });
   } catch (error) {
     console.error('Twilio status callback failed:', error);

@@ -1,5 +1,7 @@
 'use server';
 
+import { requireCustomerModule } from '@/lib/customer-tenant';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
@@ -12,6 +14,10 @@ function clean(value: FormDataEntryValue | null) {
 }
 
 export async function updateFleetStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !VEHICLE_STATUSES.includes(status as (typeof VEHICLE_STATUSES)[number])) {
     return { error: 'Invalid fleet status.' };
   }
@@ -21,11 +27,11 @@ export async function updateFleetStatus(id: string, status: string) {
     .from('fleet_vehicles')
     .select('id, plate, status')
     .eq('id', id)
-    .single();
+    .eq('company_id', tenantCompanyId).single();
 
   if (vehicleError || !vehicle) return { error: vehicleError?.message ?? 'Vehicle not found.' };
 
-  const { error } = await supabase.from('fleet_vehicles').update({ status }).eq('id', id);
+  const { error } = await supabase.from('fleet_vehicles').update({ status }).eq('id', id).eq('company_id', tenantCompanyId);
   if (error) return { error: error.message };
 
   if (status === 'Maintenance' || status === 'Out of service') {
@@ -35,10 +41,10 @@ export async function updateFleetStatus(id: string, status: string) {
       .eq('vehicle_id', id)
       .neq('status', 'Completed')
       .limit(1)
-      .maybeSingle();
+      .eq('company_id', tenantCompanyId).maybeSingle();
 
     if (!openRecord) {
-      await supabase.from('fleet_maintenance').insert({
+      await supabase.from('fleet_maintenance').insert({ company_id: tenantCompanyId,
         vehicle_id: id,
         description: status === 'Maintenance' ? 'Vehicle moved to maintenance' : 'Vehicle moved out of service',
         status: status === 'Maintenance' ? 'In Progress' : 'Scheduled',
@@ -53,7 +59,7 @@ export async function updateFleetStatus(id: string, status: string) {
       .from('fleet_maintenance')
       .update({ status: 'Completed' })
       .eq('vehicle_id', id)
-      .neq('status', 'Completed');
+      .neq('status', 'Completed').eq('company_id', tenantCompanyId);
   }
 
   revalidatePath('/customer/dashboard/workspace/fleet');
@@ -62,6 +68,10 @@ export async function updateFleetStatus(id: string, status: string) {
 }
 
 export async function updateVehicleDetails(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
 
   const id = String(formData.get('id') ?? '').trim();
@@ -73,7 +83,7 @@ export async function updateVehicleDetails(formData: FormData) {
   const { error } = await supabase
     .from('fleet_vehicles')
     .update({ next_service_date, insurer })
-    .eq('id', id);
+    .eq('id', id).eq('company_id', tenantCompanyId);
 
   if (error) return { error: error.message };
 
@@ -83,6 +93,10 @@ export async function updateVehicleDetails(formData: FormData) {
 }
 
 export async function createVehicle(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const plate = String(formData.get('plate') ?? '').trim();
   const type = String(formData.get('type') ?? '').trim();
@@ -93,7 +107,7 @@ export async function createVehicle(formData: FormData) {
   if (!plate || !type) return { error: 'Registration number and vehicle type are required.' };
   if (!VEHICLE_STATUSES.includes(status as (typeof VEHICLE_STATUSES)[number])) return { error: 'Invalid vehicle status.' };
 
-  const { data: vehicle, error } = await supabase.from('fleet_vehicles').insert({
+  const { data: vehicle, error } = await supabase.from('fleet_vehicles').insert({ company_id: tenantCompanyId,
     plate,
     type,
     status,
@@ -104,7 +118,7 @@ export async function createVehicle(formData: FormData) {
   if (error) return { error: error.message };
 
   if (vehicle && (status === 'Maintenance' || status === 'Out of service')) {
-    await supabase.from('fleet_maintenance').insert({
+    await supabase.from('fleet_maintenance').insert({ company_id: tenantCompanyId,
       vehicle_id: vehicle.id,
       description: status === 'Maintenance' ? 'Vehicle entered maintenance on registration' : 'Vehicle registered as out of service',
       status: status === 'Maintenance' ? 'In Progress' : 'Scheduled',
@@ -118,6 +132,10 @@ export async function createVehicle(formData: FormData) {
 }
 
 export async function createInsurancePolicy(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
 
   const vehicle_id = String(formData.get('vehicle_id') ?? '').trim();
@@ -130,6 +148,8 @@ export async function createInsurancePolicy(formData: FormData) {
   const expiry_date = clean(formData.get('expiry_date'));
 
   if (!vehicle_id) return { error: 'Select a vehicle.' };
+  const { data: ownedVehicle } = await supabase.from('fleet_vehicles').select('id').eq('id', vehicle_id).eq('company_id', tenantCompanyId).maybeSingle();
+  if (!ownedVehicle) return { error: 'Vehicle not found in your company.' };
   if (!insurer) return { error: 'Insurer is required.' };
 
   const { error } = await supabase.from('fleet_insurance').insert({
@@ -149,6 +169,10 @@ export async function createInsurancePolicy(formData: FormData) {
 }
 
 export async function createMaintenanceRecord(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
 
   const vehicle_id = String(formData.get('vehicle_id') ?? '').trim();
@@ -159,10 +183,12 @@ export async function createMaintenanceRecord(formData: FormData) {
   const status = String(formData.get('status') ?? 'Scheduled').trim();
 
   if (!vehicle_id) return { error: 'Select a vehicle.' };
+  const { data: ownedVehicle } = await supabase.from('fleet_vehicles').select('id').eq('id', vehicle_id).eq('company_id', tenantCompanyId).maybeSingle();
+  if (!ownedVehicle) return { error: 'Vehicle not found in your company.' };
   if (!description) return { error: 'Work description is required.' };
   if (!MAINTENANCE_STATUSES.includes(status as (typeof MAINTENANCE_STATUSES)[number])) return { error: 'Invalid maintenance status.' };
 
-  const { error } = await supabase.from('fleet_maintenance').insert({
+  const { error } = await supabase.from('fleet_maintenance').insert({ company_id: tenantCompanyId,
     vehicle_id,
     description,
     cost,
@@ -173,7 +199,7 @@ export async function createMaintenanceRecord(formData: FormData) {
   if (error) return { error: error.message };
 
   if (status !== 'Completed') {
-    await supabase.from('fleet_vehicles').update({ status: 'Maintenance' }).eq('id', vehicle_id);
+    await supabase.from('fleet_vehicles').update({ status: 'Maintenance' }).eq('id', vehicle_id).eq('company_id', tenantCompanyId);
   }
 
   revalidatePath('/customer/dashboard/workspace/fleet');
@@ -182,6 +208,10 @@ export async function createMaintenanceRecord(formData: FormData) {
 }
 
 export async function updateMaintenanceStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !MAINTENANCE_STATUSES.includes(status as (typeof MAINTENANCE_STATUSES)[number])) {
     return { error: 'Invalid maintenance status.' };
   }
@@ -192,7 +222,7 @@ export async function updateMaintenanceStatus(id: string, status: string) {
     .update({ status })
     .eq('id', id)
     .select('vehicle_id')
-    .single();
+    .eq('company_id', tenantCompanyId).single();
 
   if (error) return { error: error.message };
 
@@ -203,13 +233,13 @@ export async function updateMaintenanceStatus(id: string, status: string) {
         .select('id')
         .eq('vehicle_id', record.vehicle_id)
         .neq('status', 'Completed')
-        .limit(1);
+        .limit(1).eq('company_id', tenantCompanyId);
 
       if (!open?.length) {
-        await supabase.from('fleet_vehicles').update({ status: 'Available' }).eq('id', record.vehicle_id);
+        await supabase.from('fleet_vehicles').update({ status: 'Available' }).eq('id', record.vehicle_id).eq('company_id', tenantCompanyId);
       }
     } else {
-      await supabase.from('fleet_vehicles').update({ status: 'Maintenance' }).eq('id', record.vehicle_id);
+      await supabase.from('fleet_vehicles').update({ status: 'Maintenance' }).eq('id', record.vehicle_id).eq('company_id', tenantCompanyId);
     }
   }
 
@@ -219,6 +249,10 @@ export async function updateMaintenanceStatus(id: string, status: string) {
 }
 
 export async function getVehicleMaintenanceHistory(vehicleId: string) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!vehicleId) return { error: 'Select a vehicle.', records: [] };
 
   const supabase = await createClient();
@@ -226,8 +260,35 @@ export async function getVehicleMaintenanceHistory(vehicleId: string) {
     .from('fleet_maintenance')
     .select('id, description, cost, service_date, status')
     .eq('vehicle_id', vehicleId)
-    .order('service_date', { ascending: false });
+    .order('service_date', { ascending: false }).eq('company_id', tenantCompanyId);
 
   if (error) return { error: error.message, records: [] };
   return { error: null, records: data ?? [] };
+}
+
+export async function updateInsuranceExpiry(id: string, insurance_expiry: string) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
+  if (!id || (insurance_expiry && !/^\d{4}-\d{2}-\d{2}$/.test(insurance_expiry))) return { error: 'Invalid insurance expiry date.' };
+  const s = await createClient();
+  const { data: { user } } = await s.auth.getUser();
+  if (!user) return { error: 'Authentication required.' };
+  const { error } = await s.from('fleet_vehicles').update({ insurance_expiry: insurance_expiry || null }).eq('id', id).eq('company_id', tenantCompanyId);
+  if (!error) revalidatePath('/fleet');
+  return { error: error?.message ?? null };
+}
+export async function updateInsurer(id: string, insurer: string) {
+  const tenantAccess = await requireCustomerModule('fleet');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
+  if (!id) return { error: 'Vehicle ID required.' };
+  const s = await createClient();
+  const { data: { user } } = await s.auth.getUser();
+  if (!user) return { error: 'Authentication required.' };
+  const { error } = await s.from('fleet_vehicles').update({ insurer: insurer.trim() || null }).eq('id', id).eq('company_id', tenantCompanyId);
+  if (!error) revalidatePath('/fleet');
+  return { error: error?.message ?? null };
 }

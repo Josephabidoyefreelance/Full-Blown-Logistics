@@ -4,7 +4,16 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import MyInvoiceForm from './my-invoice-form';
 
-const CURRENCY_SYMBOLS: Record<string, string> = { NGN: '\u20a6', USD: '$', GBP: '\u00a3', EUR: '\u20ac', GHS: '\u20b5', KES: 'KSh', ZAR: 'R' };
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', NZD: 'NZ$',
+  GHS: '₵', KES: 'KSh', ZAR: 'R', UGX: 'USh', TZS: 'TSh', RWF: 'RF',
+  XOF: 'CFA', XAF: 'FCFA', EGP: 'E£', MAD: 'د.م.', INR: '₹', PKR: '₨',
+  BDT: '৳', CNY: '¥', JPY: '¥', KRW: '₩', SGD: 'S$', MYR: 'RM', IDR: 'Rp',
+  PHP: '₱', THB: '฿', AED: 'د.إ', SAR: '﷼', QAR: 'ر.ق', KWD: 'د.ك',
+  BHD: 'د.ب', OMR: 'ر.ع.', TRY: '₺', CHF: 'CHF', SEK: 'kr', NOK: 'kr',
+  DKK: 'kr', PLN: 'zł', CZK: 'Kč', HUF: 'Ft', RON: 'lei', BRL: 'R$',
+  MXN: 'MX$', ARS: 'AR$', CLP: 'CLP$', COP: 'COL$', PEN: 'S/'
+};
 function symbolFor(code?: string | null) {
   return CURRENCY_SYMBOLS[code ?? 'NGN'] ?? code ?? '\u20a6';
 }
@@ -212,11 +221,16 @@ function OwnInvoiceDetail({
 export default function MyInvoicesTab({
   onChange,
   currency,
+  taxRate,
+  companyLogoUrl,
   initialItem,
   onInitialItemConsumed,
 }: {
   onChange?: () => void;
   currency?: string;
+  taxRate?: number;
+  companyLogoUrl?: string | null;
+  ownerUserId?: string | null;
   initialItem?: { description: string; quantity: string };
   onInitialItemConsumed?: () => void;
 }) {
@@ -251,6 +265,8 @@ export default function MyInvoicesTab({
         <h4 className="text-sm font-bold text-[var(--text)]">My invoices</h4>
         <MyInvoiceForm
           currency={currency}
+          taxRate={taxRate}
+          companyLogoUrl={companyLogoUrl}
           open={initialItem ? autoFormOpen : undefined}
           onOpenChange={initialItem ? (o) => {
             setAutoFormOpen(o);

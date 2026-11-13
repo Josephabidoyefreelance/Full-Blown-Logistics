@@ -1,0 +1,13 @@
+--- root/proxy.ts
++++ root/proxy.ts - PATCHED
+@@ -10,9 +10,7 @@
+   if (
+     process.env.CUSTOMER_ERP_TENANT_MODE !== 'enabled' &&
+     (pathname === '/customer/dashboard/workspace' ||
+-      pathname.startsWith('/customer/dashboard/workspace/') ||
+-      pathname === '/api/customer/workspace-settings' ||
+-      pathname.startsWith('/api/customer/workspace-settings/'))
++      pathname.startsWith('/customer/dashboard/workspace/'))
+   ) {
+     return new NextResponse('Customer ERP workspace is locked pending tenant-isolation verification.', { status: 503 });
+   }

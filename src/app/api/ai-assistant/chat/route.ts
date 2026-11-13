@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -50,6 +51,11 @@ async function extractFileText(file: File): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
+  // Shared authentication guard: applies to every existing and future account.
+  const supabase = await createClient();
+  const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+  if (sessionError || !user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+
   let provider: Provider;
   let messages: ChatMessage[];
   let userText = "";

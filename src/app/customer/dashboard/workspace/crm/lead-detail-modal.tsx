@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useEffect, useState, useTransition } from 'react';
 import LeadStatusSwitch from './lead-status-switch';
@@ -77,6 +78,7 @@ function EditField({
 }
 
 export default function LeadDetailTrigger({ lead, staff }: { lead: Lead; staff: Staff[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -311,7 +313,7 @@ export default function LeadDetailTrigger({ lead, staff }: { lead: Lead; staff: 
                   <EditField label="Transport mode" name="transport_mode" defaultValue={lead.transport_mode ?? ''} />
                   <EditField label="Origin" name="origin" defaultValue={lead.origin ?? ''} />
                   <EditField label="Destination" name="destination" defaultValue={lead.destination ?? ''} />
-                  <EditField label="Deal value, NGN" name="value" defaultValue={String(lead.value ?? '')} type="number" />
+                  <EditField label="Deal value, {currency}" name="value" defaultValue={String(lead.value ?? '')} type="number" />
                 </div>
 
                 {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}

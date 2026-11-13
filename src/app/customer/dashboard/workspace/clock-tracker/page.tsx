@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import ClockButton from './clock-button';
 import LiveWorkTime from './live-work-time';
 
@@ -34,6 +35,7 @@ const centerTd = `${td} text-center tabular-nums`;
 const rightTd = `${td} text-right`;
 
 export default async function ClockTrackerPage() {
+  const tenant = await redirectIfNotCustomerModule('clock-tracker');
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -42,13 +44,13 @@ export default async function ClockTrackerPage() {
 
   const { data: activeEntry } = await supabase
     .from('clock_entries').select('id, clock_in, notes, paused_at, pause_reason, paused_seconds, idle_seconds')
-    .eq('user_id', user?.id ?? '').is('clock_out', null)
+    .eq('user_id', user?.id ?? '').eq('company_id', tenant.companyId).is('clock_out', null)
     .order('clock_in', { ascending: false }).limit(1).maybeSingle();
 
   const { data: allEntries } = await supabase
     .from('clock_entries')
     .select('id, user_name, clock_in, clock_out, notes, paused_at, pause_reason, paused_seconds, idle_seconds')
-    .eq('user_id', user?.id ?? '')
+    .eq('user_id', user?.id ?? '').eq('company_id', tenant.companyId)
     .order('clock_in', { ascending: true })
     .limit(5000);
 

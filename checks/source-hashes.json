@@ -1,0 +1,38 @@
+{
+  "src/app/customer/dashboard/workspace/clock-tracker/actions.ts": {
+    "before_sha256": "8bbe2f8ea7506bfae153e3bca4fac023d93d00dc95ac67b15e27e280b38811d4",
+    "after_sha256": "0464593217240e9b133e612128884817785e335696ba41420164d7c7f3836a1a"
+  },
+  "src/app/customer/dashboard/workspace/clock-tracker/page.tsx": {
+    "before_sha256": "7800785a8482bca43f8778e7fc257cf8818f74c99f0b70fe7f793b976ea43aaa",
+    "after_sha256": "cbd26f44fb7b59c2559694fcefc543beb5157ec2e83899b97c8dd1431f2ced9f"
+  },
+  "src/app/customer/dashboard/workspace/fleet/page.tsx": {
+    "before_sha256": "0abda62cc2c58e15019b59f42a0f15a88bf69f1fea508924d72007368b28d216",
+    "after_sha256": "1a1398ff9fad613adc0d2662aed46755b52b79675838fd03f8a7655d6c52847b"
+  },
+  "src/app/customer/dashboard/workspace/hr/page.tsx": {
+    "before_sha256": "c6828cc798048266dfa8be20a22df120c873b7b7d890b1d2788c034bf2b73a90",
+    "after_sha256": "4b32a94f6e5d175a436d9826a16373bf9db261d852026da72dde71feaeb305b5"
+  },
+  "src/app/customer/dashboard/workspace/warehouse/actions.ts": {
+    "before_sha256": "6cda8b73a558b4d20f86e8d8076fda4b960c57fa443a4ba79138c3c9157f9b82",
+    "after_sha256": "e7c5112e071c3a1b7c5576141b9538cb5f4cc547c0aa3a2c33c05e5a38d17b18"
+  },
+  "src/app/customer/dashboard/workspace/warehouse/page.tsx": {
+    "before_sha256": "0780c6790c06c94bae46356b1c1169062b6bc1d9cb26d6d16da2ebb4c553c570",
+    "after_sha256": "5f747ac5b71f34488a0c7740b330e1bf1c579fc1449524afd4aada5467def4ae"
+  },
+  "src/app/customer/dashboard/workspace/drivers/page.tsx": {
+    "before_sha256": "cca14cb63fea0072a8ffdd9e82298f03fa1c5d55bbed879271fadec5492e6e9e",
+    "after_sha256": "d6fe39cf34a3a77b9170e234e63876f282953c7bedf9138f92ad1677c19d511a"
+  },
+  "src/app/customer/dashboard/workspace/clock-tracker/api/clock-tracker/report/route.ts": {
+    "before_sha256": "c65fea9db4621a0470378593667797facd5d639ceafe6196a68c13a96a0c8244",
+    "after_sha256": "8d51aa39a8c8ffdc25f53c96ef4a9eee4ab6bc9e64f51ddfd7c605ecfc084add"
+  },
+  "src/app/customer/dashboard/workspace/clock-tracker/api/clock-tracker/auto-clock-out/route.ts": {
+    "before_sha256": "ce34395a944b8868258acb2ec97d7da0824f309a701d3835ac734b00c007f8d2",
+    "after_sha256": "2f77047324cb5e4c585b5227a1e26f607a21f6705592817c3cf6272f634a47ca"
+  }
+}

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { requireCustomerModule } from '@/lib/customer-tenant';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,9 @@ function makePdf(lines: string[]) {
 }
 
 export async function GET() {
+  const access = await requireCustomerModule('clock-tracker');
+  if (!access.ok) return new Response('Workspace access denied.', { status: 403 });
+  const companyId = access.context.companyId;
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -70,6 +74,7 @@ export async function GET() {
     .from('clock_entries')
     .select('clock_in, clock_out, duration_minutes, notes, user_name')
     .eq('user_id', user.id)
+    .eq('company_id', companyId)
     .order('clock_in', { ascending: false })
     .limit(1000);
 

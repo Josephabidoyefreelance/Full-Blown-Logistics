@@ -7,18 +7,29 @@ type LineItem = { description: string; quantity: string; unit_price: string };
 
 const emptyItem = (): LineItem => ({ description: '', quantity: '1', unit_price: '' });
 
-const CURRENCY_SYMBOLS: Record<string, string> = { NGN: '\u20a6', USD: '$', GBP: '\u00a3', EUR: '\u20ac', GHS: '\u20b5', KES: 'KSh', ZAR: 'R' };
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', NZD: 'NZ$',
+  GHS: '₵', KES: 'KSh', ZAR: 'R', UGX: 'USh', TZS: 'TSh', RWF: 'RF',
+  XOF: 'CFA', XAF: 'FCFA', EGP: 'E£', MAD: 'د.م.', INR: '₹', PKR: '₨',
+  BDT: '৳', CNY: '¥', JPY: '¥', KRW: '₩', SGD: 'S$', MYR: 'RM', IDR: 'Rp',
+  PHP: '₱', THB: '฿', AED: 'د.إ', SAR: '﷼', QAR: 'ر.ق', KWD: 'د.ك',
+  BHD: 'د.ب', OMR: 'ر.ع.', TRY: '₺', CHF: 'CHF', SEK: 'kr', NOK: 'kr',
+  DKK: 'kr', PLN: 'zł', CZK: 'Kč', HUF: 'Ft', RON: 'lei', BRL: 'R$',
+  MXN: 'MX$', ARS: 'AR$', CLP: 'CLP$', COP: 'COL$', PEN: 'S/'
+};
 
 type Props = {
   onCreated?: () => void;
   currency?: string;
+  taxRate?: number;
+  companyLogoUrl?: string | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
   initialItem?: Partial<LineItem>;
 };
 
-export default function MyInvoiceForm({ onCreated, currency, open: openProp, onOpenChange, hideTrigger, initialItem }: Props) {
+export default function MyInvoiceForm({ onCreated, currency, taxRate = 7.5, companyLogoUrl = null, open: openProp, onOpenChange, hideTrigger, initialItem }: Props) {
   const symbol = CURRENCY_SYMBOLS[currency ?? 'NGN'] ?? currency ?? '\u20a6';
   const supabase = createClient();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -46,7 +57,8 @@ export default function MyInvoiceForm({ onCreated, currency, open: openProp, onO
   }
 
   const subtotal = items.reduce((sum, it) => sum + (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0), 0);
-  const tax = subtotal * 0.075;
+  const safeTaxRate = Math.max(0, Math.min(100, Number(taxRate) || 0));
+  const tax = subtotal * (safeTaxRate / 100);
   const total = subtotal + tax;
 
   function reset() {
@@ -77,7 +89,7 @@ export default function MyInvoiceForm({ onCreated, currency, open: openProp, onO
       return;
     }
 
-    let logoUrl: string | null = null;
+    let logoUrl: string | null = companyLogoUrl;
     if (logoFile) {
       const ext = logoFile.name.split('.').pop();
       const path = `${user.id}/${Date.now()}.${ext}`;
@@ -255,7 +267,7 @@ export default function MyInvoiceForm({ onCreated, currency, open: openProp, onO
             <span>{symbol}{subtotal.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-[var(--subtext)]">
-            <span>Tax (7.5%)</span>
+            <span>Tax ({safeTaxRate}%)</span>
             <span>{symbol}{tax.toLocaleString()}</span>
           </div>
           <div className="flex justify-between border-t border-[var(--border)] pt-1.5 text-base font-bold text-[var(--text)]">

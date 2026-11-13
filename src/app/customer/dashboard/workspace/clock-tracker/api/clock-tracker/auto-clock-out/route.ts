@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { requireCustomerModule } from '@/lib/customer-tenant';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -6,6 +7,9 @@ export const dynamic = 'force-dynamic';
 const AUTO_CLOCK_OUT_NOTE = 'Automatically clocked out because the JAAD ERP tab was left or hidden.';
 
 export async function POST(request: Request) {
+  const access = await requireCustomerModule('clock-tracker');
+  if (!access.ok) return Response.json({ error: 'Workspace access denied.' }, { status: 403 });
+  const companyId = access.context.companyId;
   let requestedEntryId = '';
   try {
     const body = await request.json();
@@ -27,6 +31,7 @@ export async function POST(request: Request) {
     .select('id')
     .eq('id', requestedEntryId)
     .eq('user_id', user.id)
+    .eq('company_id', companyId)
     .is('clock_out', null)
     .order('clock_in', { ascending: false })
     .limit(1)
@@ -44,6 +49,7 @@ export async function POST(request: Request) {
     .update({ clock_out: new Date().toISOString(), notes: AUTO_CLOCK_OUT_NOTE })
     .eq('id', activeEntry.id)
     .eq('user_id', user.id)
+    .eq('company_id', companyId)
     .is('clock_out', null)
     .select('id')
     .maybeSingle();

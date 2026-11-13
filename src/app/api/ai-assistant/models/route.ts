@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -11,6 +12,11 @@ function fail(message: string, status = 400) {
 }
 
 export async function GET(request: NextRequest) {
+  // Shared authentication guard: applies to every existing and future account.
+  const supabase = await createClient();
+  const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+  if (sessionError || !user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
+
   const provider = request.nextUrl.searchParams.get("provider") as Provider | null;
   if (!["openai", "claude", "gemini"].includes(provider || "")) {
     return fail("Choose OpenAI, Claude or Gemini.");

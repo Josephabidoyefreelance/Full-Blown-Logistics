@@ -1,3 +1,4 @@
+import { resolveInboundTenant } from '@/lib/security/inbound-tenant';
 import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { Resend } from 'resend';
@@ -66,7 +67,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Supabase service role is not configured.' }, { status: 500 });
   }
 
+  let companyId:string|null;
+  try { companyId=await resolveInboundTenant(supabase,fullEmail?.to ?? event.data.to); }
+  catch { return NextResponse.json({error:'Tenant routing lookup unavailable'},{status:503}); }
+  if (!companyId) return NextResponse.json({error:'No unique registered tenant recipient'},{status:422});
+
   const { error: insertError } = await supabase.from('support_emails').insert({
+    company_id: companyId,
     direction: 'inbound',
     to_address: fromAddress,
     subject,

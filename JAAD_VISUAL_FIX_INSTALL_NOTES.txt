@@ -1,0 +1,11 @@
+JAAD Policy and ERP Visual Fix
+
+This is a source patch based on the supplied JAAD visual-fixes bundle. It updates PolicyPdfLink.tsx and jaad-homepage.css only.
+
+Changes:
+- Keeps the original JAAD logo and black header in the policy-document modal.
+- Preloads policy PDFs in a hidden iframe to warm the browser cache.
+- Shows a white loading surface with a small red spinner instead of an empty dark panel while the document loads.
+- Keeps the ERP Back to website control in its own row outside the navigation header, with a little more separation.
+
+Copy the two updated files into the matching paths in your project. This patch does not include the complete application or change authentication. The login logo flash is likely controlled by the customer/admin login route or a loading component, which is not included in this visual-fixes source bundle; it cannot be safely fixed from these two files alone.

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
-import { getCustomerTenantContext } from '@/lib/customer-tenant';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney, moneyText } from '@/lib/customer-workspace-money';
 import FinanceLiveRefresh from './live-refresh';
 import InvoiceModal from './invoice-modal';
 import PayslipModal from './payslip-modal';
@@ -18,12 +19,6 @@ import NewQuotationForm from './new-quotation-form';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-function nairaFmt(n: number) {
-  return '₦' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
-}
-
-const VAT_RATE = 0.075;
 
 function dateAge(date: string) {
   const then = new Date(date).getTime();
@@ -83,39 +78,38 @@ export default async function FinancePage({
   searchParams: Promise<{ view?: string; open?: string }>;
 }) {
   const { view = 'overview', open: openInvoiceId } = await searchParams;
+  const tenant = await redirectIfNotCustomerModule('finance');
   const supabase = await createClient();
-  const tenant = await getCustomerTenantContext();
-  const { data: savedBranding } = tenant
-    ? await supabase.from('invoice_branding').select('legal_name,address,phone,email,website,logo_path').eq('company_id', tenant.companyId).maybeSingle()
-    : { data: null };
-  let logoUrl: string | null = null;
-  if (savedBranding?.logo_path) {
-    const { data: signedLogo } = await supabase.storage.from('jaad-invoice-logos').createSignedUrl(savedBranding.logo_path, 3600);
-    logoUrl = signedLogo?.signedUrl ?? null;
-  }
-  const invoiceBranding = savedBranding ? { legal_name: savedBranding.legal_name ?? '', address: savedBranding.address ?? '', phone: savedBranding.phone ?? '', email: savedBranding.email ?? '', website: savedBranding.website ?? '', logoUrl } : null;
+  const { currency, taxRate } = await loadWorkspaceMoney(supabase, tenant.companyId);
+  const VAT_RATE = taxRate / 100;
+  const nairaFmt = (amount: number | null | undefined) => moneyText(amount, currency);
 
   const [invoices, expenses, payroll, purchaseOrders, quotations] = await Promise.all([
     supabase
       .from('invoices')
-      .select('id, invoice_no, customer_name, amount, status, invoice_date')
+      .select('id, invoice_no, customer_name, amount, status, invoice_date, tax_rate, tax_amount, total_amount')
+      .eq('company_id',tenant.companyId)
       .order('invoice_date', { ascending: false }),
     supabase
       .from('expenses')
       .select('id, category, vendor, amount, expense_date, status')
+      .eq('company_id',tenant.companyId)
       .order('expense_date', { ascending: false }),
     supabase
       .from('employees')
       .select('id, name, role_title, gross_pay, deductions')
+      .eq('company_id',tenant.companyId)
       .not('gross_pay', 'is', null)
       .order('name', { ascending: true }),
     supabase
       .from('purchase_orders')
       .select('id, po_no, supplier, description, total, order_date, po_date, status, category, requested_by, expected_date, payment_terms, priority')
+      .eq('company_id',tenant.companyId)
       .order('order_date', { ascending: false }),
     supabase
       .from('quotations')
       .select('id, ref, customer_name, contact, route, mode, amount, quote_date, valid_until, status')
+      .eq('company_id',tenant.companyId)
       .order('quote_date', { ascending: false }),
   ]);
 
@@ -136,7 +130,7 @@ export default async function FinancePage({
   const payrollGross = payrollRows.reduce((s, p) => s + Number(p.gross_pay ?? 0), 0);
   const payrollDeductions = payrollRows.reduce((s, p) => s + Number(p.deductions ?? 0), 0);
   const payrollNet = payrollGross - payrollDeductions;
-  const vat = Math.round(revenue * VAT_RATE);
+  const vat = paidInvoices.reduce((sum, invoice) => sum + Number(invoice.tax_amount ?? 0), 0);
   const netPosition = revenue - expenseTotal - payrollNet - vat;
   const approvedQuotes = quotationRows.filter((q) => q.status === 'Approved').length;
   const receivedPOs = purchaseOrderRows.filter((p) => p.status === 'Received').length;
@@ -171,12 +165,12 @@ export default async function FinancePage({
         </div>
 
         <div className="mb-2 flex gap-3 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800">
-          <a href="/customer/dashboard/workspace/finance?view=overview" className={tabClass('overview')}>Overview</a>
-          <a href="/customer/dashboard/workspace/finance?view=invoices" className={tabClass('invoices')}>Invoices <span className="ml-1 text-[10px] text-neutral-400">{invoiceRows.length}</span></a>
-          <a href="/customer/dashboard/workspace/finance?view=expenses" className={tabClass('expenses')}>Expenses <span className="ml-1 text-[10px] text-neutral-400">{expenseRows.length}</span></a>
-          <a href="/customer/dashboard/workspace/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
-          <a href="/customer/dashboard/workspace/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
-          <a href="/customer/dashboard/workspace/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
+          <a href="/finance?view=overview" className={tabClass('overview')}>Overview</a>
+          <a href="/finance?view=invoices" className={tabClass('invoices')}>Invoices <span className="ml-1 text-[10px] text-neutral-400">{invoiceRows.length}</span></a>
+          <a href="/finance?view=expenses" className={tabClass('expenses')}>Expenses <span className="ml-1 text-[10px] text-neutral-400">{expenseRows.length}</span></a>
+          <a href="/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
+          <a href="/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
+          <a href="/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
         </div>
 
         {view === 'overview' && (
@@ -205,23 +199,23 @@ export default async function FinancePage({
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-              <a href="/customer/dashboard/workspace/finance?view=invoices" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=invoices" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Invoices</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{invoiceRows.length}</p><p className="text-[10px] text-neutral-500">{pendingInvoices.length + overdueInvoices.length} outstanding</p>
               </a>
-              <a href="/customer/dashboard/workspace/finance?view=payroll" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=payroll" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Payroll</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{nairaFmt(payrollNet)}</p><p className="text-[10px] text-neutral-500">{payrollRows.length} employees</p>
               </a>
-              <a href="/customer/dashboard/workspace/finance?view=purchase-orders" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=purchase-orders" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Purchase orders</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{purchaseOrderRows.length}</p><p className="text-[10px] text-neutral-500">{receivedPOs} received</p>
               </a>
-              <a href="/customer/dashboard/workspace/finance?view=quotations" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=quotations" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Quotations</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{quotationRows.length}</p><p className="text-[10px] text-neutral-500">{approvedQuotes} approved</p>
               </a>
             </div>
 
             <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[1.35fr_.65fr]">
               <section className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-                <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800"><div><h2 className="text-sm font-semibold text-neutral-900 dark:text-white">Financial position</h2><p className="text-[10px] text-neutral-500">Current figures from live finance records</p></div><span className="text-[10px] font-medium text-neutral-400">VAT 7.5%</span></div>
+                <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3 dark:border-neutral-800"><div><h2 className="text-sm font-semibold text-neutral-900 dark:text-white">Financial position</h2><p className="text-[10px] text-neutral-500">Current figures from live finance records</p></div><span className="text-[10px] font-medium text-neutral-400">VAT {taxRate}%</span></div>
                 <div className="grid grid-cols-2 divide-x divide-y divide-neutral-100 dark:divide-neutral-800 sm:grid-cols-4 sm:divide-y-0">
                   <div className="p-3.5"><p className="text-[10px] text-neutral-500">Paid revenue</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(revenue)}</p></div>
                   <div className="p-3.5"><p className="text-[10px] text-neutral-500">Expenses</p><p className="mt-1 text-base font-bold text-neutral-900 dark:text-white">{nairaFmt(expenseTotal)}</p></div>
@@ -251,7 +245,7 @@ export default async function FinancePage({
               <table className="w-full border-collapse table-fixed text-left">
                 <colgroup><col className="w-[12%]" /><col className="w-[24%]" /><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[12%]" /></colgroup>
                 <thead className="bg-neutral-50 dark:bg-neutral-800/60"><tr><th className={wideTh}>Invoice</th><th className={wideTh}>Customer</th><th className={`${wideTh} text-right`}>Subtotal</th><th className={`${wideTh} text-right`}>VAT</th><th className={`${wideTh} text-right`}>Total</th><th className={wideTh}>Date</th><th className={`${wideTh} text-right`}>Payment status</th></tr></thead>
-                <tbody>{invoiceRows.map((i) => { const vatAmount = Math.round(Number(i.amount || 0) * VAT_RATE); return <tr key={i.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={wideTd}><InvoiceModal invoiceNo={i.invoice_no} customerName={i.customer_name} amount={i.amount} date={i.invoice_date} status={i.status} autoOpen={i.id === openInvoiceId} branding={invoiceBranding} /></td><td className={`${wideTd} truncate font-medium`}>{i.customer_name}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(i.amount)}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(vatAmount)}</td><td className={`${wideTd} whitespace-nowrap text-right font-semibold`}>{nairaFmt(Number(i.amount || 0) + vatAmount)}</td><td className={`${wideTd} whitespace-nowrap`}><span>{i.invoice_date}</span><span className="ml-1 text-[10px] text-neutral-400">· {dateAge(i.invoice_date)}</span></td><td className={`${wideTd} whitespace-nowrap text-right`}><StatusSwitch id={i.id} status={i.status} /></td></tr>; })}</tbody>
+                <tbody>{invoiceRows.map((i) => { const vatAmount = Number(i.tax_amount ?? 0); return <tr key={i.id} className="transition-all duration-200 hover:bg-red-50/40 hover:shadow-[inset_0_0_18px_rgba(239,68,68,0.08)] dark:hover:bg-red-950/10"><td className={wideTd}><InvoiceModal invoiceNo={i.invoice_no} customerName={i.customer_name} amount={i.amount} date={i.invoice_date} status={i.status} autoOpen={i.id === openInvoiceId} savedTaxRate={i.tax_rate} savedTaxAmount={i.tax_amount} savedTotalAmount={i.total_amount} /></td><td className={`${wideTd} truncate font-medium`}>{i.customer_name}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(i.amount)}</td><td className={`${wideTd} whitespace-nowrap text-right`}>{nairaFmt(vatAmount)}</td><td className={`${wideTd} whitespace-nowrap text-right font-semibold`}>{nairaFmt(Number(i.total_amount || 0) || (Number(i.amount || 0) + vatAmount))}</td><td className={`${wideTd} whitespace-nowrap`}><span>{i.invoice_date}</span><span className="ml-1 text-[10px] text-neutral-400">· {dateAge(i.invoice_date)}</span></td><td className={`${wideTd} whitespace-nowrap text-right`}><StatusSwitch id={i.id} status={i.status} /></td></tr>; })}</tbody>
               </table>
               {!invoiceRows.length && <div className="px-4 py-5 text-center text-xs text-neutral-400">No invoices yet.</div>}
             </TableShell>

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { JAAD_PLANS, naira, type JaadPlanCode } from '@/lib/billing/plans';
 import PlanCheckoutButton from './plan-checkout-button';
+import { getCustomerBillingWorkspace } from '@/lib/customer-billing-workspace';
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '—';
@@ -17,25 +18,18 @@ export default async function PackagesPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('id, email, company_id').eq('id', user.id).maybeSingle()
-    : { data: null };
-
-  const { data: company } = profile?.company_id
-    ? await supabase.from('companies').select('id, name, owner_user_id').eq('id', profile.company_id).maybeSingle()
-    : { data: null };
-
-  const { data: subscription } = profile?.company_id
+  const billing = user ? await getCustomerBillingWorkspace() : null;
+  const company = billing?.company ?? null;
+  const billingCompanyId = company?.id ?? null;
+  const { data: subscription } = billingCompanyId
     ? await supabase
         .from('company_subscriptions')
         .select('plan_code, status, current_period_start, current_period_end, last_payment_reference')
-        .eq('company_id', profile.company_id)
-        .maybeSingle()
+        .eq('company_id', billingCompanyId).maybeSingle()
     : { data: null };
-
-  const isBillingOwner = Boolean(user && company && company.owner_user_id === user.id);
+  const isBillingOwner = Boolean(billing?.isBillingOwner);
   const subscriptionIsActive = Boolean(
-    subscription?.status === 'active' &&
+    (subscription?.status === 'active' || subscription?.status === 'trialing') &&
     subscription.current_period_end &&
     new Date(subscription.current_period_end).getTime() > Date.now(),
   );
@@ -77,12 +71,12 @@ export default async function PackagesPage({
                 Active until {formatDate(subscription.current_period_end)}. Monthly renewal is made with a new bank transfer; it is not auto-debited.
               </p>
             </div>
-            <span className="mt-1 self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 sm:mt-0">Active</span>
+            <span className="mt-1 self-start rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 sm:mt-0">{subscription?.status === 'trialing' ? '14-day trial' : 'Active'}</span>
           </div>
         </section>
       )}
 
-      {!profile?.company_id && (
+      {!billingCompanyId && (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
           This user is not linked to a company workspace yet. Apply the supplied database migration and assign the company workspace before starting checkout.
         </div>
@@ -112,14 +106,14 @@ export default async function PackagesPage({
                 </li>
               ))}
             </ul>
-            {isBillingOwner && profile?.company_id ? (
+            {isBillingOwner && billingCompanyId ? (
               <PlanCheckoutButton
                 planCode={plan.code}
                 label={currentPlanCode === plan.code ? `Renew ${plan.name} by bank transfer` : `Choose ${plan.name}`}
               />
             ) : (
               <p className="mt-5 rounded-lg bg-neutral-50 px-3 py-2.5 text-xs leading-5 text-neutral-500 dark:bg-neutral-800/60 dark:text-neutral-400">
-                {profile?.company_id ? 'Only the company billing owner can change or renew the package.' : 'Company billing setup is required before checkout.'}
+                {billingCompanyId ? 'Only the company billing owner can change or renew the package.' : 'Company billing setup is required before checkout.'}
               </p>
             )}
           </article>

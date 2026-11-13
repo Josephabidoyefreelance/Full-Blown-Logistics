@@ -1,0 +1,21 @@
+JAAD CUSTOMER SECURITY PATCH — REVIEW ONLY
+Source: JAAD-ERP-COMPLETE-20261027-011612(1).zip
+
+CHANGES:
+- Customer subscription and module guard on 34 protected actions (9 Finance, 9 Fleet, 5 Drivers, 11 HR).
+- Company filters for known tenant-owned tables and company_id on inserts.
+- Driver document paths now begin with company_id; signed URLs reject paths outside that prefix.
+- HR employee upload paths now begin with company_id.
+- HR career/applicant/letter operations without verified tenant ownership fail closed.
+- Public voting actions left intact; their RPC/storage policies are NOT certified.
+
+VALIDATION:
+- TypeScript parser: PASS on four files.
+- Full npx tsc --noEmit: NOT RUN (project dependencies unavailable here).
+- npm run build: NOT RUN (project dependencies unavailable here).
+- Supabase RLS/storage policy test: NOT RUN.
+- Two-customer authenticated test: NOT RUN.
+
+DO NOT INSTALL IN PRODUCTION. These files are a review candidate, not a production-certified fix.
+When running locally, apply to a COPY/branch first, then npx tsc --noEmit and npm run build.
+Existing storage policies and legacy paths may need migration. Do not enable CUSTOMER_ERP_TENANT_MODE.

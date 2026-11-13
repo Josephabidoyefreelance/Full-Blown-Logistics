@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState } from 'react';
 
@@ -18,6 +19,7 @@ export default function PurchaseOrderModal({
   total,
   date,
   status,
+  category, requestedBy, expectedDate, paymentTerms, priority,
 }: {
   poNo: string;
   supplier: string;
@@ -25,10 +27,12 @@ export default function PurchaseOrderModal({
   total: number;
   date: string;
   status: string;
+  category?: string | null; requestedBy?: string | null; expectedDate?: string | null; paymentTerms?: string | null; priority?: string | null;
 }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const subtotal = Number(total || 0);
-  const vat = Math.round(subtotal * 0.075);
+  const vat = Math.round(subtotal * (taxRate / 100) * 100) / 100;
   const grandTotal = subtotal + vat;
   const colors = statusColor(status);
   const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -104,7 +108,7 @@ export default function PurchaseOrderModal({
                   <span>{nairaFmt(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-neutral-600">
-                  <span>VAT, 7.5%</span>
+                  <span>VAT, {taxRate}%</span>
                   <span>{nairaFmt(vat)}</span>
                 </div>
                 <div className="flex justify-between border-t-2 border-neutral-900 pt-2 text-base font-bold">

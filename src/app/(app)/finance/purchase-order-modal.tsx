@@ -18,6 +18,7 @@ export default function PurchaseOrderModal({
   total,
   date,
   status,
+  category, requestedBy, expectedDate, paymentTerms, priority,
 }: {
   poNo: string;
   supplier: string;
@@ -25,6 +26,7 @@ export default function PurchaseOrderModal({
   total: number;
   date: string;
   status: string;
+  category?: string | null; requestedBy?: string | null; expectedDate?: string | null; paymentTerms?: string | null; priority?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const subtotal = Number(total || 0);

@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   // Only a user who has completed Supabase email verification may create a CRM lead.
   const sessionClient = await createServerClient();
   const { data: { user }, error: authError } = await sessionClient.auth.getUser();
-  if (authError || !user) {
+  if (authError || !user || !user.email_confirmed_at) {
     return NextResponse.json({ success: false, error: 'Verify your email before submitting the signup form.' }, { status: 401 });
   }
 
@@ -41,7 +41,30 @@ export async function POST(request: NextRequest) {
   const service = createServiceClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  // Only the configured JAAD platform company may receive acquisition leads.
+  const { data: config, error: configError } = await service
+    .from('jaad_platform_config')
+    .select('crm_company_id')
+    .eq('singleton', true)
+    .single();
+  if (configError || !config?.crm_company_id) {
+    return NextResponse.json({ success: false, error: 'Platform CRM is not configured.' }, { status: 503 });
+  }
+
+  // A registration can reach this endpoint before or after provisioning.
+  // Never create a second lead for the same verified auth user.
+  const { data: existing, error: lookupError } = await service
+    .from('leads').select('id').eq('registration_user_id', user.id).maybeSingle();
+  if (lookupError) {
+    return NextResponse.json({ success: false, error: 'Could not check existing registration lead.' }, { status: 503 });
+  }
+  if (existing) {
+    return NextResponse.json({ success: true, alreadyRecorded: true }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+
   const { error } = await service.from('leads').insert({
+    company_id: config.crm_company_id,
+    registration_user_id: user.id,
     company,
     contact_name: contactName,
     email,
@@ -52,7 +75,7 @@ export async function POST(request: NextRequest) {
     value: 0,
   });
 
-  if (error) {
+  if (error && error.code !== '23505') {
     console.error('Public customer signup CRM lead insert failed:', error.message);
     return NextResponse.json({ success: false, error: 'Could not add this signup to CRM Leads. Check the leads table permissions and required columns.' }, { status: 500 });
   }

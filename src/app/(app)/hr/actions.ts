@@ -83,3 +83,12 @@ export async function createEmployeeLetter(input:{employeeId:string;letterType:s
   if(error)return{error:error.message};
   revalidatePath('/hr');revalidatePath('/employee-portal');return{error:null};
 }
+
+// Next.js Server Actions must be exported as async functions, not re-exported.
+export async function submitPublicVote(
+  id: string,
+  ratings: { appearance: number; behavior: number; communication: number; teamwork: number; reliability: number; leadership: number }
+) {
+  const { submitPublicVote: castVote } = await import('./vote/[id]/actions');
+  return castVote(id, ratings);
+}

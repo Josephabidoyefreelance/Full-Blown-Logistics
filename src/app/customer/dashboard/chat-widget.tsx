@@ -143,7 +143,7 @@ export default function ChatWidget({
         return;
       }
       id = created.id;
-    } else if (customerName && existing.customer_name !== customerName) {
+    } else if (customerName && existing && existing.customer_name !== customerName) {
       await supabase.from('live_chats').update({ customer_name: customerName }).eq('id', id);
     }
 
@@ -194,15 +194,13 @@ export default function ChatWidget({
     setError(null);
 
     try {
-      const path = `livechat/${chatId}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('chat-attachments')
-        .upload(path, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage.from('chat-attachments').getPublicUrl(path);
-      await sendMessage(`\u{1F4CE} ${file.name}|${publicUrlData.publicUrl}`);
+      const body = new FormData();
+      body.append('chatId', chatId);
+      body.append('file', file);
+      const response = await fetch('/api/chat-attachments', { method: 'POST', body });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.error || 'Upload denied');
+      await sendMessage(`📎 ${file.name}|${new URL(result.url, window.location.origin).href}`);
     } catch (err: any) {
       setError(err?.message ?? 'File upload failed.');
     } finally {

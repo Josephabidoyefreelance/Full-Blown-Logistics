@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createCustomer } from './actions';
@@ -6,6 +7,7 @@ import { createCustomer } from './actions';
 type Staff = { id: string; full_name: string | null };
 
 export default function NewAccountForm({ staff }: { staff: Staff[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +77,11 @@ export default function NewAccountForm({ staff }: { staff: Staff[] }) {
 
         <div className="mb-3 grid grid-cols-2 gap-2">
           <div>
-            <label className={labelClass}>Credit limit, NGN</label>
+            <label className={labelClass}>Credit limit, {currency}</label>
             <input name="credit_limit" type="number" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Opening balance, NGN</label>
+            <label className={labelClass}>Opening balance, {currency}</label>
             <input name="balance" type="number" className={inputClass} />
           </div>
         </div>
@@ -92,7 +94,7 @@ export default function NewAccountForm({ staff }: { staff: Staff[] }) {
         <div className="mb-3 grid grid-cols-2 gap-2">
           <div>
             <label className={labelClass}>Currency</label>
-            <select name="currency" defaultValue="NGN" className={inputClass}>
+            <select name="currency" defaultValue={currency} className={inputClass}>
               <option>NGN</option>
               <option>USD</option>
               <option>GBP</option>
@@ -105,7 +107,7 @@ export default function NewAccountForm({ staff }: { staff: Staff[] }) {
           </div>
           <div>
             <label className={labelClass}>Tax rate, %</label>
-            <input name="tax_rate" type="number" step="0.1" defaultValue="7.5" className={inputClass} />
+            <input name="tax_rate" type="number" step="0.1" defaultValue={taxRate} className={inputClass} />
           </div>
         </div>
 

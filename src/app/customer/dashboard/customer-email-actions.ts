@@ -15,35 +15,47 @@ export async function sendCustomerEmail(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: 'Not signed in.' };
+  const { data: profile } = await supabase.from('profiles').select('company_id, status').eq('id', user.id).maybeSingle();
+  if (!profile?.company_id || String(profile.status ?? 'active').toLowerCase() !== 'active') return { error: 'Active company workspace required.' };
+  const { data: inbox, error: inboxError } = await supabase.from('support_inbound_addresses')
+    .select('address').eq('company_id', profile.company_id).limit(2);
+  if (inboxError || !inbox || inbox.length !== 1) return { error: 'A unique company support inbox must be configured.' };
+  const companyInbox = inbox[0].address;
+
 
   const subject = String(formData.get('subject') ?? '').trim();
   const body = String(formData.get('body') ?? '').trim();
 
   if (!subject || !body) return { error: 'Subject and message are required.' };
 
-  if (!resend || !process.env.EMAIL_FROM || !process.env.SUPPORT_INBOX_EMAIL) {
+  if (!resend || !process.env.EMAIL_FROM) {
     return {
       error:
-        'Email sending is not configured. Set RESEND_API_KEY, EMAIL_FROM, and SUPPORT_INBOX_EMAIL in your environment, then restart the server.',
+        'Email sending is not configured. Set RESEND_API_KEY and EMAIL_FROM in your environment.',
     };
   }
 
   let status = 'Sent';
 
-  const { error: sendError } = await resend.emails.send({
+  let sendError: { message: string } | null = null;
+  try {
+    const result = await resend.emails.send({
     from: process.env.EMAIL_FROM,
-    to: process.env.SUPPORT_INBOX_EMAIL,
+    to: companyInbox,
     replyTo: user.email,
     subject: `[Customer] ${subject}`,
-    html: `<p>${body.replace(/\n/g, '<br />')}</p><p style="color:#888;font-size:12px">From: ${user.email}</p>`,
-  });
+    html: `<div style="white-space:pre-wrap">${body.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c)}</div>`,
+    });
+    sendError = result.error;
+  } catch { sendError = { message: 'Email provider unavailable.' }; }
 
   if (sendError) status = 'Failed';
 
   const { error } = await supabase.from('support_emails').insert({
+    company_id: profile.company_id,
     direction: 'outbound',
     customer_user_id: user.id,
-    to_address: process.env.SUPPORT_INBOX_EMAIL,
+    to_address: companyInbox,
     subject,
     body,
     status,

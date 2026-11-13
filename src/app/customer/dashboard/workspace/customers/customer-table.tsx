@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useMemo, useState } from 'react';
 import AssignedToSwitch from './assigned-to-switch';
@@ -26,6 +27,7 @@ function nairaFmt(n: number) {
 }
 
 export default function CustomerTable({ customers, staff }: { customers: Customer[]; staff: Staff[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All');
   const [type, setType] = useState('All');

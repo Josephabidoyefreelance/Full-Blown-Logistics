@@ -1,3 +1,4 @@
+import { resolveInboundTenant } from '@/lib/security/inbound-tenant';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
@@ -53,7 +54,13 @@ export async function POST(request: NextRequest) {
     return { id: file.id, filename: file.filename || 'attachment', content_type: file.content_type, size: file.size, download_url: file.download_url, expires_at: file.expires_at };
   });
 
+  let companyId:string|null;
+  try { companyId=await resolveInboundTenant(db,message.to || event.data.to); }
+  catch { return NextResponse.json({error:'Tenant routing lookup unavailable'},{status:503}); }
+  if (!companyId) return NextResponse.json({error:'No unique registered tenant recipient'},{status:422});
+
   const row = {
+    company_id: companyId,
     direction: 'inbound',
     provider_email_id: emailId,
     from_address: message.from || event.data.from || 'Unknown sender',

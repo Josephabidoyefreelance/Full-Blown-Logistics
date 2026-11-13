@@ -1,0 +1,5 @@
+- Made expiry controls unmissable with a highlighted "Schedule automatic expiry" panel and Auto-expire checkbox.
+- Added 2, 3, 4, 6, 8 and 48-hour options while retaining the 1, 5, 12, 24 and 72-hour options.
+- Default is automatic expiry enabled at 5 hours.
+- Updated server-side duration allow-list to exactly match the dropdown.
+- Dashboard page.tsx is intentionally not included or modified.

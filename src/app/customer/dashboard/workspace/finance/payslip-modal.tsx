@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState } from 'react';
 
@@ -17,6 +18,7 @@ export default function PayslipModal({
   grossPay: number;
   deductions: number;
 }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const netPay = grossPay - deductions;
   const period = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

@@ -315,17 +315,17 @@ export default async function FinancePage({
 
         <div className="mb-2 flex gap-3 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800">
 
-          <a href="/customer/dashboard/workspace/finance?view=overview" className={tabClass('overview')}>Overview</a>
+          <a href="/finance?view=overview" className={tabClass('overview')}>Overview</a>
 
-          <a href="/customer/dashboard/workspace/finance?view=invoices" className={tabClass('invoices')}>Invoices <span className="ml-1 text-[10px] text-neutral-400">{invoiceRows.length}</span></a>
+          <a href="/finance?view=invoices" className={tabClass('invoices')}>Invoices <span className="ml-1 text-[10px] text-neutral-400">{invoiceRows.length}</span></a>
 
-          <a href="/customer/dashboard/workspace/finance?view=expenses" className={tabClass('expenses')}>Expenses <span className="ml-1 text-[10px] text-neutral-400">{expenseRows.length}</span></a>
+          <a href="/finance?view=expenses" className={tabClass('expenses')}>Expenses <span className="ml-1 text-[10px] text-neutral-400">{expenseRows.length}</span></a>
 
-          <a href="/customer/dashboard/workspace/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
+          <a href="/finance?view=payroll" className={tabClass('payroll')}>Payroll <span className="ml-1 text-[10px] text-neutral-400">{payrollRows.length}</span></a>
 
-          <a href="/customer/dashboard/workspace/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
+          <a href="/finance?view=purchase-orders" className={tabClass('purchase-orders')}>Purchase orders <span className="ml-1 text-[10px] text-neutral-400">{purchaseOrderRows.length}</span></a>
 
-          <a href="/customer/dashboard/workspace/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
+          <a href="/finance?view=quotations" className={tabClass('quotations')}>Quotations <span className="ml-1 text-[10px] text-neutral-400">{quotationRows.length}</span></a>
 
         </div>
 
@@ -383,25 +383,25 @@ export default async function FinancePage({
 
             <div className="grid grid-cols-4 gap-2.5">
 
-              <a href="/customer/dashboard/workspace/finance?view=invoices" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=invoices" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
 
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Invoices</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{invoiceRows.length}</p><p className="text-[10px] text-neutral-500">{pendingInvoices.length + overdueInvoices.length} outstanding</p>
 
               </a>
 
-              <a href="/customer/dashboard/workspace/finance?view=payroll" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=payroll" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
 
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Payroll</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{nairaFmt(payrollNet)}</p><p className="text-[10px] text-neutral-500">{payrollRows.length} employees</p>
 
               </a>
 
-              <a href="/customer/dashboard/workspace/finance?view=purchase-orders" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=purchase-orders" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
 
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Purchase orders</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{purchaseOrderRows.length}</p><p className="text-[10px] text-neutral-500">{receivedPOs} received</p>
 
               </a>
 
-              <a href="/customer/dashboard/workspace/finance?view=quotations" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
+              <a href="/finance?view=quotations" className="rounded-lg border border-neutral-200 bg-white px-3.5 py-3 shadow-sm hover:border-red-300 dark:border-neutral-800 dark:bg-neutral-900">
 
                 <p className="text-[10px] uppercase tracking-wide text-neutral-500">Quotations</p><p className="mt-1 text-lg font-bold text-neutral-900 dark:text-white">{quotationRows.length}</p><p className="text-[10px] text-neutral-500">{approvedQuotes} approved</p>
 

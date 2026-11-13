@@ -1,4 +1,7 @@
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney, moneyText } from '@/lib/customer-workspace-money';
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import StatusSwitch from './status-switch';
 import AssignedToSwitch from './assigned-to-switch';
 import NewAccountForm from './new-account-form';
@@ -6,19 +9,23 @@ import ExportCustomersButton from './export-customers-button';
 import ImportFromLeadsButton from './import-from-leads-button';
 import CustomerDetailTrigger from './customer-detail-modal';
 
-function nairaFmt(n: number) {
-  return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
-}
-
 export default async function CustomersPage() {
   const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) redirect('/customer/login');
 
+  const tenant = await redirectIfNotCustomerModule('customers');
+  const companyId = tenant.companyId;
+
+  const {currency} = await loadWorkspaceMoney(supabase, companyId);
+  const nairaFmt = (amount: number | null | undefined) => moneyText(amount, currency);
   const [{ data: customers, error }, { data: staff }] = await Promise.all([
     supabase
       .from('customers')
       .select('id, name, type, contact, credit_limit, balance, status, client_since, assigned_to, currency, tax_rate')
+      .eq('company_id', companyId)
       .order('created_at', { ascending: false }),
-    supabase.from('profiles').select('id, full_name').order('full_name'),
+    supabase.from('profiles').select('id, full_name').eq('company_id', companyId).order('full_name'),
   ]);
 
   return (

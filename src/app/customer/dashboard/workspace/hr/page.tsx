@@ -1,3 +1,4 @@
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import RecruitmentPipeline from './recruitment-pipeline';
@@ -28,8 +29,8 @@ function StatCard({label,value,tone='neutral'}:{label:string;value:number;tone?:
   return <div className={`rounded-xl border p-4 ${tones[tone]??tones.neutral}`}><div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{label}</div><div className="mt-2 text-2xl font-semibold text-neutral-900">{value}</div></div>;
 }
 
-async function signedUrl(supabase:any, path:string|null|undefined, expires=3600){
-  if(!path)return null;
+async function signedUrl(supabase:any, path:string|null|undefined, companyId:string, expires=3600){
+  if(!path || !path.startsWith(`${companyId}/`)) return null;
   const {data}=await supabase.storage.from('employee-documents').createSignedUrl(path,expires);
   return data?.signedUrl??null;
 }
@@ -39,20 +40,21 @@ export default async function HRPage({searchParams}:{searchParams:Promise<{view?
   const validViews=['employees','recruitment','careers','leave','employee-of-the-year','letters'];
   const requestedView=params.view||'employees';
   const view=validViews.includes(requestedView)?requestedView:'employees';
+  const tenant=await redirectIfNotCustomerModule('hr');
   const supabase=await createClient();
   await syncEmployeeLeaveStatuses();
-  const employees=await supabase.from('employees').select('id,employee_id,name,department,role_title,status,votes,offer_heading,email,phone,last_residence,current_residence,city,state,date_of_birth,nationality,emergency_contact_name,emergency_contact_phone,address,lga,gender,marital_status,nin_number,passport_number,employment_date,next_of_kin_name,next_of_kin_phone,next_of_kin_address,passport_path,signature_path,id_document_path,created_at').order('name');
+  const employees=await supabase.from('employees').select('id,employee_id,name,department,role_title,status,votes,offer_heading,email,phone,last_residence,current_residence,city,state,date_of_birth,nationality,emergency_contact_name,emergency_contact_phone,address,lga,gender,marital_status,nin_number,passport_number,employment_date,next_of_kin_name,next_of_kin_phone,next_of_kin_address,passport_path,signature_path,id_document_path,created_at').eq('company_id', tenant.companyId).order('name');
   const employeeRows=employees.data??[];
   const enrichedEmployees=await Promise.all(employeeRows.map(async e=>({
     ...e,
-    passport_url:await signedUrl(supabase,e.passport_path),
-    signature_url:await signedUrl(supabase,e.signature_path),
-    id_document_url:await signedUrl(supabase,e.id_document_path),
+    passport_url:await signedUrl(supabase,e.passport_path,tenant.companyId),
+    signature_url:await signedUrl(supabase,e.signature_path,tenant.companyId),
+    id_document_url:await signedUrl(supabase,e.id_document_path,tenant.companyId),
   })));
 
-  const applicants=view==='recruitment'?await supabase.from('applicants').select('id,posting_id,name,email,phone,location,role_applied_for,stage,cover_note,cv_url,photo_url,created_at').order('created_at',{ascending:false}):null;
-  const leave=view==='leave'?await supabase.from('leave_requests').select('id,employee_id,employee_name,leave_type,from_date,to_date,status,leave_heading,letter_url,reason,requested_on').order('requested_on',{ascending:false}):null;
-  const postings=view==='careers'?await supabase.from('career_postings').select('id,title,location,employment_type,description').order('created_at',{ascending:false}):null;
+  const applicants=view==='recruitment'?await supabase.from('applicants').select('id,posting_id,name,email,phone,location,role_applied_for,stage,cover_note,cv_url,photo_url,created_at').eq('company_id',tenant.companyId).order('created_at',{ascending:false}):null;
+  const leave=view==='leave'?await supabase.from('leave_requests').select('id,employee_id,employee_name,leave_type,from_date,to_date,status,leave_heading,letter_url,reason,requested_on').eq('company_id',tenant.companyId).order('requested_on',{ascending:false}):null;
+  const postings=view==='careers'?await supabase.from('career_postings').select('id,title,location,employment_type,description').eq('company_id',tenant.companyId).order('created_at',{ascending:false}):null;
 
   const active=enrichedEmployees.filter(e=>String(e.status).toLowerCase()==='active').length;
   const onLeave=enrichedEmployees.filter(e=>String(e.status).toLowerCase().replace(/\s+/g,'')==='onleave').length;
@@ -78,8 +80,8 @@ export default async function HRPage({searchParams}:{searchParams:Promise<{view?
       .jaad-hr-page .flex.h-screen.overflow-hidden div:has(> header) { display: contents !important; min-width: 0 !important; width: auto !important; }
       .jaad-hr-page .flex.h-screen.overflow-hidden main { display: contents !important; min-height: 0 !important; height: auto !important; overflow: visible !important; padding: 0 !important; }
     `}</style>
-    <div className="mb-5 flex items-start justify-between"><div><h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">HR &amp; Careers</h1><p className="text-sm text-neutral-500 dark:text-neutral-400">Manage employees, hiring, careers, leave and recognition.</p></div>{view==='employees'&&<NewEmployeeForm/>}{view==='careers'&&<NewCareerPostingForm/>}{view==='leave'&&<NewLeaveRequestForm employees={enrichedEmployees.map(e=>({id:e.id,name:e.name}))}/>}</div>
-    <div className="mb-4 flex flex-wrap gap-5 border-b border-neutral-200 text-sm font-semibold dark:border-neutral-800">{tabs.map(([key,label])=><Link key={key} href={`/customer/dashboard/workspace/hr?view=${key}`} className={`pb-2 ${view===key?'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100':'text-neutral-500 dark:text-neutral-400'}`}>{label}</Link>)}</div>
+    <div className="mb-5 flex items-start justify-between"><div><h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">HR &amp; Careers</h1><p className="text-sm text-neutral-500 dark:text-neutral-400">Manage employees, hiring, careers, leave and recognition.</p></div>{view==='employees'&&<NewEmployeeForm/>}{view==='careers'&&<NewCareerPostingForm/>}{view==='leave'&&<NewLeaveRequestForm/>}</div>
+    <div className="mb-4 flex flex-wrap gap-5 border-b border-neutral-200 text-sm font-semibold dark:border-neutral-800">{tabs.map(([key,label])=><Link key={key} href={`/hr?view=${key}`} className={`pb-2 ${view===key?'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100':'text-neutral-500 dark:text-neutral-400'}`}>{label}</Link>)}</div>
 
     {view==='employees'&&<div className="space-y-4"><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard label="Total employees" value={enrichedEmployees.length} tone="neutral"/><StatCard label="Active" value={active} tone="green"/><StatCard label="On leave" value={onLeave} tone="amber"/><StatCard label="Inactive" value={inactive} tone="red"/></div><div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"><div className="mb-3"><h2 className="text-sm font-semibold">Employee database</h2><p className="text-[11px] text-neutral-500">Hover for a quick preview. Click the employee name to open the normal-size profile card, documents and print/download view.</p></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{enrichedEmployees.map(e=><EmployeeCard key={e.id} employee={e}/>)}{!enrichedEmployees.length&&<div className="py-10 text-center text-sm text-neutral-400 md:col-span-2 xl:col-span-3">No employees yet.</div>}</div></div></div>}
 
@@ -91,6 +93,6 @@ export default async function HRPage({searchParams}:{searchParams:Promise<{view?
 
     {view==='letters'&&<LettersWorkspace employees={enrichedEmployees.map(e=>({id:e.id,name:e.name,department:e.department,role_title:e.role_title,email:e.email,phone:e.phone,employee_id:e.employee_id}))}/>}
 
-    {view==='employee-of-the-year'&&<div className="space-y-4"><div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"><h2 className="text-base font-semibold">Employee of the Year</h2><p className="mt-1 text-xs text-neutral-500">Rate each employee from 1–5 stars. Open the public recognition profile to share their recognition page.</p><div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[...enrichedEmployees].sort((a,b)=>(b.votes??0)-(a.votes??0)).map(e=><div key={e.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"><div className="flex items-center gap-3">{e.passport_url?<img src={e.passport_url} alt="" className="h-12 w-12 rounded-xl object-cover"/>:<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 font-semibold text-neutral-500">{e.name.split(/\s+/).map(x=>x[0]).slice(0,2).join('')}</div>}<div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{e.name}</div><div className="text-[11px] text-neutral-500">{e.department} · {e.role_title}</div></div><div className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">{e.votes??0} votes</div></div><div className="mt-4 flex items-center gap-3"><Link href={`/employee-of-the-year/${e.id}`} target="_blank" className="text-xs font-semibold text-red-700 hover:underline">Public profile</Link><CopyProfileLink employeeId={e.id}/><VoteButton id={e.id}/></div></div>)}</div></div></div>}
+    {view==='employee-of-the-year'&&<div className="space-y-4"><div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"><h2 className="text-base font-semibold">Employee of the Year</h2><p className="mt-1 text-xs text-neutral-500">Rate each employee from 1–5 stars. Open the public recognition profile to share their recognition page.</p><div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[...enrichedEmployees].sort((a,b)=>(b.votes??0)-(a.votes??0)).map(e=><div key={e.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"><div className="flex items-center gap-3">{e.passport_url?<img src={e.passport_url} alt="" className="h-12 w-12 rounded-xl object-cover"/>:<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-100 font-semibold text-neutral-500">{e.name.split(/\s+/).map((x: string)=>x[0]).slice(0,2).join('')}</div>}<div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{e.name}</div><div className="text-[11px] text-neutral-500">{e.department} · {e.role_title}</div></div><div className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">{e.votes??0} votes</div></div><div className="mt-4 flex items-center gap-3"><Link href={`/employee-of-the-year/${e.id}`} target="_blank" className="text-xs font-semibold text-red-700 hover:underline">Public profile</Link><CopyProfileLink employeeId={e.id}/><VoteButton id={e.id} votes={Number(e.votes ?? 0)}/></div></div>)}</div></div></div>}
   </div>;
 }

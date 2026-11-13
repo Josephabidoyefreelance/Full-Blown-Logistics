@@ -1,5 +1,6 @@
+import { loadWorkspaceMoney, moneyText } from '@/lib/customer-workspace-money';
 import Link from 'next/link';
-import { getCustomerTenantContext } from '@/lib/customer-tenant';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import { createClient } from '@/lib/supabase/server';
 import LeadStatusSwitch from './lead-status-switch';
 import LeadPrioritySwitch from './lead-priority-switch';
@@ -12,9 +13,7 @@ import SheetView from './sheet-view';
 import ConvertLeadButton from './convert-lead-button';
 import KanbanBoard from './kanban-board';
 
-function nairaFmt(n: number) {
-  return '\u20a6' + Number(n || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
-}
+
 
 const SOURCE_COLORS: Record<string, string> = {
   Website: '#3b82f6',
@@ -30,12 +29,11 @@ export default async function CRMPage({
 }: {
   searchParams: Promise<{ view?: string }>;
 }) {
-  const params = await searchParams;
-  const tenant = await getCustomerTenantContext();
-  const fullCrmAccess = tenant?.fullCrmAccess ?? false;
-  const requestedView = params.view ?? 'leads';
-  const view = fullCrmAccess || requestedView === 'leads' ? requestedView : 'leads';
+  const { view = 'leads' } = await searchParams;
+  const tenant = await redirectIfNotCustomerModule('crm');
   const supabase = await createClient();
+  const { currency } = await loadWorkspaceMoney(supabase, tenant.companyId);
+  const nairaFmt = (n: number) => moneyText(n, currency);
 
   const [{ data: leads, error }, { data: staff }, { data: noteRows }] = await Promise.all([
     supabase
@@ -43,9 +41,10 @@ export default async function CRMPage({
       .select(
         'id, company, contact_name, job_title, email, phone, priority, status, value, assigned_to, source, transport_mode, origin, destination, callback_date'
       )
+      .eq('company_id', tenant.companyId)
       .order('created_at', { ascending: false }),
-    supabase.from('profiles').select('id, full_name').order('full_name'),
-    supabase.from('lead_notes').select('lead_id'),
+    supabase.from('profiles').select('id, full_name').eq('company_id', tenant.companyId).order('full_name'),
+    supabase.from('lead_notes').select('lead_id').eq('company_id', tenant.companyId),
   ]);
 
   const noteCounts: Record<string, number> = {};
@@ -70,12 +69,10 @@ export default async function CRMPage({
           <p className="text-sm text-neutral-500 dark:text-neutral-400">Lead capture through to customer conversion.</p>
         </div>
         <div className="flex gap-2">
-          {fullCrmAccess && <ImportLeadsButton />}
+          <ImportLeadsButton />
           <NewLeadForm />
         </div>
       </div>
-
-      {!fullCrmAccess && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">Limited CRM is active on your current plan. Kanban, spreadsheet CRM, campaigns and bulk lead import are available with the ₦20,000/month Premium plan.</p>}
 
       <div className="mb-4 flex gap-5 border-b border-neutral-200 text-sm font-semibold dark:border-neutral-800">
         <Link
@@ -84,24 +81,24 @@ export default async function CRMPage({
         >
           Leads
         </Link>
-        {fullCrmAccess && <Link
+        <Link
           href="/customer/dashboard/workspace/crm?view=kanban"
           className={`pb-2 ${view === 'kanban' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}
         >
           Kanban
-        </Link>}
-        {fullCrmAccess && <Link
+        </Link>
+        <Link
           href="/customer/dashboard/workspace/crm?view=sheet"
           className={`pb-2 ${view === 'sheet' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}
         >
           Sheet
-        </Link>}
-        {fullCrmAccess && <Link
+        </Link>
+        <Link
           href="/customer/dashboard/workspace/crm?view=campaigns"
           className={`pb-2 ${view === 'campaigns' ? 'border-b-2 border-red-600 text-neutral-900 dark:text-neutral-100' : 'text-neutral-500 dark:text-neutral-400'}`}
         >
           Campaigns
-        </Link>}
+        </Link>
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">Could not load leads: {error.message}</p>}

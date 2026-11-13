@@ -93,6 +93,10 @@ function splitAddresses(raw: string): string[] {
 
 export async function sendSupportEmail(formData: FormData) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Sign in to send emails.' };
+  const { data: profile } = await supabase.from('profiles').select('company_id, status').eq('id', user.id).maybeSingle();
+  if (!profile?.company_id || String(profile.status ?? 'active').toLowerCase() !== 'active') return { error: 'An active company workspace is required.' };
 
   const to_address = String(formData.get('to_address') ?? '').trim();
   const cc = splitAddresses(String(formData.get('cc') ?? ''));
@@ -103,7 +107,6 @@ export async function sendSupportEmail(formData: FormData) {
   const attachmentFiles = formData.getAll('attachments').filter((f): f is File => f instanceof File && f.size > 0);
 
   if (!to_address && !isDraft) return { error: 'Recipient is required.' };
-  if (!isDraft && !to_address) return { error: 'Recipient is required.' };
 
   let status = isDraft ? 'Draft' : 'Sent';
 
@@ -120,7 +123,9 @@ export async function sendSupportEmail(formData: FormData) {
       }))
     );
 
-      const { error: sendError } = await resend.emails.send({
+      let sendError: { message: string } | null = null;
+      try {
+        const result = await resend.emails.send({
       from: process.env.EMAIL_FROM,
       to: to_address,
       cc: cc.length ? cc : undefined,
@@ -128,8 +133,10 @@ export async function sendSupportEmail(formData: FormData) {
       subject,
       html: body || '<p></p>',
       attachments: attachments.length ? attachments : undefined,
-    });
-    if (sendError) status = 'Failed';
+        });
+        sendError = result.error;
+      } catch { sendError = { message: 'Email provider unavailable.' }; }
+      if (sendError) status = 'Failed';
   }
 
   const attachmentMetadata = attachmentFiles.map((file) => ({
@@ -138,6 +145,7 @@ export async function sendSupportEmail(formData: FormData) {
     size: file.size,
   }));
   const { error } = await supabase.from('support_emails').insert({
+    company_id: profile.company_id,
     direction: 'outbound',
     from_address: process.env.EMAIL_FROM || null,
     to_address,
@@ -207,6 +215,23 @@ export async function logSupportCall(formData: FormData, status = 'Call attempt 
   if (error) return { error: error.message };
   revalidatePath('/support');
   return { error: null, id: data.id };
+}
+
+export async function saveSupportCallSid(id: string, sid: string) {
+  if (!id || !/^CA[a-f0-9]{32}$/i.test(sid)) return { error: 'Invalid Twilio Call SID.' };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Sign in to update call history.' };
+  const { data, error } = await supabase.from('support_calls')
+    .update({ twilio_call_sid: sid }).eq('id', id).is('twilio_call_sid', null)
+    .select('id').maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) {
+    const { data: existing } = await supabase.from('support_calls').select('twilio_call_sid').eq('id', id).maybeSingle();
+    if (existing?.twilio_call_sid === sid) return { error: null };
+    return { error: 'Call SID was not saved; record may belong to another company.' };
+  }
+  return { error: null };
 }
 
 export async function updateSupportCallStatus(id: string, status: string) {
@@ -331,48 +356,15 @@ export async function markTeamChatRead(currentUserName: string, senderName: stri
 
 // ---------- Chat file attachments ----------
 
-export async function uploadLiveChatFile(chatId: string, formData: FormData) {
-  const supabase = await createClient();
-  const file = formData.get('file') as File | null;
-  if (!file) return { error: 'No file selected.' };
-
-  const path = `livechat/${chatId}/${Date.now()}-${file.name}`;
-  const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, file);
-  if (uploadError) return { error: uploadError.message };
-
-  const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path);
-
-  const { error } = await supabase.from('live_chat_messages').insert({
-    chat_id: chatId,
-    sender: 'agent',
-    message: `📎 ${file.name}|${pub.publicUrl}`,
-  });
-  if (error) return { error: error.message };
-  revalidatePath('/support');
-  return { error: null };
+// Stage 21 containment: no public URL generation for private attachments.
+// Re-enable only with conversation membership checks, tenant-scoped storage paths,
+// and authorized short-lived download URLs.
+export async function uploadLiveChatFile(_chatId: string, _formData: FormData) {
+  return { error: 'Private chat attachments are temporarily unavailable pending secure access controls.' };
 }
 
-export async function uploadTeamChatFile(senderName: string, formData: FormData, recipientName: string | null = null) {
-  const supabase = await createClient();
-  const file = formData.get('file') as File | null;
-  if (!file) return { error: 'No file selected.' };
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `teamchat/${Date.now()}-${safeName}`;
-  const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, file);
-  if (uploadError) return { error: uploadError.message };
-
-  const { data: pub } = supabase.storage.from('chat-attachments').getPublicUrl(path);
-
-  const payload: { sender_name: string; message: string; recipient_name?: string | null } = {
-    sender_name: senderName,
-    message: `📎 ${file.name}|${pub.publicUrl}`,
-  };
-  if (recipientName) payload.recipient_name = recipientName;
-  const { error } = await supabase.from('team_chat_messages').insert(payload);
-  if (error) return { error: error.message };
-  revalidatePath('/support');
-  return { error: null };
+export async function uploadTeamChatFile(_senderName: string, _formData: FormData, _recipientName: string | null = null) {
+  return { error: 'Private chat attachments are temporarily unavailable pending secure access controls.' };
 }
 
 export async function getStaffNames() {

@@ -58,7 +58,7 @@ export default function LeavePipeline({ leaves }: { leaves?: LeaveRecord[] | nul
           <h2 className="text-base font-bold text-neutral-900">Leave pipeline</h2>
           <p className="mt-1 text-xs text-neutral-500">Drag a request between stages. Each stage has its own colour for quick recognition.</p>
         </div>
-        <p className="text-xs text-neutral-500">{safeLeaves.length} total request{leaves.length === 1 ? '' : 's'}</p>
+        <p className="text-xs text-neutral-500">{safeLeaves.length} total request{safeLeaves.length === 1 ? '' : 's'}</p>
       </div>
       {message && <div role="status" className={`mb-4 rounded-lg border px-3 py-2 text-sm ${message.startsWith('Could not') ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>{message}</div>}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-4">

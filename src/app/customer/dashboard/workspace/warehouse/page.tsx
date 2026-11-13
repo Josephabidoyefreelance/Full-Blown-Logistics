@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import NewItemForm from './new-item-form';
 import EditItemForm from './edit-item-form';
 import DeleteItemButton from './delete-item-button';
@@ -12,10 +13,12 @@ function num(value: number) {
 }
 
 export default async function WarehousePage() {
+  const tenant = await redirectIfNotCustomerModule('warehouse');
   const supabase = await createClient();
   const { data: inventory, error } = await supabase
     .from('inventory_items')
     .select('id, sku, name, description, qty, reorder_level, location, storage_type, zone, rack, bin, unit, batch_no, expiry_date, supplier, temperature_c, notes')
+    .eq('company_id', tenant.companyId)
     .order('sku');
 
   const items = inventory ?? [];

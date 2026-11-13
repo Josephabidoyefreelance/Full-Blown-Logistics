@@ -1,9 +1,11 @@
 'use server';
 
+import { requireCustomerModule } from '@/lib/customer-tenant';
+import { loadWorkspaceMoney } from '@/lib/customer-workspace-money';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-const VAT_RATE = 0.075;
 
 function revalidateFinance() {
   revalidatePath('/customer/dashboard/workspace/finance');
@@ -27,9 +29,13 @@ function validQuoteStatus(status: string) {
 }
 
 export async function updateInvoiceStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !validInvoiceStatus(status)) return { error: 'Invalid invoice status.' };
   const supabase = await createClient();
-  const { data, error } = await supabase.from('invoices').update({ status }).eq('id', id).select('id').maybeSingle();
+  const { data, error } = await supabase.from('invoices').update({ status }).eq('id', id).select('id').eq('company_id', tenantCompanyId).maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: 'Invoice was not updated. Check the record and database permissions.' };
   revalidateFinance();
@@ -37,9 +43,13 @@ export async function updateInvoiceStatus(id: string, status: string) {
 }
 
 export async function updateExpenseStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !validExpenseStatus(status)) return { error: 'Invalid expense status.' };
   const supabase = await createClient();
-  const { data, error } = await supabase.from('expenses').update({ status }).eq('id', id).select('id').maybeSingle();
+  const { data, error } = await supabase.from('expenses').update({ status }).eq('id', id).select('id').eq('company_id', tenantCompanyId).maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: 'Expense was not updated. Check the record and database permissions.' };
   revalidateFinance();
@@ -47,9 +57,13 @@ export async function updateExpenseStatus(id: string, status: string) {
 }
 
 export async function updatePurchaseOrderStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !validPOStatus(status)) return { error: 'Invalid purchase order status.' };
   const supabase = await createClient();
-  const { data, error } = await supabase.from('purchase_orders').update({ status }).eq('id', id).select('id').maybeSingle();
+  const { data, error } = await supabase.from('purchase_orders').update({ status }).eq('id', id).select('id').eq('company_id', tenantCompanyId).maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: 'Purchase order was not updated. Check the record and database permissions.' };
   revalidateFinance();
@@ -57,17 +71,21 @@ export async function updatePurchaseOrderStatus(id: string, status: string) {
 }
 
 export async function updateQuotationStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !validQuoteStatus(status)) return { error: 'Invalid quotation status.' };
   const supabase = await createClient();
-  const { data, error } = await supabase.from('quotations').update({ status }).eq('id', id).select('id').maybeSingle();
+  const { data, error } = await supabase.from('quotations').update({ status }).eq('id', id).select('id').eq('company_id', tenantCompanyId).maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: 'Quotation was not updated. Check the record and database permissions.' };
   revalidateFinance();
   return { error: null };
 }
 
-async function nextInvoiceNo(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data } = await supabase.from('invoices').select('invoice_no');
+async function nextInvoiceNo(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string) {
+  const { data } = await supabase.from('invoices').select('invoice_no').eq('company_id', companyId);
   let maxNum = 400;
   for (const row of data ?? []) {
     const match = String(row.invoice_no ?? '').match(/(\d+)$/);
@@ -77,6 +95,10 @@ async function nextInvoiceNo(supabase: Awaited<ReturnType<typeof createClient>>)
 }
 
 export async function createInvoice(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const customer_name = String(formData.get('customer_name') ?? '').trim();
   const amountRaw = String(formData.get('amount') ?? '').trim();
@@ -88,18 +110,20 @@ export async function createInvoice(formData: FormData) {
   if (!Number.isFinite(amount) || amount <= 0) return { error: 'Invoice subtotal must be greater than zero.' };
   if (!validInvoiceStatus(status)) return { error: 'Invalid invoice status.' };
 
-  // amount is the pre-VAT subtotal. VAT is always calculated by the system at 7.5%.
-  const tax_amount = Math.round(amount * VAT_RATE * 100) / 100;
+  // Each tenant defines its own tax rate. The subtotal remains in the
+  // selected workspace currency; changing currency does not convert amounts.
+  const {taxRate} = await loadWorkspaceMoney(supabase, tenantCompanyId);
+  const tax_amount = Math.round(amount * (taxRate / 100) * 100) / 100;
   const total_amount = Math.round((amount + tax_amount) * 100) / 100;
-  const invoice_no = await nextInvoiceNo(supabase);
+  const invoice_no = await nextInvoiceNo(supabase, tenantCompanyId);
 
-  const { error } = await supabase.from('invoices').insert({
+  const { error } = await supabase.from('invoices').insert({ company_id: tenantCompanyId,
     invoice_no,
     customer_name,
     amount,
     invoice_date,
     status,
-    tax_rate: VAT_RATE * 100,
+    tax_rate: Math.round(taxRate * 100) / 100,
     tax_amount,
     total_amount,
   });
@@ -110,6 +134,10 @@ export async function createInvoice(formData: FormData) {
 }
 
 export async function createExpense(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const category = String(formData.get('category') ?? '').trim();
   const vendor = String(formData.get('vendor') ?? '').trim();
@@ -122,13 +150,17 @@ export async function createExpense(formData: FormData) {
   if (!Number.isFinite(amount) || amount <= 0) return { error: 'Expense amount must be greater than zero.' };
   if (!validExpenseStatus(status)) return { error: 'Invalid expense status.' };
 
-  const { error } = await supabase.from('expenses').insert({ category, vendor, amount, expense_date, status });
+  const { error } = await supabase.from('expenses').insert({ company_id: tenantCompanyId, category, vendor, amount, expense_date, status });
   if (error) return { error: error.message };
   revalidateFinance();
   return { error: null };
 }
 
 export async function createPayrollEntry(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const name = String(formData.get('name') ?? '').trim();
   const role_title = String(formData.get('role_title') ?? '').trim();
@@ -141,15 +173,15 @@ export async function createPayrollEntry(formData: FormData) {
   if (!Number.isFinite(gross_pay) || gross_pay < 0) return { error: 'Gross pay is invalid.' };
   if (!Number.isFinite(deductions) || deductions < 0 || deductions > gross_pay) return { error: 'Deductions are invalid.' };
 
-  const { error } = await supabase.from('employees').insert({ name, role_title, gross_pay, deductions });
+  const { error } = await supabase.from('employees').insert({ company_id: tenantCompanyId, name, role_title, gross_pay, deductions });
   if (error) return { error: error.message };
   revalidateFinance();
   return { error: null };
 }
 
-async function nextPurchaseOrderNo(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function nextPurchaseOrderNo(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string) {
   // Do not depend on created_at: older JAAD purchase-order tables may not have it.
-  const { data, error } = await supabase.from('purchase_orders').select('po_no');
+  const { data, error } = await supabase.from('purchase_orders').select('po_no').eq('company_id', companyId);
   if (error) throw new Error(`Could not read purchase-order history: ${error.message}`);
 
   let maxNum = 100;
@@ -161,6 +193,10 @@ async function nextPurchaseOrderNo(supabase: Awaited<ReturnType<typeof createCli
 }
 
 export async function createPurchaseOrder(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const supplier = String(formData.get('supplier') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim() || null;
@@ -175,7 +211,7 @@ export async function createPurchaseOrder(formData: FormData) {
 
   let po_no: string;
   try {
-    po_no = await nextPurchaseOrderNo(supabase);
+    po_no = await nextPurchaseOrderNo(supabase, tenantCompanyId);
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Could not generate purchase-order number.' };
   }
@@ -183,6 +219,7 @@ export async function createPurchaseOrder(formData: FormData) {
   // Write the current Finance fields and the original JAAD field aliases together.
   // This keeps new records visible to both the current history table and older data.
   const payload = {
+    company_id: tenantCompanyId,
     po_no,
     supplier,
     description,
@@ -211,8 +248,8 @@ export async function createPurchaseOrder(formData: FormData) {
   return { error: null, purchaseOrder: data };
 }
 
-async function nextQuotationRef(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data } = await supabase.from('quotations').select('ref');
+async function nextQuotationRef(supabase: Awaited<ReturnType<typeof createClient>>, companyId: string) {
+  const { data } = await supabase.from('quotations').select('ref').eq('company_id', companyId);
   let maxNum = 1000;
   for (const row of data ?? []) {
     const match = String(row.ref ?? '').match(/(\d+)$/);
@@ -222,6 +259,10 @@ async function nextQuotationRef(supabase: Awaited<ReturnType<typeof createClient
 }
 
 export async function createQuotation(formData: FormData) {
+  const tenantAccess = await requireCustomerModule('finance');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const customer_name = String(formData.get('customer_name') ?? '').trim();
   const route = String(formData.get('route') ?? '').trim() || null;
@@ -234,8 +275,8 @@ export async function createQuotation(formData: FormData) {
   if (!Number.isFinite(amount) || amount < 0) return { error: 'Quotation amount is invalid.' };
   if (!validQuoteStatus(status)) return { error: 'Invalid quotation status.' };
 
-  const ref = await nextQuotationRef(supabase);
-  const { error } = await supabase.from('quotations').insert({ ref, customer_name, route, amount, quote_date, status });
+  const ref = await nextQuotationRef(supabase, tenantCompanyId);
+  const { error } = await supabase.from('quotations').insert({ company_id: tenantCompanyId, ref, customer_name, route, amount, quote_date, status });
   if (error) return { error: error.message };
   revalidateFinance();
   return { error: null };

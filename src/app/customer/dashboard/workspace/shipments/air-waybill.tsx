@@ -1,3 +1,5 @@
+'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 import Image from 'next/image';
 
 type CargoItem = {
@@ -40,6 +42,7 @@ function nairaFmt(n: number) {
 }
 
 export default function AirWaybill({ booking, cargoItems }: { booking: Booking; cargoItems: CargoItem[] }) {
+  const { format: nairaFmt } = useCustomerWorkspaceMoney();
   const stampColor = STAMP_COLORS[booking.status] ?? '#888';
 
   return (

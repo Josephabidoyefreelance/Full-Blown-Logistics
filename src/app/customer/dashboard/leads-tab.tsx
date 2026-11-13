@@ -235,7 +235,7 @@ function LeadDetailModal({ lead, onClose, onUpdated }: { lead: Lead; onClose: ()
   );
 }
 
-export default function LeadsTab() {
+export default function LeadsTab({ ownerUserId: _ownerUserId }: { ownerUserId?: string | null } = {}) {
   const supabase = createClient();
 
   const [leads, setLeads] = useState<Lead[]>([]);

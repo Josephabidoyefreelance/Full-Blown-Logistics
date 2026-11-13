@@ -12,6 +12,7 @@ export default function CustomerSignupPage() {
 
   const [step, setStep] = useState<'details' | 'code'>('details');
   const [name, setName] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -19,8 +20,8 @@ export default function CustomerSignupPage() {
   const [loading, setLoading] = useState(false);
 
   async function sendCode() {
-    if (!name.trim() || !email.trim() || !phone.trim()) {
-      setError('Please fill in your name, email, and phone number.');
+    if (!name.trim() || !businessName.trim() || !email.trim() || !phone.trim()) {
+      setError('Please fill in your business name, name, email, and phone number.');
       return;
     }
     setError(null);
@@ -59,32 +60,29 @@ export default function CustomerSignupPage() {
       return;
     }
 
-    // Matches your real customers table: name, type, contact, credit_limit,
-    // balance, status, client_since, plus the new user_id/email/phone columns.
-    await supabase.from('customers').insert({
-      user_id: data.user.id,
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      contact: phone.trim(),
-      type: 'Individual',
-      status: 'Active',
-      client_since: new Date().toISOString().slice(0, 10),
-      credit_limit: 0,
-      balance: 0,
-    });
-
-    // Also drop this signup into the CRM as a new lead, so sales sees it.
-    await supabase.from('leads').insert({
-      company: name.trim(),
-      contact_name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      source: 'Website',
-      priority: 'Warm',
-      status: 'New',
-      value: 0,
-    });
+    const accessToken = data.session?.access_token;
+    if (!accessToken) {
+      setLoading(false);
+      setError('Could not establish a verified session. Please sign in again.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/customer/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ businessName: businessName.trim(), contactName: name.trim(), phone: phone.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || 'Registration could not be completed.');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError('Network error during registration. Please try again.');
+      setLoading(false);
+      return;
+    }
 
     setLoading(false);
     router.push('/customer/dashboard');
@@ -104,6 +102,10 @@ export default function CustomerSignupPage() {
               <p className="mb-6 text-[13.5px] text-[#6c6c72]">Track shipments, view invoices, and talk to our team, all in one place.</p>
 
               <div className="space-y-3.5">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#6c6c72]">Business name</label>
+                  <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} className="w-full rounded-sm border border-[#d8d8db] px-3.5 py-2.5 text-sm outline-none focus:border-[#e5231b]" />
+                </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#6c6c72]">Full name</label>
                   <input

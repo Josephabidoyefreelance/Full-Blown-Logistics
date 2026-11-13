@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState, useTransition } from 'react';
 import { getVehicleMaintenanceHistory } from './actions';
@@ -11,6 +12,7 @@ function money(value: number | null) {
 }
 
 export default function MaintenanceRecordsButton({ vehicles }: { vehicles: Vehicle[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState('');
   const [records, setRecords] = useState<RecordRow[] | null>(null);

@@ -29,7 +29,9 @@ export default function InventoryTab({
   muted,
   onLowStock,
   onCreateInvoice,
+  ownerUserId: _ownerUserId,
 }: {
+  ownerUserId?: string | null;
   muted?: boolean;
   onLowStock?: () => void;
   onCreateInvoice?: (item: { description: string; quantity: string }) => void;

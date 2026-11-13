@@ -1,0 +1,41 @@
+JAAD STAGE 2 — INTEGRATED STATIC CHECK REPORT
+---------------------------------------------
+Overlay TypeScript/TSX files: 18 (13 modified; 5 new)
+TypeScript syntax/transpile checks: PASS (18 files, 0 errors)
+Local imports checked: PASS (57 path imports)
+Existing login branding and JSX: UNCHANGED (both login pages)
+Original customer dashboard header JSX: UNCHANGED
+No CSS, public images, logos, homepage or footer files included: PASS
+Original schema company guards addressed: 32/32 (customers separate)
+Trial/provisioning/tenant binding/subscription/plan/RPC security markers: PRESENT
+Untrusted email hardcodes: NONE in overlay TypeScript
+SQL BEGIN/COMMIT, dollar quote balance: STATIC CHECK PASS
+SQL migration SHA256: 8a48b48d1ab82a6aae186a74d5bb004af6782fe2eeffadc5b455e2984695e04f
+Full production build: NOT RUN (node_modules are not included)
+PostgreSQL migration syntax and execution: NOT RUN (no PostgreSQL connection/parser)
+Flutterwave sandbox payment: NOT TESTED (credentials/connected service unavailable)
+Live authenticated multi-tenant and storage tests: NOT RUN (needs staged Supabase JWTs)
+
+Status: STAGING CANDIDATE; NOT production-certified. Stage 2 remains open.
+
+Modified files:
+src/app/(app)/packages/page.tsx
+src/app/api/billing/callback/route.ts
+src/app/api/billing/checkout/route.ts
+src/app/customer/dashboard/layout.tsx
+src/app/customer/dashboard/page.tsx
+src/app/customer/dashboard/portal-page.tsx
+src/app/customer/dashboard/profile-menu.tsx
+src/app/customer/dashboard/tenant-crm/actions.ts
+src/app/customer/dashboard/tenant-crm/page.tsx
+src/app/customer/dashboard/workspace/layout.tsx
+src/app/customer/login/page.tsx
+src/app/customer/page.tsx
+src/lib/customer-tenant.ts
+
+New files:
+src/app/api/customer/active-tenant/route.ts
+src/app/customer/accept-invite/page.tsx
+src/app/customer/dashboard/select-workspace/page.tsx
+src/lib/customer-active-tenant.ts
+src/lib/customer-billing-workspace.ts

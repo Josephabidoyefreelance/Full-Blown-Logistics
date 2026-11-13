@@ -231,3 +231,22 @@ export async function getVehicleMaintenanceHistory(vehicleId: string) {
   if (error) return { error: error.message, records: [] };
   return { error: null, records: data ?? [] };
 }
+
+export async function updateInsuranceExpiry(id: string, insurance_expiry: string) {
+  if (!id || (insurance_expiry && !/^\d{4}-\d{2}-\d{2}$/.test(insurance_expiry))) return { error: 'Invalid insurance expiry date.' };
+  const s = await createClient();
+  const { data: { user } } = await s.auth.getUser();
+  if (!user) return { error: 'Authentication required.' };
+  const { error } = await s.from('fleet_vehicles').update({ insurance_expiry: insurance_expiry || null }).eq('id', id);
+  if (!error) revalidatePath('/fleet');
+  return { error: error?.message ?? null };
+}
+export async function updateInsurer(id: string, insurer: string) {
+  if (!id) return { error: 'Vehicle ID required.' };
+  const s = await createClient();
+  const { data: { user } } = await s.auth.getUser();
+  if (!user) return { error: 'Authentication required.' };
+  const { error } = await s.from('fleet_vehicles').update({ insurer: insurer.trim() || null }).eq('id', id);
+  if (!error) revalidatePath('/fleet');
+  return { error: error?.message ?? null };
+}

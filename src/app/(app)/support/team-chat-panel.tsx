@@ -1,4 +1,5 @@
 'use client';
+import ChatImage from './chat-image';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
@@ -157,7 +158,7 @@ export default function TeamChatPanel({
     if (attachment) {
       const [, filename, url] = attachment;
       if (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(filename) || /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(url)) {
-        return <a href={url} target="_blank" rel="noreferrer" className="block"><img src={url} alt={filename || 'Team chat image'} className="max-h-72 max-w-full rounded-lg object-contain" /><span className="mt-1 block text-xs underline">{filename || 'Open image'}</span></a>;
+        return <ChatImage src={url} alt={filename || "Team chat image"} />;
       }
       return <a href={url} target="_blank" rel="noreferrer" download className="inline-flex items-center gap-2 rounded-lg border border-current/20 px-3 py-2 underline"><span>📎</span><span className="break-all">{filename || 'Download attachment'}</span></a>;
     }

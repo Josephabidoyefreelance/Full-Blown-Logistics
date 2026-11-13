@@ -36,10 +36,14 @@ function toXlsxBuffer(rows: Record<string, unknown>[], columns: string[], sheetT
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
+}
+
 function toPrintableHtml(rows: Record<string, unknown>[], columns: string[], title: string): string {
   const headers = columns.map((c) => `<th>${columnLabel(c)}</th>`).join('');
   const bodyRows = rows.map((r) =>
-    `<tr>${columns.map((c) => `<td>${String(r[c] ?? '')}</td>`).join('')}</tr>`
+    `<tr>${columns.map((c) => `<td>${escapeHtml(r[c])}</td>`).join('')}</tr>`
   ).join('');
 
   return `<!DOCTYPE html>
@@ -78,9 +82,43 @@ export async function GET(request: Request, { params }: { params: Promise<{ cate
   }
 
   const format = new URL(request.url).searchParams.get('format') ?? 'csv';
+  if (!['csv', 'xlsx', 'pdf'].includes(format)) {
+    return NextResponse.json({ error: 'Unsupported report format.' }, { status: 400 });
+  }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from(config.table).select(config.columns.join(','));
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  }
+
+  // Resolve company membership on the server. Never accept a company ID from the URL.
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('company_id, status')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (profileError || !profile?.company_id ||
+      String(profile.status ?? 'Active').toLowerCase() !== 'active') {
+    return NextResponse.json({ error: 'Active company membership required.' }, { status: 403 });
+  }
+
+  // Double-check the company exists and is accessible to this authenticated user.
+  const { data: company, error: companyError } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('id', profile.company_id)
+    .maybeSingle();
+  if (companyError || !company) {
+    return NextResponse.json({ error: 'Company access denied.' }, { status: 403 });
+  }
+
+  // Fail closed if a report table has not yet been migrated to company_id.
+  // The user-scoped Supabase client also enforces the table's RLS policies.
+  const { data, error } = await supabase
+    .from(config.table)
+    .select(config.columns.join(','))
+    .eq('company_id', company.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 403 });
@@ -99,7 +137,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cate
 
   if (format === 'xlsx') {
     const xlsxBuffer = toXlsxBuffer(rows, config.columns, config.label);
-    return new NextResponse(xlsxBuffer, {
+    return new NextResponse(new Uint8Array(xlsxBuffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${category}-report.xlsx"`,

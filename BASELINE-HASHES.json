@@ -1,0 +1,118 @@
+{
+  "lib/customer-workspace-money.ts": [
+    "c29ad1172d01d92cd4c79099390a8784a0d827e6602d6498b86e1801f29b1b1f"
+  ],
+  "lib/customer-billing-workspace.ts": [
+    "29904aee1df96c7362111f1509bbdd2286fcfdfb3102df2a9c8d1f4ca46d1d98"
+  ],
+  "lib/customer-active-tenant.ts": [
+    "b96fa8d89cc133c646f1428940202c5cde2328b38c05a918db46fd18c5cf58b8"
+  ],
+  "components/profile-menu.tsx": [
+    "225c7c698f921f23927f25a5b80ac4b2e05bb74dbe566dec016e22fadc6b1655",
+    "30318a0e66d250af3221d04921881f4ec7b6db9f78f41db427776921349c9752",
+    "47b1c3b17f04e7a0993f632def109e0701465eeb91b0f4b4a1f660be6ecfcec0",
+    "d263c10e5d1f9f83d2152572e5ba039525be042419497cd31397099d24889424"
+  ],
+  "components/customer-workspace-preferences.tsx": [
+    "__NEW__"
+  ],
+  "app/api/customer/workspace-logo/route.ts": [
+    "__NEW__"
+  ],
+  "app/api/customer/workspace-settings/route.ts": [
+    "310ffb5a3f53f8ac9542511e1b84b1ab359363f49aa39bc8315e48d082a2c61d",
+    "923651b1cc52814dbe59edba9b24179e302ffc07466d354792a1179d33c5497d",
+    "95d5ea6f297393957bfeb97fef442a83b0486a1f04ad1d6e60da5894cf7b6043"
+  ],
+  "app/customer/dashboard/customer-sidebar-logo.tsx": [
+    "e8211783326c4eb989358c5e68c29ec1924a1c9ef086472faefd1ae1a3895881"
+  ],
+  "app/customer/dashboard/layout.tsx": [
+    "52128da1cdf3d9631e17d112b3b7a5b5cc93e45af207005b6e5b795d901537a8",
+    "816dbb4bed1eb4d7b7f6107c046e5fad8ef494b81b096fe1de1a406bb1626dc6",
+    "8f078b039447d316c2f90384575f61114eebbf5c79cd57cffec06b6d4fd988ef"
+  ],
+  "app/customer/dashboard/workspace/finance/page.tsx": [
+    "132b7717e09d0701d5b12edaa642e6b42e551432e8622ec65abf1579faaeb326",
+    "b47e847165003c3ee680fdcf66c6f8097611eb912e7a9f5b5fcb8a60c6066d7b"
+  ],
+  "app/customer/dashboard/workspace/finance/purchase-order-modal.tsx": [
+    "58ba3ed377f331c223d80248e31e34ecb574ad6a3bd06a493b2f4c500b7fc0b3"
+  ],
+  "app/customer/dashboard/workspace/finance/new-payroll-form.tsx": [
+    "6a54995f8f400812369c1ede4f68fb7f9cd8e96dfd061b546675e0cb53a7a541"
+  ],
+  "app/customer/dashboard/workspace/finance/payslip-modal.tsx": [
+    "5028618df09368214e8ac652493beb8d5f3acb5f22e86a40731257a9903fa197"
+  ],
+  "app/customer/dashboard/workspace/finance/new-quotation-form.tsx": [
+    "91baf8655ec352f5e836aec5e94df3f3ea7f95534d8f694058a57ae5a1e034c6"
+  ],
+  "app/customer/dashboard/workspace/finance/new-purchase-order-form.tsx": [
+    "57500ffe6f7dc494c9febc1dd557c4700dc4ff32ed4acdb6801720aa9510d2ae"
+  ],
+  "app/customer/dashboard/workspace/finance/quotation-modal.tsx": [
+    "0ba57295d60882f16c2368d60f4ff94d10d12e4b9cb9291053d94c3f178a68ae"
+  ],
+  "app/customer/dashboard/workspace/finance/invoice-modal.tsx": [
+    "234f15b5fdfd4c45685ed8ac31a029d77a891395ab1bae16fc6599479610906b"
+  ],
+  "app/customer/dashboard/workspace/finance/expense-receipt-modal.tsx": [
+    "b036fe66d7e6b7b7cc696cdabf5c234c8f3053073a829cdd699b8a750533c205"
+  ],
+  "app/customer/dashboard/workspace/finance/new-invoice-form.tsx": [
+    "2c7d2545db01c14f339bbc90be66b21d9484f0be318b8f76a348aed9f32d6373"
+  ],
+  "app/customer/dashboard/workspace/finance/new-expense-form.tsx": [
+    "58084c0673f634ce26cb1ed0e25a6b3e0d7c1516c78dd8d56852bb6b73d2cd73"
+  ],
+  "app/customer/dashboard/workspace/fleet/page.tsx": [
+    "9e2da3cd9b695807ea785d5cba2f51fd252c5971849b70f7f04acc6069c06025"
+  ],
+  "app/customer/dashboard/workspace/fleet/add-maintenance-form.tsx": [
+    "00e35342b9ea0639a8ff41843a5f0da219fbfcc2d479e301ed484d49c9b25a3b"
+  ],
+  "app/customer/dashboard/workspace/fleet/maintenance-records-modal.tsx": [
+    "ca14e3f99e9e8bf6dd63ab99badc22a6e7c18c3acfca1effab6046d50379de8a"
+  ],
+  "app/customer/dashboard/workspace/fleet/add-insurance-form.tsx": [
+    "5ea3835409f8d585107200f4011256d2f4fa0fb96c8c342ce121dbde069fc11e"
+  ],
+  "app/customer/dashboard/workspace/shipments/page.tsx": [
+    "359583b29faa3ac4d9b60c34c8a59883d4420001cd2485304ba607ae53ff9352"
+  ],
+  "app/customer/dashboard/workspace/shipments/air-waybill.tsx": [
+    "cf26cfa989a17aef65f030aec66ff7538e9f668b9199bf2aae042c8dbb7f5b30"
+  ],
+  "app/customer/dashboard/workspace/shipments/new-booking-form.tsx": [
+    "9fe3f1659927e01f58edae866145fa56f5ef82f9a601d00c00c0e3313cbbc937"
+  ],
+  "app/customer/dashboard/workspace/crm/new-lead-form.tsx": [
+    "790d205b203d0011d432a1a62256a9a09f1b314ebbdd9ca8a79c784fdfbef014"
+  ],
+  "app/customer/dashboard/workspace/crm/page.tsx": [
+    "f9cd83f474d1e01257be9f48ed04db725f9591766840ed32b4eb46c5a3db4091"
+  ],
+  "app/customer/dashboard/workspace/crm/lead-detail-modal.tsx": [
+    "5cc3672b11643a1d1284507328bf02cde2cf1ae923729299fe11ff17caff3c66"
+  ],
+  "app/customer/dashboard/workspace/crm/kanban-board.tsx": [
+    "16f1c6f8e4bde829f0778b59be897d11f2f7fb3d93f7faa8966a3f0f573ddd58"
+  ],
+  "app/customer/dashboard/workspace/crm/actions.ts": [
+    "f300e38df7eeea37c08d4b595dc96d613f1104a41a45fee4dba98281ece74f35"
+  ],
+  "app/customer/dashboard/workspace/customers/customer-dashboard-page.tsx": [
+    "7c55be54fbd83ed2e07c5f89195cd74ea7c2cf88809ddf72628c1de2c247cdeb"
+  ],
+  "app/customer/dashboard/workspace/customers/new-account-form.tsx": [
+    "d573b9f9e3bb1dac14fe9c5e3f76e3e184751fc4f3b4773c56fedba9c00281c3"
+  ],
+  "app/customer/dashboard/workspace/customers/customer-table.tsx": [
+    "4a5776d3b7916724f9db2f8291ee034a7c0986aba161039d3f39440a69b96827"
+  ],
+  "app/customer/dashboard/workspace/customers/customer-detail-modal.tsx": [
+    "19e4efb7266f708b6674ab87ebf2de164162cd876786f181748fff1682e031d3"
+  ]
+}

@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useRef, useState, useTransition } from 'react';
 import { createInsurancePolicy } from './actions';
@@ -7,6 +8,7 @@ const input = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 te
 const label = 'mb-1 block text-xs font-medium text-neutral-500';
 
 export default function AddInsuranceForm({ vehicles }: { vehicles: { id: string; plate: string }[] }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -41,7 +43,7 @@ export default function AddInsuranceForm({ vehicles }: { vehicles: { id: string;
               <div><label className={label}>Insurer</label><input name="insurer" required placeholder="AXA Mansard" className={input} /></div>
               <div><label className={label}>Policy number</label><input name="policy_number" placeholder="POL-2026-001" className={input} /></div>
               <div><label className={label}>Coverage</label><input name="coverage_type" placeholder="Comprehensive / Third Party" className={input} /></div>
-              <div><label className={label}>Premium (₦)</label><input type="number" min="0" name="premium" className={input} /></div>
+              <div><label className={label}>Premium ({currency})</label><input type="number" min="0" name="premium" className={input} /></div>
               <div><label className={label}>Start date</label><input type="date" name="start_date" className={input} /></div>
               <div><label className={label}>Expiry date</label><input type="date" name="expiry_date" className={input} /></div>
             </div>

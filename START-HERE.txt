@@ -1,0 +1,5 @@
+Extract both files into Downloads (not nested folder). Run PowerShell:
+Set-ExecutionPolicy -Scope Process Bypass -Force
+& "$env:USERPROFILE\Downloads\INSTALL-JAAD-STAGE5-02B-TEST.ps1"
+
+This tests in a separate copy and DOES NOT modify your live project. SQL already applied; do not rerun.

@@ -1,0 +1,3450 @@
+﻿
+======================================================================
+FILE: src/app/customer/dashboard/layout.tsx
+======================================================================
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Fragment } from 'react';
+import CustomerNavLink from './customer-nav-link';
+import { createClient } from '@/lib/supabase/server';
+import DarkModeToggle from '@/components/dark-mode-toggle';
+import SoundToggle from '@/components/sound-toggle';
+import ProfileMenu from '@/components/profile-menu';
+import CustomerSignOutButton from './customer-sign-out-button';
+import CustomerDigitalClock from './customer-digital-clock';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+type Item = { label: string; href: string; icon: string };
+type Group = { title: string; items: Item[] };
+const GROUPS: Group[] = [
+ { title: 'OVERVIEW', items: [{label:'Dashboard',href:'/dashboard?view=overview',icon:'dashboard'}] },
+ { title: 'REVENUE & CLIENTS', items: [
+   {label:'CRM & Leads',href:'/dashboard/workspace/crm',icon:'crm'},
+   {label:'Customer Management',href:'/dashboard/workspace/customers',icon:'customers'},
+ ]},
+ { title: 'OPERATIONS', items: [
+   {label:'Shipment Operations',href:'/dashboard/workspace/shipments',icon:'shipments'},
+   {label:'Fleet',href:'/dashboard/workspace/fleet',icon:'fleet'},
+   {label:'Driver Management',href:'/dashboard/workspace/drivers',icon:'drivers'},
+   {label:'Warehouse',href:'/dashboard/workspace/warehouse',icon:'warehouse'},
+ ]},
+ { title: 'FINANCE & PEOPLE', items: [
+   {label:'Finance',href:'/dashboard/workspace/finance',icon:'finance'},
+   {label:'HR & Careers',href:'/dashboard/workspace/hr',icon:'hr'},
+ ]},
+ { title: 'SERVICE & INSIGHT', items: [
+   {label:'Reports',href:'/dashboard/workspace/reports',icon:'reports'},
+   {label:'Clock Tracker',href:'/dashboard/workspace/clock-tracker',icon:'clock'},
+   {label:'Calendar',href:'/dashboard/workspace/calendar',icon:'calendar'},
+   {label:'AI Assistant',href:'/dashboard/workspace/ai-chat',icon:'ai'},
+ ]},
+];
+const SUPPORT_ITEMS: Item[] = [
+ {label:'Live Chat',href:'/dashboard/workspace/support?view=livechat',icon:'chat'},
+ {label:'Email',href:'/dashboard/workspace/support?view=email',icon:'email'},
+ {label:'SMS',href:'/dashboard/workspace/support?view=sms',icon:'sms'},
+ {label:'Call',href:'/dashboard/workspace/support?view=call',icon:'call'},
+ {label:'WhatsApp',href:'/dashboard/workspace/support?view=whatsapp',icon:'whatsapp'},
+];
+function Icon({ name }: { name: string }) {
+ const paths: Record<string, React.ReactNode> = {
+  dashboard:<><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
+  crm:<><path d="M4 19v-1.5A3.5 3.5 0 0 1 7.5 14h2A3.5 3.5 0 0 1 13 17.5V19"/><circle cx="8.5" cy="7.5" r="3"/><path d="M16 11a3 3 0 1 0-1-5.8M16 14h1a3 3 0 0 1 3 3v2"/></>,
+  customers:<><circle cx="9" cy="8" r="3"/><path d="M3 20c.4-3.3 2.4-5 6-5s5.6 1.7 6 5M17 5.5a3 3 0 0 1 0 5.8M18 15c1.8.5 2.8 2.1 3 5"/></>,
+  shipments:<><path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Z"/><path d="M3 7.5V17l9 4 9-4V7.5M12 12v9"/></>,
+  fleet:<><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></>,
+  drivers:<><circle cx="12" cy="7" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2M18 4l2 2-2 2"/></>,
+  warehouse:<><path d="m3 10 9-6 9 6v10H3zM7 20v-6h10v6M7 10h10"/></>,
+  finance:<><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 14h4"/></>,
+  packages:<><path d="m12 3 9 5-9 5-9-5 9-5ZM3 8v9l9 5 9-5V8M12 13v9"/></>,
+  admin:<><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></>,
+  hr:<><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a7 7 0 0 1 14 0v2M4 5l2-2M20 5l-2-2"/></>,
+  support:<><path d="M4 13v-2a8 8 0 0 1 16 0v2M4 13H3v4h4v-4H4ZM20 13h1v4h-4v-4h3ZM17 20h-5"/></>,
+  reports:<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+  clock:<><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  calendar:<><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h2M14 14h2M8 17h2"/></>,
+  ai:<><path d="M12 3 14 9l6 3-6 2-2 7-2-7-6-2 6-3 2-6Z"/></>,
+  chat:<><path d="M4 5h16v11H9l-5 4V5Z"/></>, email:<><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>,
+  sms:<><path d="M4 4h16v13H9l-5 3V4Z"/><path d="M8 9h8M8 12h5"/></>,
+  call:<><path d="M6 3h4l2 5-3 2a15 15 0 0 0 5 5l2-3 5 2v4c0 1-1 2-2 2C10 20 4 14 4 5c0-1 1-2 2-2Z"/></>,
+  whatsapp:<><path d="M20 11a8 8 0 0 1-12 7L4 19l1-4a8 8 0 1 1 15-4Z"/><path d="M9 8c1 3 2 4 5 5"/></>,
+ };
+ return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name] ?? paths.dashboard}</svg>;
+}
+const ICON_TONE: Record<string, string> = {
+ dashboard: 'text-violet-400', crm: 'text-amber-400', customers: 'text-sky-400',
+ shipments: 'text-emerald-400', fleet: 'text-orange-400', drivers: 'text-violet-400',
+ warehouse: 'text-teal-400', finance: 'text-emerald-400', packages: 'text-teal-400',
+ hr: 'text-pink-400', support: 'text-red-400', reports: 'text-blue-400',
+ clock: 'text-amber-400', calendar: 'text-violet-400', ai: 'text-cyan-400',
+ chat: 'text-emerald-400', email: 'text-blue-400', sms: 'text-violet-400',
+ call: 'text-amber-400', whatsapp: 'text-emerald-400', admin: 'text-slate-300',
+};
+function NavItem({ item, compact = false }: { item: Item; compact?: boolean }) {
+ return <CustomerNavLink href={item.href} compact={compact}>
+   <span className={`grid h-5 w-5 shrink-0 place-items-center rounded bg-neutral-900 ${ICON_TONE[item.icon] ?? 'text-neutral-300'} group-hover:text-white`}><Icon name={item.icon}/></span>
+   <span className="min-w-0 flex-1 truncate">{item.label}</span>
+ </CustomerNavLink>;
+}
+export default async function CustomerErpLayout({ children }: { children: React.ReactNode }) {
+ const supabase = await createClient();
+ const { data: { user }, error: authError } = await supabase.auth.getUser();
+ if (authError || !user) redirect('/customer/login');
+ const { data: profile } = await supabase.from('profiles').select('full_name,email,avatar_url,roles(name)').eq('id',user.id).maybeSingle();
+ const roleJoin = profile?.roles; const role = Array.isArray(roleJoin) ? roleJoin[0] : roleJoin;
+ const name = profile?.full_name || profile?.email || user.email || 'Company member';
+
+ // Use the authenticated tenant's brand in the workspace sidebar.
+ const { data: ownerCompany } = await supabase.from('customers').select('name, logo_url').eq('user_id', user.id).maybeSingle();
+ let company: { name?: string | null; logo_url?: string | null } | null = ownerCompany;
+ if (!company) {
+  const { data: membership } = await supabase.from('customer_team_members').select('customers(name, logo_url)').eq('user_id', user.id).neq('status', 'Removed').maybeSingle();
+  const joinedCompany = membership?.customers;
+  company = (Array.isArray(joinedCompany) ? joinedCompany[0] : joinedCompany) as typeof company;
+ }
+ const companyName = company?.name?.trim() || 'Company Workspace';
+ const companyLogo = company?.logo_url || null;
+ return <div className="jaad-customer-theme flex h-screen min-h-0 overflow-hidden bg-neutral-100 text-neutral-900 dark:bg-[#0b0b0d] dark:text-[#f8fafc] print:bg-white">
+  <style>{`
+    .dark .jaad-customer-theme .text-neutral-300 { color: #d1d5db !important; }
+    .dark .jaad-customer-theme .text-neutral-400 { color: #cbd5e1 !important; }
+    .dark .jaad-customer-theme .text-neutral-500 { color: #aebccc !important; }
+    .dark .jaad-customer-theme .text-neutral-600 { color: #9aa8b8 !important; }
+    .dark .jaad-customer-theme .text-neutral-700 { color: #d1d5db !important; }
+    .dark .jaad-customer-theme input, .dark .jaad-customer-theme select, .dark .jaad-customer-theme textarea { color: #f8fafc; color-scheme: dark; }
+    .dark .jaad-customer-theme input::placeholder, .dark .jaad-customer-theme textarea::placeholder { color: #94a3b8; opacity: 1; }
+    .dark .jaad-customer-theme a:focus-visible, .dark .jaad-customer-theme button:focus-visible { outline-color: #f87171; }
+  `}</style>
+  <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col border-r border-neutral-800 bg-black text-neutral-300 print:hidden">
+   <Link href="/customer/dashboard?view=overview" className="flex shrink-0 items-center gap-2 border-b border-neutral-200 px-3 py-4 dark:border-neutral-800">
+    {companyLogo ? <img src={companyLogo} alt={`${companyName} logo`} className="h-8 w-8 shrink-0 rounded-md border border-neutral-700 bg-white object-contain p-0.5" /> : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-neutral-800 bg-neutral-900 text-neutral-200"><Icon name="admin"/></span>}
+    <span className="min-w-0"><span className="block truncate text-sm font-bold text-white">{companyName}</span><span className="block text-[10px] uppercase tracking-widest text-neutral-400">Company workspace</span></span>
+   </Link>
+   <nav aria-label="Customer ERP navigation" className="jaad-customer-scroll min-h-0 flex-1 touch-pan-y overscroll-y-contain overflow-x-hidden overflow-y-auto px-2 py-3">
+    <style>{`.jaad-customer-scroll::-webkit-scrollbar{width:8px}.jaad-customer-scroll::-webkit-scrollbar-track{background:transparent}.jaad-customer-scroll::-webkit-scrollbar-thumb{background:#dc2626!important;border-radius:9999px}.jaad-customer-scroll::-webkit-scrollbar-thumb:hover{background:#ef4444!important}.jaad-customer-scroll{scrollbar-color:#dc2626 transparent;scrollbar-width:thin}`}</style>
+    {GROUPS.map(group=><div key={group.title} className="mb-3"><p className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{group.title}</p><div className="space-y-0.5">{group.items.map(item=><Fragment key={item.label}><NavItem item={item}/>{item.label === 'Finance' && <div className="ml-3 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-2"><NavItem item={{label:'Packages',href:'/packages',icon:'packages'}} compact/></div>}</Fragment>)}{group.title==='SERVICE & INSIGHT' && <details className="group/support" open><summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 rounded-md px-2.5 py-2 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-red-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-neutral-900 text-red-400"><Icon name="support"/></span><span className="flex-1">Support</span><span className="text-[10px] text-neutral-400 transition group-open/support:rotate-180">â–¾</span></summary><div className="mt-1 space-y-0.5 border-l border-neutral-800 pl-2">{SUPPORT_ITEMS.map(item=><NavItem key={item.label} item={item} compact/>)}</div></details>}</div></div>)}
+   </nav>
+   <div className="shrink-0 border-t border-neutral-800 bg-black px-4 py-3 text-[11px] text-neutral-300"><div className="truncate font-medium text-white">{name}</div><div className="mt-0.5 truncate text-neutral-400">{role?.name ?? 'Company member'}</div><CustomerSignOutButton/></div>
+  </aside>
+  <div className="flex min-w-0 flex-1 flex-col">
+   <header className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-3 py-2.5 dark:border-neutral-700 dark:bg-neutral-800 sm:px-5 print:hidden">
+    <div className="truncate text-xs font-semibold text-neutral-900 dark:text-neutral-100">Dashboard</div>
+    <div className="flex min-w-0 items-center gap-2"><CustomerDigitalClock/><span className="mx-1 hidden h-7 w-px bg-neutral-200 dark:bg-neutral-700 sm:block"/><SoundToggle/><DarkModeToggle/><ProfileMenu userId={user.id} name={profile?.full_name ?? ''} role={role?.name ?? 'Company member'} email={profile?.email ?? user.email ?? ''} avatarUrl={profile?.avatar_url ?? null}/></div>
+   </header>
+   <main className="jaad-customer-scroll min-h-0 flex-1 overflow-y-auto p-4 dark:bg-neutral-900 sm:p-5 lg:p-5 print:bg-white print:p-0">{children}</main>
+  </div>
+ </div>;
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/page.tsx
+======================================================================
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import BookShipmentForm from './book-shipment-form';
+import ShipmentDetailTrigger from './shipment-detail-modal';
+import InventoryTab from './inventory-tab';
+import ChatWidget from './chat-widget';
+import SupportTab from './support-tab';
+import LeadsTab from './leads-tab';
+import NotesTab from './notes-tab';
+import CalculatorTab from './calculator-tab';
+import InvoiceDetailTrigger from './invoice-detail-modal';
+import MyInvoicesTab from './my-invoices-tab';
+import ReportTab from './report-tab';
+import OverviewTab from './overview-tab';
+import UtilitiesTab from './utilities-tab';
+import AdministratorTab from './administrator-tab';
+import type { StaffRole } from './roles-config';
+
+type Tab = 'overview' | 'inventory' | 'leads' | 'shipments' | 'track' | 'invoices' | 'notes' | 'report' | 'profile' | 'calculator' | 'support' | 'utilities' | 'administrator';
+
+const ALL_TABS: { key: Tab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'shipments', label: 'My Shipments' },
+  { key: 'track', label: 'Track' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'report', label: 'Report' },
+  { key: 'support', label: 'Support' },
+  { key: 'profile', label: 'Profile' },
+  { key: 'calculator', label: 'Calculator' },
+  { key: 'utilities', label: 'Utilities' },
+  { key: 'administrator', label: 'Administrator' },
+];
+
+const TAB_ICONS: Record<Tab, string> = {
+  overview: 'â–¦', inventory: 'â–¤', leads: 'â™™', shipments: 'â–£', track: 'âŒ–',
+  invoices: 'â–§', notes: 'â˜·', report: 'â–¥', profile: 'â—‰', calculator: 'âˆ‘',
+  support: 'â—Œ', utilities: 'âš™', administrator: 'âš™',
+};
+
+type Customer = {
+  name: string;
+  email: string;
+  phone: string;
+  balance: number;
+  avatar_url: string | null;
+  logo_url: string | null;
+  currency: string | null;
+  timezone: string | null;
+  tax_rate: number | null;
+  support_phone: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  address?: string | null;
+};
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  NGN: 'â‚¦', USD: '$', GBP: 'Â£', EUR: 'â‚¬', CAD: 'CA$', AUD: 'A$', NZD: 'NZ$',
+  GHS: 'â‚µ', KES: 'KSh', ZAR: 'R', UGX: 'USh', TZS: 'TSh', RWF: 'RF',
+  XOF: 'CFA', XAF: 'FCFA', EGP: 'EÂ£', MAD: 'Ø¯.Ù….', INR: 'â‚¹', PKR: 'â‚¨',
+  BDT: 'à§³', CNY: 'Â¥', JPY: 'Â¥', KRW: 'â‚©', SGD: 'S$', MYR: 'RM', IDR: 'Rp',
+  PHP: 'â‚±', THB: 'à¸¿', AED: 'Ø¯.Ø¥', SAR: 'ï·¼', QAR: 'Ø±.Ù‚', KWD: 'Ø¯.Ùƒ',
+  BHD: 'Ø¯.Ø¨', OMR: 'Ø±.Ø¹.', TRY: 'â‚º', CHF: 'CHF', SEK: 'kr', NOK: 'kr',
+  DKK: 'kr', PLN: 'zÅ‚', CZK: 'KÄ', HUF: 'Ft', RON: 'lei', BRL: 'R$',
+  MXN: 'MX$', ARS: 'AR$', CLP: 'CLP$', COP: 'COL$', PEN: 'S/'
+};
+function symbolFor(code?: string | null) {
+  return CURRENCY_SYMBOLS[code ?? 'NGN'] ?? code ?? '\u20a6';
+}
+
+const CURRENCY_OPTIONS = [
+  'NGN', 'USD', 'GBP', 'EUR', 'CAD', 'AUD', 'NZD', 'GHS', 'KES', 'ZAR',
+  'UGX', 'TZS', 'RWF', 'XOF', 'XAF', 'EGP', 'MAD', 'INR', 'PKR', 'BDT',
+  'CNY', 'JPY', 'KRW', 'SGD', 'MYR', 'IDR', 'PHP', 'THB', 'AED', 'SAR',
+  'QAR', 'KWD', 'BHD', 'OMR', 'TRY', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN',
+  'CZK', 'HUF', 'RON', 'BRL', 'MXN', 'ARS', 'CLP', 'COP', 'PEN'
+];
+
+const TIMEZONE_OPTIONS = [
+  'Africa/Lagos',
+  'Africa/Accra',
+  'Africa/Nairobi',
+  'Africa/Johannesburg',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Chicago',
+  'America/Los_Angeles',
+  'Asia/Dubai',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Australia/Sydney',
+  'UTC',
+];
+
+type CargoItemRow = {
+  id: string;
+  booking_id: string;
+  description: string;
+  quantity: string;
+  gross_weight: string;
+  unit: string;
+  rate_class: string;
+  chargeable_weight: string;
+};
+
+type Booking = {
+  id: string;
+  tracking_no: string | null;
+  origin: string;
+  destination: string;
+  type: string;
+  status: string;
+  pickup_date: string | null;
+  declared_value: number | null;
+  weight: string | null;
+  sender_name: string | null;
+  sender_phone: string | null;
+  sender_address: string | null;
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  receiver_address: string | null;
+};
+
+type Invoice = {
+  id: string;
+  invoice_no: string;
+  status: string;
+  amount: number;
+  linked_booking_id: string;
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  Pending: '#ca8a04',
+  Assigned: '#2563c7',
+  'In Transit': '#7c3aed',
+  Delivered: '#1f9d5c',
+  Cancelled: 'var(--error-text)',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_COLORS[status] ?? 'var(--subtext)';
+  return (
+    <span
+      className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      style={{ backgroundColor: color + '1a', color }}
+    >
+      {status}
+    </span>
+  );
+}
+
+export default function CustomerDashboard() {
+  const supabase = createClient();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [tab, setTab] = useState<Tab>('overview');
+  const [loading, setLoading] = useState(true);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [effectiveUserId, setEffectiveUserId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const [staffPermittedModules, setStaffPermittedModules] = useState<string[]>([]);
+  const [staffAccessBlockedReason, setStaffAccessBlockedReason] = useState<string | null>(null);
+  const [staffDisplayName, setStaffDisplayName] = useState<string | null>(null);
+
+  const [muted, setMuted] = useState(false);
+  const [hasLowStockAlert, setHasLowStockAlert] = useState(false);
+  const [pendingInvoiceItem, setPendingInvoiceItem] = useState<{ description: string; quantity: string } | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const [profileName, setProfileName] = useState('');
+  const [profileFirstName, setProfileFirstName] = useState('');
+  const [profileLastName, setProfileLastName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileAddress, setProfileAddress] = useState('');
+  const [profileTaxRate, setProfileTaxRate] = useState('7.5');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileCurrency, setProfileCurrency] = useState('NGN');
+  const [profileTimezone, setProfileTimezone] = useState('Africa/Lagos');
+  const [profileSupportPhone, setProfileSupportPhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSavedAt, setProfileSavedAt] = useState<Date | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const [now, setNow] = useState<Date | null>(null);
+  const [darkMode, setDarkMode] = useState(true);
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [cargoItemsByBookingId, setCargoItemsByBookingId] = useState<Record<string, CargoItemRow[]>>({});
+  const [ownInvoiceTotals, setOwnInvoiceTotals] = useState({ subtotal: 0, tax: 0, total: 0 });
+  const [shipmentsLoading, setShipmentsLoading] = useState(true);
+
+  const [trackQuery, setTrackQuery] = useState('');
+  const [trackResult, setTrackResult] = useState<Booking | null>(null);
+  const [trackSearched, setTrackSearched] = useState(false);
+  const [trackLoading, setTrackLoading] = useState(false);
+
+  useEffect(() => {
+    setNow(new Date());
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function getGreeting() {
+    const tz = customer?.timezone || undefined;
+    let hour: number;
+    try {
+      hour = parseInt(
+        new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: tz }).format(now ?? new Date()),
+        10
+      );
+    } catch {
+      hour = (now ?? new Date()).getHours();
+    }
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/customer/login');
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data: ownerRow, error } = await supabase
+        .from('customers')
+        .select('id, name, first_name, last_name, address, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let resolvedCustomer: any = ownerRow;
+      let resolvedEffectiveUserId = user.id;
+      let resolvedRole: StaffRole | null = null;
+
+      if (!ownerRow) {
+        const { data: membership } = await supabase
+          .from('customer_team_members')
+          .select('name, role, status, permitted_modules, customers(id, name, first_name, last_name, address, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id)')
+          .eq('user_id', user.id)
+          .neq('status', 'Removed')
+          .maybeSingle();
+
+        const parentCustomer = membership?.customers
+          ? (Array.isArray(membership.customers) ? membership.customers[0] : membership.customers)
+          : null;
+
+        if (membership && parentCustomer) {
+          let effectiveStatus = membership.status;
+
+          // First login after being invited: accept it now, silently.
+          if (effectiveStatus === 'Invited') {
+            await supabase.rpc('accept_staff_invite');
+            effectiveStatus = 'Active';
+          }
+
+          if (effectiveStatus === 'Active') {
+            resolvedCustomer = parentCustomer;
+            resolvedEffectiveUserId = parentCustomer.user_id;
+            resolvedRole = membership.role as StaffRole;
+            setStaffPermittedModules(membership.permitted_modules ?? []);
+            setStaffDisplayName(membership.name || user.email?.split('@')[0] || null);
+          } else {
+            setStaffAccessBlockedReason(effectiveStatus);
+          }
+        }
+      }
+
+      if (error && !resolvedCustomer) setCustomerError(error.message);
+      setCustomer(resolvedCustomer);
+      setCustomerId(resolvedCustomer?.id ?? null);
+      setEffectiveUserId(resolvedCustomer ? resolvedEffectiveUserId : null);
+      setStaffRole(resolvedRole);
+
+      if (resolvedCustomer) {
+        setProfileName(resolvedCustomer.name ?? '');
+        setProfileFirstName(resolvedCustomer.first_name ?? '');
+        setProfileLastName(resolvedCustomer.last_name ?? '');
+        setProfileEmail(resolvedCustomer.email ?? '');
+        setProfileAddress(resolvedCustomer.address ?? '');
+        setProfileTaxRate(String(resolvedCustomer.tax_rate ?? 7.5));
+        setProfilePhone(resolvedCustomer.phone ?? '');
+        setProfileCurrency(resolvedCustomer.currency ?? 'NGN');
+        setProfileTimezone(resolvedCustomer.timezone ?? 'Africa/Lagos');
+        setProfileSupportPhone(resolvedCustomer.support_phone ?? '');
+      }
+      setLoading(false);
+
+      if (resolvedCustomer) {
+        await fetchShipmentsData(resolvedEffectiveUserId);
+        await fetchOwnInvoiceTotals(resolvedEffectiveUserId);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchShipmentsData(userId: string) {
+    setShipmentsLoading(true);
+
+    const { data: bookingsData } = await supabase
+      .from('bookings')
+      .select(
+        'id, tracking_no, origin, destination, type, status, pickup_date, declared_value, weight, sender_name, sender_phone, sender_address, receiver_name, receiver_phone, receiver_address'
+      )
+      .eq('user_id', userId)
+      .order('pickup_date', { ascending: false });
+
+    setBookings(bookingsData ?? []);
+
+    const bookingIds = (bookingsData ?? []).map((b) => b.id);
+
+    if (bookingIds.length) {
+      const { data: invoicesData } = await supabase
+        .from('invoices')
+        .select('id, invoice_no, status, amount, linked_booking_id')
+        .in('linked_booking_id', bookingIds);
+      setInvoices(invoicesData ?? []);
+
+      const { data: cargoData } = await supabase
+        .from('booking_cargo_items')
+        .select('id, booking_id, description, quantity, gross_weight, unit, rate_class, chargeable_weight')
+        .in('booking_id', bookingIds);
+
+      const grouped: Record<string, CargoItemRow[]> = {};
+      (cargoData ?? []).forEach((item) => {
+        if (!grouped[item.booking_id]) grouped[item.booking_id] = [];
+        grouped[item.booking_id].push(item);
+      });
+      setCargoItemsByBookingId(grouped);
+    } else {
+      setInvoices([]);
+      setCargoItemsByBookingId({});
+    }
+
+    setShipmentsLoading(false);
+  }
+
+  async function refetchShipments() {
+    if (effectiveUserId) await fetchShipmentsData(effectiveUserId);
+  }
+
+  async function fetchOwnInvoiceTotals(userId: string) {
+    const { data } = await supabase
+      .from('customer_own_invoices')
+      .select('subtotal, tax, total')
+      .eq('user_id', userId)
+      .eq('status', 'Paid');
+
+    const totals = (data ?? []).reduce(
+      (acc, inv) => ({
+        subtotal: acc.subtotal + (inv.subtotal || 0),
+        tax: acc.tax + (inv.tax || 0),
+        total: acc.total + (inv.total || 0),
+      }),
+      { subtotal: 0, tax: 0, total: 0 }
+    );
+
+    setOwnInvoiceTotals(totals);
+  }
+
+  async function refetchFinancials() {
+    if (effectiveUserId) await fetchOwnInvoiceTotals(effectiveUserId);
+  }
+
+  useEffect(() => {
+    if (!effectiveUserId) return;
+
+    const channel = supabase
+      .channel(`customer_bookings_${effectiveUserId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `user_id=eq.${effectiveUserId}` },
+        (payload) => {
+          const updated = payload.new as Booking;
+          setBookings((prev) => prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveUserId]);
+
+  async function handleTrack() {
+    setTrackSearched(true);
+    const q = trackQuery.trim();
+    if (!q) {
+      setTrackResult(null);
+      return;
+    }
+
+    setTrackLoading(true);
+    const { data } = await supabase
+      .from('bookings')
+      .select(
+        'id, tracking_no, origin, destination, type, status, pickup_date, declared_value, weight, sender_name, sender_phone, sender_address, receiver_name, receiver_phone, receiver_address'
+      )
+      .ilike('tracking_no', `%${q}%`)
+      .limit(1);
+
+    setTrackResult(data && data.length ? data[0] : null);
+    setTrackLoading(false);
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push('/customer/login');
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log('[avatar] no file selected');
+      return;
+    }
+
+    console.log('[avatar] starting upload', file.name, file.size, file.type);
+    setAvatarUploading(true);
+    setAvatarError(null);
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('[avatar] user check', { user: user?.id, userError });
+      if (userError) throw userError;
+      if (!user) throw new Error('Not signed in.');
+
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      console.log('[avatar] uploading to path', path);
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true });
+
+      console.log('[avatar] upload result', { uploadData, uploadError });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);
+      const avatarUrl = publicUrlData.publicUrl;
+      console.log('[avatar] public url', avatarUrl);
+
+      const { data: updateData, error: updateError } = await supabase
+        .from('customers')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', user.id)
+        .select('id');
+
+      console.log('[avatar] update result', { updateData, updateError });
+      if (updateError) throw updateError;
+      if (!updateData || updateData.length === 0) {
+        throw new Error('Update matched zero rows. Your customers table row may not have a user_id matching this login.');
+      }
+
+      const { data: freshRow, error: refetchError } = await supabase
+        .from('customers')
+        .select('name, first_name, last_name, address, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      console.log('[avatar] refetch result', { freshRow, refetchError });
+      if (refetchError) throw refetchError;
+
+      if (freshRow) {
+        setCustomer(freshRow);
+      } else {
+        setCustomer((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : prev));
+      }
+    } catch (err: any) {
+      console.error('[avatar] FAILED', err);
+      setAvatarError(err?.message || JSON.stringify(err) || 'Upload failed for an unknown reason.');
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+
+    setPasswordSuccess(true);
+    setNewPassword('');
+    setConfirmPassword('');
+  }
+
+  async function handleSaveProfile() {
+    setProfileSaving(true);
+    setProfileError(null);
+
+    if (!effectiveUserId) {
+      setProfileError('Not signed in.');
+      setProfileSaving(false);
+      return;
+    }
+
+    const { data: updatedRow, error } = await supabase
+      .from('customers')
+      .update({
+        name: profileName,
+        first_name: profileFirstName,
+        last_name: profileLastName,
+        email: profileEmail,
+        address: profileAddress,
+        phone: profilePhone,
+        currency: profileCurrency,
+        timezone: profileTimezone,
+        tax_rate: Math.max(0, Math.min(100, Number(profileTaxRate) || 0)),
+        ...(!staffRole ? { support_phone: profileSupportPhone } : {}),
+      })
+      .eq('user_id', effectiveUserId)
+      .select('name, first_name, last_name, address, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone')
+      .maybeSingle();
+
+    setProfileSaving(false);
+
+    if (error) {
+      setProfileError(error.message);
+      return;
+    }
+
+    if (!updatedRow) {
+      setProfileError('Save did not update any row. Your account may not have a matching customers record, contact support.');
+      return;
+    }
+
+    setCustomer(updatedRow);
+    setProfileSavedAt(new Date());
+  }
+
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    setLogoError(null);
+
+    try {
+      if (!effectiveUserId) throw new Error('Not signed in.');
+
+      const ext = file.name.split('.').pop();
+      const path = `${effectiveUserId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('logos').getPublicUrl(path);
+      const logoUrl = publicUrlData.publicUrl;
+
+      const { data: updateData, error: updateError } = await supabase
+        .from('customers')
+        .update({ logo_url: logoUrl })
+        .eq('user_id', effectiveUserId)
+        .select('id');
+      if (updateError) throw updateError;
+      if (!updateData || updateData.length === 0) {
+        throw new Error('Update matched zero rows.');
+      }
+
+      setCustomer((prev: any) => (prev ? { ...prev, logo_url: logoUrl } : prev));
+    } catch (err: any) {
+      setLogoError(err?.message || 'Upload failed.');
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
+
+  async function handleRemoveLogo() {
+    if (!effectiveUserId) return;
+    setLogoUploading(true);
+    setLogoError(null);
+    const { error } = await supabase.from('customers').update({ logo_url: null }).eq('user_id', effectiveUserId);
+    setLogoUploading(false);
+    if (error) {
+      setLogoError(error.message);
+      return;
+    }
+    setCustomer((prev: any) => (prev ? { ...prev, logo_url: null } : prev));
+  }
+
+  const personalDisplayName = [profileFirstName, profileLastName].filter(Boolean).join(' ').trim();
+  const profileDisplayName = staffDisplayName || personalDisplayName || customer?.name || 'Customer';
+  const initials = (personalDisplayName || customer?.name || 'C')
+    .split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+
+  const themeVars = darkMode
+    ? {
+        '--bg': '#0e0e10',
+        '--card': '#17171a',
+        '--border': '#34343a',
+        '--text': '#f5f5f6',
+        '--subtext': '#b8b8c1',
+        '--input-bg': '#222226',
+        '--input-border': '#45454d',
+        '--error-bg': '#2a1613',
+        '--error-border': '#4a2420',
+        '--error-text': '#ff6b60',
+        '--success-bg': '#12261a',
+        '--success-border': '#1f4530',
+        '--success-text': '#4ade80',
+      }
+    : {
+        '--bg': '#f5f5f6',
+        '--card': '#ffffff',
+        '--border': '#eceef0',
+        '--text': '#0b0b0d',
+        '--subtext': '#6c6c72',
+        '--input-bg': '#ffffff',
+        '--input-border': '#d8d8db',
+        '--error-bg': '#fdf0ef',
+        '--error-border': '#f3c9c7',
+        '--error-text': '#b8140d',
+        '--success-bg': '#f0fdf3',
+        '--success-border': '#c9e8d1',
+        '--success-text': '#0f7a35',
+      };
+
+  const visibleTabs = staffRole
+    ? ALL_TABS.filter((t) => staffPermittedModules.includes(t.key))
+    : ALL_TABS;
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]" style={themeVars as React.CSSProperties}>
+        <p className="text-sm text-[var(--subtext)]">Loading your account...</p>
+      </div>
+    );
+  }
+
+  if (staffAccessBlockedReason) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] p-4" style={themeVars as React.CSSProperties}>
+        <div className="max-w-sm rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 text-center">
+          <p className="mb-2 text-base font-bold text-[var(--text)]">Access paused</p>
+          <p className="text-sm text-[var(--subtext)]">
+            Your account status is currently &quot;{staffAccessBlockedReason}&quot;. Contact your business account owner to restore access.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] p-4" style={themeVars as React.CSSProperties}>
+        <div className="max-w-sm rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 text-center">
+          <p className="mb-2 text-base font-bold text-[var(--text)]">No account found</p>
+          <p className="text-sm text-[var(--subtext)]">
+            We couldn&apos;t find a business account or staff invite for this login. If you were expecting access, contact whoever set up your account.
+          </p>
+          {customerError && <p className="mt-2 text-[11px] text-[var(--error-text)]">{customerError}</p>}
+          <p className="mt-3 border-t border-[var(--border)] pt-3 text-[11px] text-[var(--subtext)]">
+            Debug: logged in as user ID <span className="font-mono">{userId ?? 'none'}</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[var(--bg)]" style={themeVars as React.CSSProperties}>
+      {/* sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col overflow-y-auto border-r border-[#1f1f22] bg-[#0b0b0d] md:flex">
+        <div className="flex items-center gap-2 border-b border-[#1f1f22] px-5 py-5">
+          {customer?.logo_url ? (
+            <img src={customer.logo_url} alt="Company logo" width={32} height={32} className="h-8 w-8 rounded object-cover" />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1a1a1d] text-[10px] font-bold text-[#6c6c72]">
+              {initials}
+            </div>
+          )}
+          <span className="min-w-0 truncate text-[13px] font-bold uppercase tracking-wide text-white">{customer?.name || 'Your Workspace'}</span>
+        </div>
+        <nav className="flex-1 space-y-1 p-3">
+          {visibleTabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`block w-full rounded-md px-3.5 py-2.5 text-left text-[13.5px] font-semibold ${
+                tab === t.key ? 'bg-[#e5231b] text-white' : 'text-[#a0a0a5] hover:bg-[#1a1a1d]'
+              }`}
+            >
+              <span className="mr-3 inline-flex w-5 items-center justify-center text-base leading-none" aria-hidden="true">{TAB_ICONS[t.key]}</span>
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <div className="border-t border-[#1f1f22] p-3">
+          <button onClick={logout} className="w-full rounded-md px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-[#8a8a90] hover:bg-[#1a1a1d]">
+            Log out
+          </button>
+        </div>
+      </aside>
+
+      {/* mobile tab bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto border-t border-[#1f1f22] bg-[#0b0b0d] md:hidden">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 whitespace-nowrap px-3 py-3 text-[11px] font-semibold ${
+              tab === t.key ? 'text-[#e5231b]' : 'text-[#a0a0a5]'
+            }`}
+          >
+            <span className="mb-1 block text-base leading-none" aria-hidden="true">{TAB_ICONS[t.key]}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* main */}
+      <main className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#1f1f22] bg-[var(--bg)] px-5 py-5 md:px-8">
+          <div>
+            <h1 className="text-lg font-bold text-[var(--text)]">
+              {(() => {
+                const displayName = staffDisplayName || customer?.name || (customer?.email ? customer.email.split('@')[0] : null);
+                return displayName ? `${getGreeting()}, ${displayName}` : getGreeting();
+              })()}
+            </h1>
+            <p className="text-[13px] text-[var(--subtext)]">Here&apos;s what&apos;s happening with your shipments.</p>
+          </div>
+
+          <div className="relative flex items-center gap-4">
+            {now && (
+              <div className="hidden text-right sm:block">
+                <div className="text-[13px] font-semibold text-[var(--text)]">
+                  {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: customer?.timezone || undefined })}
+                </div>
+                <div className="text-[11px] text-[var(--subtext)]">
+                  {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: customer?.timezone || undefined })}
+                </div>
+              </div>
+            )}
+
+            <button
+              aria-label={muted ? 'Unmute notifications' : 'Mute notifications'}
+              onClick={() => setMuted((m) => !m)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+              title={muted ? 'Unmute notifications' : 'Mute notifications'}
+            >
+              {muted ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                  <path d="M18 6a9 9 0 0 1 0 12" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={() => setDarkMode((d) => !d)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              aria-label="Notifications"
+              onClick={() => setHasLowStockAlert(false)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {hasLowStockAlert && (
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#e5231b]" />
+              )}
+            </button>
+
+            <button
+              aria-label="Profile"
+              onClick={() => setShowProfileMenu((v) => !v)}
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-[11px] font-bold text-white"
+            >
+              {customer?.avatar_url ? (
+                <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+              ) : (
+                initials
+              )}
+            </button>
+
+            {showProfileMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                <div className="absolute right-0 top-11 z-50 w-[min(92vw,420px)] max-h-[calc(100dvh-100px)] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-[13px] font-bold text-white">
+                      {customer?.avatar_url ? (
+                        <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+                      ) : (
+                        initials
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-[var(--text)]">{profileDisplayName}</div>
+                      <div className="text-[11px] text-[var(--subtext)]">Customer</div>
+                      <div className="truncate text-[11px] text-[var(--subtext)]">{customer?.email ?? 'â€”'}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--input-bg)] p-3">
+                    <div className="flex items-center gap-3">
+                      {customer?.logo_url ? <img src={customer.logo_url} alt="Company logo" className="h-10 w-10 rounded object-contain" /> : <div className="grid h-10 w-10 place-items-center rounded bg-[#1a1a1d] text-xs font-bold text-white">{initials}</div>}
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold text-[var(--text)]">{customer?.name || 'Your workspace'}</div>
+                        <div className="truncate text-[11px] text-[var(--subtext)]">{customer?.address || 'Add your business address in profile settings'}</div>
+                        <div className="text-[11px] text-[var(--subtext)]">{customer?.currency || 'NGN'} Â· Tax {Number(customer?.tax_rate ?? 7.5)}%</div>
+                      </div>
+                    </div>
+                    <button onClick={() => { setShowProfileMenu(false); setTab('profile'); }} className="mt-3 w-full rounded-md bg-[#e5231b] px-3 py-2 text-left text-[12px] font-bold text-white hover:bg-red-700">
+                      Edit profile, company logo, currency &amp; tax
+                    </button>
+                  </div>
+
+                  {!staffRole && (
+                    <div className="mt-4 space-y-3 border-t border-[var(--border)] pt-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">First name
+                          <input value={profileFirstName} onChange={(e) => setProfileFirstName(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                        </label>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Last name
+                          <input value={profileLastName} onChange={(e) => setProfileLastName(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                        </label>
+                      </div>
+                      <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Company name
+                        <input value={profileName} onChange={(e) => setProfileName(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                      </label>
+                      <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Business email
+                        <input type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Phone
+                          <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                        </label>
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Tax (%)
+                          <input type="number" min="0" max="100" step="0.01" value={profileTaxRate} onChange={(e) => setProfileTaxRate(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                        </label>
+                      </div>
+                      <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Business address
+                        <input value={profileAddress} onChange={(e) => setProfileAddress(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]" />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-[10px] font-semibold uppercase tracking-wide text-[var(--subtext)]">Currency
+                          <select value={profileCurrency} onChange={(e) => setProfileCurrency(e.target.value)} className="mt-1 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2.5 py-2 text-xs normal-case text-[var(--text)]">
+                            {CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c} ({symbolFor(c)})</option>)}
+                          </select>
+                        </label>
+                        <div className="flex items-end">
+                          <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading} className="w-full rounded-md border border-[var(--border)] px-2 py-2 text-xs font-semibold text-[var(--text)] disabled:opacity-50">
+                            {logoUploading ? 'Uploading logoâ€¦' : 'Upload company logo'}
+                          </button>
+                        </div>
+                      </div>
+                      {logoError && <p className="text-[11px] text-[var(--error-text)]">{logoError}</p>}
+                      {profileError && <p className="text-[11px] text-[var(--error-text)]">{profileError}</p>}
+                      <button onClick={handleSaveProfile} disabled={profileSaving} className="w-full rounded-md bg-[#e5231b] px-3 py-2.5 text-xs font-bold text-white disabled:opacity-50">
+                        {profileSaving ? 'Saving profileâ€¦' : 'Save profile & workspace settings'}
+                      </button>
+                    </div>
+                  )}
+
+                  {avatarError && (
+                    <div className="mt-3 text-[11px] text-[var(--error-text)]">{avatarError}</div>
+                  )}
+
+                  <div className="mt-4 space-y-0.5 border-t border-[var(--border)] pt-3">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--input-bg)] disabled:opacity-50"
+                    >
+                      {avatarUploading ? 'Uploading...' : 'Change photo'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setShowPasswordModal(true);
+                        setPasswordError(null);
+                        setPasswordSuccess(false);
+                      }}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--input-bg)]"
+                    >
+                      Change password
+                    </button>
+                    <button
+                      onClick={logout}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--error-text)] hover:bg-[var(--error-bg)]"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+        <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+
+        <div className="flex-1 overflow-y-auto p-5 pb-20 md:p-8 md:pb-8">
+          {customerError && (
+            <div className="mb-5 rounded-md border border-[var(--error-border)] bg-[var(--error-bg)] p-3.5 text-[13px] text-[var(--error-text)]">
+              Could not load your profile details ({customerError}).
+            </div>
+          )}
+
+          {(() => {
+            const activeShipments = bookings.filter((b) =>
+              ['Pending', 'Assigned', 'In Transit'].includes(b.status)
+            ).length;
+
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            const deliveredThisMonth = bookings.filter((b) => {
+              if (b.status !== 'Delivered' || !b.pickup_date) return false;
+              const d = new Date(b.pickup_date);
+              return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            }).length;
+
+            const shipmentCost = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const revenue = ownInvoiceTotals.subtotal;
+            const tax = ownInvoiceTotals.tax;
+            const income = revenue - tax;
+
+            if (tab === 'report') {
+              return (
+                <ReportTab
+                  customerName={customer?.name ?? null}
+                  currency={customer?.currency ?? 'NGN'}
+                  symbol={symbolFor(customer?.currency)}
+                  revenue={revenue}
+                  tax={tax}
+                  taxRate={customer?.tax_rate ?? 7.5}
+                  income={income}
+                  shippingFee={shipmentCost}
+                />
+              );
+            }
+
+            if (tab !== 'overview') return null;
+
+            return (
+              <OverviewTab
+                bookings={bookings}
+                invoices={invoices}
+                ownInvoiceTotals={ownInvoiceTotals}
+                currency={customer?.currency ?? 'NGN'}
+                cargoItemsByBookingId={cargoItemsByBookingId}
+                onGoToTab={(t) => setTab(t as Tab)}
+              />
+            );
+          })()}
+
+          {tab === 'inventory' && (
+            <InventoryTab
+              muted={muted}
+              onLowStock={() => setHasLowStockAlert(true)}
+              onCreateInvoice={(item) => {
+                setPendingInvoiceItem(item);
+                setTab('invoices');
+              }}
+              ownerUserId={effectiveUserId}
+            />
+          )}
+
+          {tab === 'leads' && <LeadsTab ownerUserId={effectiveUserId} />}
+
+          {tab === 'shipments' && (
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-bold text-[var(--text)]">My shipments</h3>
+                <BookShipmentForm onBooked={refetchShipments} />
+              </div>
+
+              {shipmentsLoading ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                  Loading your shipments...
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                  No shipments yet. Once your first order is booked with our team, it&apos;ll appear here with live status.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                  {bookings.map((b) => (
+                    <div
+                      key={b.id}
+                      className="flex flex-col gap-2 border-b border-[var(--border)] p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <ShipmentDetailTrigger booking={b} cargoItems={cargoItemsByBookingId[b.id] ?? []} />
+                        <div className="text-sm font-semibold text-[var(--text)]">
+                          {b.origin} &rarr; {b.destination}
+                        </div>
+                        <div className="text-[12px] text-[var(--subtext)]">
+                          {b.type} Â· Pickup {b.pickup_date ?? 'â€”'}
+                          {b.declared_value ? ` Â· \u20a6${b.declared_value.toLocaleString()}` : ''}
+                        </div>
+                      </div>
+                      <StatusBadge status={b.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'track' && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8">
+              <h3 className="mb-1 text-base font-bold text-[var(--text)]">Track a shipment</h3>
+              <p className="mb-4 text-[13px] text-[var(--subtext)]">Enter a tracking number to see its live status.</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={trackQuery}
+                  onChange={(e) => setTrackQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTrack()}
+                  placeholder="JAAD/3007/2026/00233"
+                  className="w-full max-w-[260px] rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                />
+                <button
+                  onClick={handleTrack}
+                  disabled={trackLoading}
+                  className="w-fit rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
+                >
+                  {trackLoading ? 'Tracking...' : 'Track'}
+                </button>
+              </div>
+
+              {trackSearched && !trackLoading && !trackResult && (
+                <p className="mt-4 text-[13px] text-[var(--subtext)]">No shipment found with that tracking number.</p>
+              )}
+
+              {trackResult && (
+                <div className="mt-5 rounded-md border border-[var(--border)] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="font-mono text-[13px] text-[#e5231b]">{trackResult.tracking_no}</span>
+                    <StatusBadge status={trackResult.status} />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Route</dt>
+                      <dd className="text-[var(--text)]">
+                        {trackResult.origin} &rarr; {trackResult.destination}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Type</dt>
+                      <dd className="text-[var(--text)]">{trackResult.type}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Pickup</dt>
+                      <dd className="text-[var(--text)]">{trackResult.pickup_date ?? 'â€”'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'invoices' && (
+            <div className="space-y-8">
+              <div>
+                <h4 className="mb-3 text-sm font-bold text-[var(--text)]">Shipment invoices</h4>
+                {invoices.length === 0 ? (
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                    No invoices yet. They&apos;ll show up here once your first shipment is billed.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                    {invoices.map((inv) => {
+                      const booking = bookings.find((b) => b.id === inv.linked_booking_id);
+                      return (
+                        <div
+                          key={inv.id}
+                          className="flex flex-col gap-2 border-b border-[var(--border)] p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <InvoiceDetailTrigger
+                              invoice={inv}
+                              booking={booking ?? null}
+                              customerName={customer?.name ?? null}
+                              companyLogoUrl={customer?.logo_url ?? null}
+                              companyAddress={customer?.address ?? null}
+                            />
+                            <div className="text-[12px] text-[var(--subtext)]">
+                              {booking ? `${booking.origin} \u2192 ${booking.destination}` : booking?.tracking_no}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold text-[var(--text)]">
+                              {'\u20a6'}{(inv.amount || 0).toLocaleString()}
+                            </span>
+                            <StatusBadge status={inv.status} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <MyInvoicesTab
+                onChange={refetchFinancials}
+                currency={customer?.currency ?? 'NGN'}
+                taxRate={customer?.tax_rate ?? 7.5}
+                companyLogoUrl={customer?.logo_url ?? null}
+                initialItem={pendingInvoiceItem ?? undefined}
+                onInitialItemConsumed={() => setPendingInvoiceItem(null)}
+                ownerUserId={effectiveUserId}
+              />
+            </div>
+          )}
+
+
+
+           {tab === 'profile' && (
+            <div className="w-full max-w-[860px] rounded-xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm md:p-8">
+              <div className="mb-5 flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-lg font-bold text-white">
+                  {customer?.avatar_url ? (
+                    <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="text-[13px] font-semibold text-[#e5231b] disabled:opacity-50"
+                  >
+                    {avatarUploading ? 'Uploading...' : 'Change photo'}
+                  </button>
+                  {avatarError && <p className="mt-1 text-[11px] text-[var(--error-text)]">{avatarError}</p>}
+                </div>
+              </div>
+
+              {!staffRole && (
+                <div className="mb-5 flex items-center gap-4 border-t border-[var(--border)] pt-5">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--input-border)] bg-[var(--input-bg)]">
+                    {customer?.logo_url ? (
+                      <img src={customer.logo_url} alt="Company logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-[var(--subtext)]">No logo</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold uppercase text-[var(--subtext)]">Company logo</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={logoUploading}
+                        className="text-[13px] font-semibold text-[#e5231b] disabled:opacity-50"
+                      >
+                        {logoUploading ? 'Uploading...' : 'Upload logo'}
+                      </button>
+                      {customer?.logo_url && (
+                        <button
+                          onClick={handleRemoveLogo}
+                          disabled={logoUploading}
+                          className="text-[13px] font-semibold text-[var(--subtext)] disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    {logoError && <p className="mt-1 text-[11px] text-[var(--error-text)]">{logoError}</p>}
+                  </div>
+                </div>
+              )}
+
+              {!staffRole && (
+                <div className="mb-5">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">
+                    Support phone number
+                  </label>
+                  <input
+                    value={profileSupportPhone}
+                    onChange={(e) => setProfileSupportPhone(e.target.value)}
+                    placeholder="+234..."
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                  <p className="mt-1 text-[11px] text-[var(--subtext)]">
+                    Shown to customers on the Call, SMS and WhatsApp support tabs.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">First name</label>
+                    <input value={profileFirstName} onChange={(e) => setProfileFirstName(e.target.value)} autoComplete="given-name" className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" /></div>
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Last name</label>
+                    <input value={profileLastName} onChange={(e) => setProfileLastName(e.target.value)} autoComplete="family-name" className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" /></div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Company / workspace name</label>
+                    <input value={profileName} onChange={(e) => setProfileName(e.target.value)} required className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" /></div>
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Business email</label>
+                    <input type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} autoComplete="email" className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" />
+                    <p className="mt-1 text-[10px] text-[var(--subtext)]">Business contact email only; sign-in email is unchanged.</p></div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Phone number</label>
+                    <input value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} autoComplete="tel" className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" /></div>
+                  <div><label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Business address</label>
+                    <input value={profileAddress} onChange={(e) => setProfileAddress(e.target.value)} autoComplete="street-address" className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" /></div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Currency</label>
+                    <select
+                      value={profileCurrency}
+                      onChange={(e) => setProfileCurrency(e.target.value)}
+                      className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                    >
+                      {CURRENCY_OPTIONS.map((c) => (
+                        <option key={c} value={c}>{c} ({symbolFor(c)})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Timezone</label>
+                    <select value={profileTimezone} onChange={(e) => setProfileTimezone(e.target.value)} className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]">
+                      {TIMEZONE_OPTIONS.map((tz) => (<option key={tz} value={tz}>{tz}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Tax rate (%)</label>
+                    <input type="number" min="0" max="100" step="0.01" value={profileTaxRate} onChange={(e) => setProfileTaxRate(e.target.value)} className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]" />
+                    <p className="mt-1 text-[10px] text-[var(--subtext)]">Default 7.5%; adjust for your country.</p>
+                  </div>
+                </div>
+
+                {profileError && (
+                  <p className="text-[13px] text-[var(--error-text)]">{profileError}</p>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={profileSaving}
+                    className="rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
+                  >
+                    {profileSaving ? 'Saving...' : 'Save changes'}
+                  </button>
+                  {profileSavedAt && (
+                    <span className="text-[11px] text-[var(--subtext)]">
+                      Saved {profileSavedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(true);
+                    setPasswordError(null);
+                    setPasswordSuccess(false);
+                  }}
+                  className="text-[13px] font-semibold text-[#e5231b]"
+                >
+                  Change password
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === 'notes' && <NotesTab />}
+
+          {tab === 'support' && userId && (
+            <SupportTab userId={effectiveUserId ?? userId} customerName={customer?.name ?? null} supportPhone={customer?.support_phone ?? null} muted={muted} />
+          )}
+
+          {tab === 'calculator' && <CalculatorTab />}
+
+          {tab === 'utilities' && <UtilitiesTab defaultTaxRate={customer?.tax_rate ?? 7.5} />}
+
+          {tab === 'administrator' && !staffRole && customerId && (
+            <AdministratorTab customerId={customerId} />
+          )}
+        </div>
+      </main>
+
+      {/* change password modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-[380px] rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[var(--text)]">Change password</h3>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="text-[13px] font-semibold text-[var(--subtext)]"
+              >
+                Close
+              </button>
+            </div>
+
+            {passwordSuccess ? (
+              <div className="rounded-md border border-[var(--success-border)] bg-[var(--success-bg)] p-3.5 text-[13px] text-[var(--success-text)]">
+                Password updated.
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">New password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Confirm password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+
+                {passwordError && (
+                  <div className="text-[13px] text-[var(--error-text)]">{passwordError}</div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="w-full rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                >
+                  {passwordSaving ? 'Saving...' : 'Save password'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {userId && <ChatWidget userId={effectiveUserId ?? userId} customerName={customer?.name ?? null} muted={muted} />}
+    </div>
+  );
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/portal-page.tsx
+======================================================================
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import BookShipmentForm from './book-shipment-form';
+import ShipmentDetailTrigger from './shipment-detail-modal';
+import InventoryTab from './inventory-tab';
+import ChatWidget from './chat-widget';
+import SupportTab from './support-tab';
+import LeadsTab from './leads-tab';
+import NotesTab from './notes-tab';
+import CalculatorTab from './calculator-tab';
+import InvoiceDetailTrigger from './invoice-detail-modal';
+import MyInvoicesTab from './my-invoices-tab';
+import ReportTab from './report-tab';
+import OverviewTab from './overview-tab';
+import UtilitiesTab from './utilities-tab';
+import AdministratorTab from './administrator-tab';
+import type { StaffRole } from './roles-config';
+
+type Tab = 'overview' | 'inventory' | 'leads' | 'shipments' | 'track' | 'invoices' | 'notes' | 'report' | 'profile' | 'calculator' | 'support' | 'utilities' | 'administrator';
+
+const ALL_TABS: { key: Tab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'shipments', label: 'My Shipments' },
+  { key: 'track', label: 'Track' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'report', label: 'Report' },
+  { key: 'support', label: 'Support' },
+  { key: 'profile', label: 'Profile' },
+  { key: 'calculator', label: 'Calculator' },
+  { key: 'utilities', label: 'Utilities' },
+  { key: 'administrator', label: 'Administrator' },
+];
+
+type Customer = {
+  name: string;
+  email: string;
+  phone: string;
+  balance: number;
+  avatar_url: string | null;
+  logo_url: string | null;
+  currency: string | null;
+  timezone: string | null;
+  tax_rate: number | null;
+  support_phone: string | null;
+};
+
+const CURRENCY_SYMBOLS: Record<string, string> = { NGN: '\u20a6', USD: '$', GBP: '\u00a3', EUR: '\u20ac', GHS: '\u20b5', KES: 'KSh', ZAR: 'R' };
+function symbolFor(code?: string | null) {
+  return CURRENCY_SYMBOLS[code ?? 'NGN'] ?? code ?? '\u20a6';
+}
+
+const CURRENCY_OPTIONS = ['NGN', 'USD', 'GBP', 'EUR', 'GHS', 'KES', 'ZAR'];
+
+const TIMEZONE_OPTIONS = [
+  'Africa/Lagos',
+  'Africa/Accra',
+  'Africa/Nairobi',
+  'Africa/Johannesburg',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Chicago',
+  'America/Los_Angeles',
+  'Asia/Dubai',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Australia/Sydney',
+  'UTC',
+];
+
+type CargoItemRow = {
+  id: string;
+  booking_id: string;
+  description: string;
+  quantity: string;
+  gross_weight: string;
+  unit: string;
+  rate_class: string;
+  chargeable_weight: string;
+};
+
+type Booking = {
+  id: string;
+  tracking_no: string | null;
+  origin: string;
+  destination: string;
+  type: string;
+  status: string;
+  pickup_date: string | null;
+  declared_value: number | null;
+  weight: string | null;
+  sender_name: string | null;
+  sender_phone: string | null;
+  sender_address: string | null;
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  receiver_address: string | null;
+};
+
+type Invoice = {
+  id: string;
+  invoice_no: string;
+  status: string;
+  amount: number;
+  linked_booking_id: string;
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  Pending: '#ca8a04',
+  Assigned: '#2563c7',
+  'In Transit': '#7c3aed',
+  Delivered: '#1f9d5c',
+  Cancelled: 'var(--error-text)',
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_COLORS[status] ?? 'var(--subtext)';
+  return (
+    <span
+      className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      style={{ backgroundColor: color + '1a', color }}
+    >
+      {status}
+    </span>
+  );
+}
+
+export default function CustomerDashboard() {
+  const supabase = createClient();
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [tab, setTab] = useState<Tab>('overview');
+  const [loading, setLoading] = useState(true);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [effectiveUserId, setEffectiveUserId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const [staffPermittedModules, setStaffPermittedModules] = useState<string[]>([]);
+  const [staffAccessBlockedReason, setStaffAccessBlockedReason] = useState<string | null>(null);
+  const [staffDisplayName, setStaffDisplayName] = useState<string | null>(null);
+
+  const [muted, setMuted] = useState(false);
+  const [hasLowStockAlert, setHasLowStockAlert] = useState(false);
+  const [pendingInvoiceItem, setPendingInvoiceItem] = useState<{ description: string; quantity: string } | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const [profileName, setProfileName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileCurrency, setProfileCurrency] = useState('NGN');
+  const [profileTimezone, setProfileTimezone] = useState('Africa/Lagos');
+  const [profileSupportPhone, setProfileSupportPhone] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSavedAt, setProfileSavedAt] = useState<Date | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const [now, setNow] = useState<Date | null>(null);
+  const [darkMode, setDarkMode] = useState(true);
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [cargoItemsByBookingId, setCargoItemsByBookingId] = useState<Record<string, CargoItemRow[]>>({});
+  const [ownInvoiceTotals, setOwnInvoiceTotals] = useState({ subtotal: 0, tax: 0, total: 0 });
+  const [shipmentsLoading, setShipmentsLoading] = useState(true);
+
+  const [trackQuery, setTrackQuery] = useState('');
+  const [trackResult, setTrackResult] = useState<Booking | null>(null);
+  const [trackSearched, setTrackSearched] = useState(false);
+  const [trackLoading, setTrackLoading] = useState(false);
+
+  useEffect(() => {
+    setNow(new Date());
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function getGreeting() {
+    const tz = customer?.timezone || undefined;
+    let hour: number;
+    try {
+      hour = parseInt(
+        new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: tz }).format(now ?? new Date()),
+        10
+      );
+    } catch {
+      hour = (now ?? new Date()).getHours();
+    }
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/customer/login');
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data: ownerRow, error } = await supabase
+        .from('customers')
+        .select('id, name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let resolvedCustomer: any = ownerRow;
+      let resolvedEffectiveUserId = user.id;
+      let resolvedRole: StaffRole | null = null;
+
+      if (!ownerRow) {
+        const { data: membership } = await supabase
+          .from('customer_team_members')
+          .select('name, role, status, permitted_modules, customers(id, name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone, user_id)')
+          .eq('user_id', user.id)
+          .neq('status', 'Removed')
+          .maybeSingle();
+
+        const parentCustomer = membership?.customers
+          ? (Array.isArray(membership.customers) ? membership.customers[0] : membership.customers)
+          : null;
+
+        if (membership && parentCustomer) {
+          let effectiveStatus = membership.status;
+
+          // First login after being invited: accept it now, silently.
+          if (effectiveStatus === 'Invited') {
+            await supabase.rpc('accept_staff_invite');
+            effectiveStatus = 'Active';
+          }
+
+          if (effectiveStatus === 'Active') {
+            resolvedCustomer = parentCustomer;
+            resolvedEffectiveUserId = parentCustomer.user_id;
+            resolvedRole = membership.role as StaffRole;
+            setStaffPermittedModules(membership.permitted_modules ?? []);
+            setStaffDisplayName(membership.name || user.email?.split('@')[0] || null);
+          } else {
+            setStaffAccessBlockedReason(effectiveStatus);
+          }
+        }
+      }
+
+      if (error && !resolvedCustomer) setCustomerError(error.message);
+      setCustomer(resolvedCustomer);
+      setCustomerId(resolvedCustomer?.id ?? null);
+      setEffectiveUserId(resolvedCustomer ? resolvedEffectiveUserId : null);
+      setStaffRole(resolvedRole);
+
+      if (resolvedCustomer) {
+        setProfileName(resolvedCustomer.name ?? '');
+        setProfilePhone(resolvedCustomer.phone ?? '');
+        setProfileCurrency(resolvedCustomer.currency ?? 'NGN');
+        setProfileTimezone(resolvedCustomer.timezone ?? 'Africa/Lagos');
+        setProfileSupportPhone(resolvedCustomer.support_phone ?? '');
+      }
+      setLoading(false);
+
+      if (resolvedCustomer) {
+        await fetchShipmentsData(resolvedEffectiveUserId);
+        await fetchOwnInvoiceTotals(resolvedEffectiveUserId);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchShipmentsData(userId: string) {
+    setShipmentsLoading(true);
+
+    const { data: bookingsData } = await supabase
+      .from('bookings')
+      .select(
+        'id, tracking_no, origin, destination, type, status, pickup_date, declared_value, weight, sender_name, sender_phone, sender_address, receiver_name, receiver_phone, receiver_address'
+      )
+      .eq('user_id', userId)
+      .order('pickup_date', { ascending: false });
+
+    setBookings(bookingsData ?? []);
+
+    const bookingIds = (bookingsData ?? []).map((b) => b.id);
+
+    if (bookingIds.length) {
+      const { data: invoicesData } = await supabase
+        .from('invoices')
+        .select('id, invoice_no, status, amount, linked_booking_id')
+        .in('linked_booking_id', bookingIds);
+      setInvoices(invoicesData ?? []);
+
+      const { data: cargoData } = await supabase
+        .from('booking_cargo_items')
+        .select('id, booking_id, description, quantity, gross_weight, unit, rate_class, chargeable_weight')
+        .in('booking_id', bookingIds);
+
+      const grouped: Record<string, CargoItemRow[]> = {};
+      (cargoData ?? []).forEach((item) => {
+        if (!grouped[item.booking_id]) grouped[item.booking_id] = [];
+        grouped[item.booking_id].push(item);
+      });
+      setCargoItemsByBookingId(grouped);
+    } else {
+      setInvoices([]);
+      setCargoItemsByBookingId({});
+    }
+
+    setShipmentsLoading(false);
+  }
+
+  async function refetchShipments() {
+    if (effectiveUserId) await fetchShipmentsData(effectiveUserId);
+  }
+
+  async function fetchOwnInvoiceTotals(userId: string) {
+    const { data } = await supabase
+      .from('customer_own_invoices')
+      .select('subtotal, tax, total')
+      .eq('user_id', userId)
+      .eq('status', 'Paid');
+
+    const totals = (data ?? []).reduce(
+      (acc, inv) => ({
+        subtotal: acc.subtotal + (inv.subtotal || 0),
+        tax: acc.tax + (inv.tax || 0),
+        total: acc.total + (inv.total || 0),
+      }),
+      { subtotal: 0, tax: 0, total: 0 }
+    );
+
+    setOwnInvoiceTotals(totals);
+  }
+
+  async function refetchFinancials() {
+    if (effectiveUserId) await fetchOwnInvoiceTotals(effectiveUserId);
+  }
+
+  useEffect(() => {
+    if (!effectiveUserId) return;
+
+    const channel = supabase
+      .channel(`customer_bookings_${effectiveUserId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `user_id=eq.${effectiveUserId}` },
+        (payload) => {
+          const updated = payload.new as Booking;
+          setBookings((prev) => prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveUserId]);
+
+  async function handleTrack() {
+    setTrackSearched(true);
+    const q = trackQuery.trim();
+    if (!q) {
+      setTrackResult(null);
+      return;
+    }
+
+    setTrackLoading(true);
+    const { data } = await supabase
+      .from('bookings')
+      .select(
+        'id, tracking_no, origin, destination, type, status, pickup_date, declared_value, weight, sender_name, sender_phone, sender_address, receiver_name, receiver_phone, receiver_address'
+      )
+      .ilike('tracking_no', `%${q}%`)
+      .limit(1);
+
+    setTrackResult(data && data.length ? data[0] : null);
+    setTrackLoading(false);
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push('/customer/login');
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log('[avatar] no file selected');
+      return;
+    }
+
+    console.log('[avatar] starting upload', file.name, file.size, file.type);
+    setAvatarUploading(true);
+    setAvatarError(null);
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('[avatar] user check', { user: user?.id, userError });
+      if (userError) throw userError;
+      if (!user) throw new Error('Not signed in.');
+
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      console.log('[avatar] uploading to path', path);
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true });
+
+      console.log('[avatar] upload result', { uploadData, uploadError });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);
+      const avatarUrl = publicUrlData.publicUrl;
+      console.log('[avatar] public url', avatarUrl);
+
+      const { data: updateData, error: updateError } = await supabase
+        .from('customers')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', user.id)
+        .select('id');
+
+      console.log('[avatar] update result', { updateData, updateError });
+      if (updateError) throw updateError;
+      if (!updateData || updateData.length === 0) {
+        throw new Error('Update matched zero rows. Your customers table row may not have a user_id matching this login.');
+      }
+
+      const { data: freshRow, error: refetchError } = await supabase
+        .from('customers')
+        .select('name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      console.log('[avatar] refetch result', { freshRow, refetchError });
+      if (refetchError) throw refetchError;
+
+      if (freshRow) {
+        setCustomer(freshRow);
+      } else {
+        setCustomer((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : prev));
+      }
+    } catch (err: any) {
+      console.error('[avatar] FAILED', err);
+      setAvatarError(err?.message || JSON.stringify(err) || 'Upload failed for an unknown reason.');
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+
+    setPasswordSuccess(true);
+    setNewPassword('');
+    setConfirmPassword('');
+  }
+
+  async function handleSaveProfile() {
+    setProfileSaving(true);
+    setProfileError(null);
+
+    if (!effectiveUserId) {
+      setProfileError('Not signed in.');
+      setProfileSaving(false);
+      return;
+    }
+
+    const { data: updatedRow, error } = await supabase
+      .from('customers')
+      .update({
+        name: profileName,
+        phone: profilePhone,
+        currency: profileCurrency,
+        timezone: profileTimezone,
+        ...(!staffRole ? { support_phone: profileSupportPhone } : {}),
+      })
+      .eq('user_id', effectiveUserId)
+      .select('name, email, phone, balance, avatar_url, logo_url, currency, timezone, tax_rate, support_phone')
+      .maybeSingle();
+
+    setProfileSaving(false);
+
+    if (error) {
+      setProfileError(error.message);
+      return;
+    }
+
+    if (!updatedRow) {
+      setProfileError('Save did not update any row. Your account may not have a matching customers record, contact support.');
+      return;
+    }
+
+    setCustomer(updatedRow);
+    setProfileSavedAt(new Date());
+  }
+
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLogoUploading(true);
+    setLogoError(null);
+
+    try {
+      if (!effectiveUserId) throw new Error('Not signed in.');
+
+      const ext = file.name.split('.').pop();
+      const path = `${effectiveUserId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('logos').getPublicUrl(path);
+      const logoUrl = publicUrlData.publicUrl;
+
+      const { data: updateData, error: updateError } = await supabase
+        .from('customers')
+        .update({ logo_url: logoUrl })
+        .eq('user_id', effectiveUserId)
+        .select('id');
+      if (updateError) throw updateError;
+      if (!updateData || updateData.length === 0) {
+        throw new Error('Update matched zero rows.');
+      }
+
+      setCustomer((prev: any) => (prev ? { ...prev, logo_url: logoUrl } : prev));
+    } catch (err: any) {
+      setLogoError(err?.message || 'Upload failed.');
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  }
+
+  async function handleRemoveLogo() {
+    if (!effectiveUserId) return;
+    setLogoUploading(true);
+    setLogoError(null);
+    const { error } = await supabase.from('customers').update({ logo_url: null }).eq('user_id', effectiveUserId);
+    setLogoUploading(false);
+    if (error) {
+      setLogoError(error.message);
+      return;
+    }
+    setCustomer((prev: any) => (prev ? { ...prev, logo_url: null } : prev));
+  }
+
+  const initials = customer?.name
+    ? customer.name.split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+    : 'CU';
+
+  const themeVars = darkMode
+    ? {
+        '--bg': '#0e0e10',
+        '--card': '#17171a',
+        '--border': '#242428',
+        '--text': '#f5f5f6',
+        '--subtext': '#9a9aa0',
+        '--input-bg': '#1c1c1f',
+        '--input-border': '#2c2c30',
+        '--error-bg': '#2a1613',
+        '--error-border': '#4a2420',
+        '--error-text': '#ff6b60',
+        '--success-bg': '#12261a',
+        '--success-border': '#1f4530',
+        '--success-text': '#4ade80',
+      }
+    : {
+        '--bg': '#f5f5f6',
+        '--card': '#ffffff',
+        '--border': '#eceef0',
+        '--text': '#0b0b0d',
+        '--subtext': '#6c6c72',
+        '--input-bg': '#ffffff',
+        '--input-border': '#d8d8db',
+        '--error-bg': '#fdf0ef',
+        '--error-border': '#f3c9c7',
+        '--error-text': '#b8140d',
+        '--success-bg': '#f0fdf3',
+        '--success-border': '#c9e8d1',
+        '--success-text': '#0f7a35',
+      };
+
+  const visibleTabs = staffRole
+    ? ALL_TABS.filter((t) => staffPermittedModules.includes(t.key))
+    : ALL_TABS;
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]" style={themeVars as React.CSSProperties}>
+        <p className="text-sm text-[var(--subtext)]">Loading your account...</p>
+      </div>
+    );
+  }
+
+  if (staffAccessBlockedReason) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] p-4" style={themeVars as React.CSSProperties}>
+        <div className="max-w-sm rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 text-center">
+          <p className="mb-2 text-base font-bold text-[var(--text)]">Access paused</p>
+          <p className="text-sm text-[var(--subtext)]">
+            Your account status is currently &quot;{staffAccessBlockedReason}&quot;. Contact your business account owner to restore access.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] p-4" style={themeVars as React.CSSProperties}>
+        <div className="max-w-sm rounded-lg border border-[var(--border)] bg-[var(--card)] p-6 text-center">
+          <p className="mb-2 text-base font-bold text-[var(--text)]">No account found</p>
+          <p className="text-sm text-[var(--subtext)]">
+            We couldn&apos;t find a business account or staff invite for this login. If you were expecting access, contact whoever set up your account.
+          </p>
+          {customerError && <p className="mt-2 text-[11px] text-[var(--error-text)]">{customerError}</p>}
+          <p className="mt-3 border-t border-[var(--border)] pt-3 text-[11px] text-[var(--subtext)]">
+            Debug: logged in as user ID <span className="font-mono">{userId ?? 'none'}</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[var(--bg)]" style={themeVars as React.CSSProperties}>
+      {/* sidebar */}
+      <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col overflow-y-auto border-r border-[#1f1f22] bg-[#0b0b0d] md:flex">
+        <div className="flex items-center gap-2 border-b border-[#1f1f22] px-5 py-5">
+          {customer?.logo_url ? (
+            <img src={customer.logo_url} alt="Company logo" width={32} height={32} className="h-8 w-8 rounded object-cover" />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1a1a1d] text-[10px] font-bold text-[#6c6c72]">
+              {initials}
+            </div>
+          )}
+          <span className="text-[13px] font-bold uppercase tracking-wide text-white">Customer Portal</span>
+        </div>
+        <nav className="flex-1 space-y-1 p-3">
+          {visibleTabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`block w-full rounded-md px-3.5 py-2.5 text-left text-[13.5px] font-semibold ${
+                tab === t.key ? 'bg-[#e5231b] text-white' : 'text-[#a0a0a5] hover:bg-[#1a1a1d]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <div className="border-t border-[#1f1f22] p-3">
+          <button onClick={logout} className="w-full rounded-md px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-[#8a8a90] hover:bg-[#1a1a1d]">
+            Log out
+          </button>
+        </div>
+      </aside>
+
+      {/* mobile tab bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto border-t border-[#1f1f22] bg-[#0b0b0d] md:hidden">
+        {visibleTabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 whitespace-nowrap px-3 py-3 text-[11px] font-semibold ${
+              tab === t.key ? 'text-[#e5231b]' : 'text-[#a0a0a5]'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* main */}
+      <main className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#1f1f22] bg-[var(--bg)] px-5 py-5 md:px-8">
+          <div>
+            <h1 className="text-lg font-bold text-[var(--text)]">
+              {(() => {
+                const displayName = staffDisplayName || customer?.name || (customer?.email ? customer.email.split('@')[0] : null);
+                return displayName ? `${getGreeting()}, ${displayName}` : getGreeting();
+              })()}
+            </h1>
+            <p className="text-[13px] text-[var(--subtext)]">Here&apos;s what&apos;s happening with your shipments.</p>
+          </div>
+
+          <div className="relative flex items-center gap-4">
+            {now && (
+              <div className="hidden text-right sm:block">
+                <div className="text-[13px] font-semibold text-[var(--text)]">
+                  {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: customer?.timezone || undefined })}
+                </div>
+                <div className="text-[11px] text-[var(--subtext)]">
+                  {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: customer?.timezone || undefined })}
+                </div>
+              </div>
+            )}
+
+            <button
+              aria-label={muted ? 'Unmute notifications' : 'Mute notifications'}
+              onClick={() => setMuted((m) => !m)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+              title={muted ? 'Unmute notifications' : 'Mute notifications'}
+            >
+              {muted ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                  <path d="M18 6a9 9 0 0 1 0 12" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={() => setDarkMode((d) => !d)}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              aria-label="Notifications"
+              onClick={() => setHasLowStockAlert(false)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--subtext)] hover:bg-[var(--input-bg)]"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {hasLowStockAlert && (
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#e5231b]" />
+              )}
+            </button>
+
+            <button
+              aria-label="Profile"
+              onClick={() => setShowProfileMenu((v) => !v)}
+              className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-[11px] font-bold text-white"
+            >
+              {customer?.avatar_url ? (
+                <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+              ) : (
+                initials
+              )}
+            </button>
+
+            {showProfileMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                <div className="absolute right-0 top-11 z-50 w-64 rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-[13px] font-bold text-white">
+                      {customer?.avatar_url ? (
+                        <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+                      ) : (
+                        initials
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-[var(--text)]">{customer?.name ?? 'Customer'}</div>
+                      <div className="text-[11px] text-[var(--subtext)]">Customer</div>
+                      <div className="truncate text-[11px] text-[var(--subtext)]">{customer?.email ?? 'â€”'}</div>
+                    </div>
+                  </div>
+
+                  {avatarError && (
+                    <div className="mt-3 text-[11px] text-[var(--error-text)]">{avatarError}</div>
+                  )}
+
+                  <div className="mt-4 space-y-0.5 border-t border-[var(--border)] pt-3">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--input-bg)] disabled:opacity-50"
+                    >
+                      {avatarUploading ? 'Uploading...' : 'Change photo'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setShowPasswordModal(true);
+                        setPasswordError(null);
+                        setPasswordSuccess(false);
+                      }}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--input-bg)]"
+                    >
+                      Change password
+                    </button>
+                    <button
+                      onClick={logout}
+                      className="block w-full rounded-md px-2 py-2 text-left text-[13px] font-semibold text-[var(--error-text)] hover:bg-[var(--error-bg)]"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
+
+        <div className="flex-1 overflow-y-auto p-5 pb-20 md:p-8 md:pb-8">
+          {customerError && (
+            <div className="mb-5 rounded-md border border-[var(--error-border)] bg-[var(--error-bg)] p-3.5 text-[13px] text-[var(--error-text)]">
+              Could not load your profile details ({customerError}).
+            </div>
+          )}
+
+          {(() => {
+            const activeShipments = bookings.filter((b) =>
+              ['Pending', 'Assigned', 'In Transit'].includes(b.status)
+            ).length;
+
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            const deliveredThisMonth = bookings.filter((b) => {
+              if (b.status !== 'Delivered' || !b.pickup_date) return false;
+              const d = new Date(b.pickup_date);
+              return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            }).length;
+
+            const shipmentCost = invoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const revenue = ownInvoiceTotals.subtotal;
+            const tax = ownInvoiceTotals.tax;
+            const income = revenue - tax;
+
+            if (tab === 'report') {
+              return (
+                <ReportTab
+                  customerName={customer?.name ?? null}
+                  currency={customer?.currency ?? 'NGN'}
+                  symbol={symbolFor(customer?.currency)}
+                  revenue={revenue}
+                  tax={tax}
+                  income={income}
+                  shippingFee={shipmentCost}
+                />
+              );
+            }
+
+            if (tab !== 'overview') return null;
+
+            return (
+              <OverviewTab
+                bookings={bookings}
+                invoices={invoices}
+                ownInvoiceTotals={ownInvoiceTotals}
+                currency={customer?.currency ?? 'NGN'}
+                cargoItemsByBookingId={cargoItemsByBookingId}
+                onGoToTab={(t) => setTab(t as Tab)}
+              />
+            );
+          })()}
+
+          {tab === 'inventory' && (
+            <InventoryTab
+              muted={muted}
+              onLowStock={() => setHasLowStockAlert(true)}
+              onCreateInvoice={(item) => {
+                setPendingInvoiceItem(item);
+                setTab('invoices');
+              }}
+              ownerUserId={effectiveUserId}
+            />
+          )}
+
+          {tab === 'leads' && <LeadsTab ownerUserId={effectiveUserId} />}
+
+          {tab === 'shipments' && (
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-bold text-[var(--text)]">My shipments</h3>
+                <BookShipmentForm onBooked={refetchShipments} />
+              </div>
+
+              {shipmentsLoading ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                  Loading your shipments...
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                  No shipments yet. Once your first order is booked with our team, it&apos;ll appear here with live status.
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                  {bookings.map((b) => (
+                    <div
+                      key={b.id}
+                      className="flex flex-col gap-2 border-b border-[var(--border)] p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <ShipmentDetailTrigger booking={b} cargoItems={cargoItemsByBookingId[b.id] ?? []} />
+                        <div className="text-sm font-semibold text-[var(--text)]">
+                          {b.origin} &rarr; {b.destination}
+                        </div>
+                        <div className="text-[12px] text-[var(--subtext)]">
+                          {b.type} Â· Pickup {b.pickup_date ?? 'â€”'}
+                          {b.declared_value ? ` Â· \u20a6${b.declared_value.toLocaleString()}` : ''}
+                        </div>
+                      </div>
+                      <StatusBadge status={b.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'track' && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8">
+              <h3 className="mb-1 text-base font-bold text-[var(--text)]">Track a shipment</h3>
+              <p className="mb-4 text-[13px] text-[var(--subtext)]">Enter a tracking number to see its live status.</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={trackQuery}
+                  onChange={(e) => setTrackQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTrack()}
+                  placeholder="JAAD/3007/2026/00233"
+                  className="w-full max-w-[260px] rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                />
+                <button
+                  onClick={handleTrack}
+                  disabled={trackLoading}
+                  className="w-fit rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
+                >
+                  {trackLoading ? 'Tracking...' : 'Track'}
+                </button>
+              </div>
+
+              {trackSearched && !trackLoading && !trackResult && (
+                <p className="mt-4 text-[13px] text-[var(--subtext)]">No shipment found with that tracking number.</p>
+              )}
+
+              {trackResult && (
+                <div className="mt-5 rounded-md border border-[var(--border)] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="font-mono text-[13px] text-[#e5231b]">{trackResult.tracking_no}</span>
+                    <StatusBadge status={trackResult.status} />
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Route</dt>
+                      <dd className="text-[var(--text)]">
+                        {trackResult.origin} &rarr; {trackResult.destination}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Type</dt>
+                      <dd className="text-[var(--text)]">{trackResult.type}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] uppercase text-[var(--subtext)]">Pickup</dt>
+                      <dd className="text-[var(--text)]">{trackResult.pickup_date ?? 'â€”'}</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'invoices' && (
+            <div className="space-y-8">
+              <div>
+                <h4 className="mb-3 text-sm font-bold text-[var(--text)]">Shipment invoices</h4>
+                {invoices.length === 0 ? (
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-8 text-center text-sm text-[var(--subtext)]">
+                    No invoices yet. They&apos;ll show up here once your first shipment is billed.
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
+                    {invoices.map((inv) => {
+                      const booking = bookings.find((b) => b.id === inv.linked_booking_id);
+                      return (
+                        <div
+                          key={inv.id}
+                          className="flex flex-col gap-2 border-b border-[var(--border)] p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <InvoiceDetailTrigger
+                              invoice={inv}
+                              booking={booking ?? null}
+                              customerName={customer?.name ?? null}
+                            />
+                            <div className="text-[12px] text-[var(--subtext)]">
+                              {booking ? `${booking.origin} \u2192 ${booking.destination}` : booking?.tracking_no}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold text-[var(--text)]">
+                              {'\u20a6'}{(inv.amount || 0).toLocaleString()}
+                            </span>
+                            <StatusBadge status={inv.status} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <MyInvoicesTab
+                onChange={refetchFinancials}
+                currency={customer?.currency ?? 'NGN'}
+                initialItem={pendingInvoiceItem ?? undefined}
+                onInitialItemConsumed={() => setPendingInvoiceItem(null)}
+                ownerUserId={effectiveUserId}
+              />
+            </div>
+          )}
+
+
+
+          {tab === 'profile' && (
+            <div className="max-w-[520px] rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+              <div className="mb-5 flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#e5231b] text-lg font-bold text-white">
+                  {customer?.avatar_url ? (
+                    <img src={customer.avatar_url} alt="Profile" className="h-full w-full object-cover" onError={(e) => console.error('[avatar] image failed to load:', customer.avatar_url, e)} />
+                  ) : (
+                    initials
+                  )}
+                </div>
+                <div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="text-[13px] font-semibold text-[#e5231b] disabled:opacity-50"
+                  >
+                    {avatarUploading ? 'Uploading...' : 'Change photo'}
+                  </button>
+                  {avatarError && <p className="mt-1 text-[11px] text-[var(--error-text)]">{avatarError}</p>}
+                </div>
+              </div>
+
+              {!staffRole && (
+                <div className="mb-5 flex items-center gap-4 border-t border-[var(--border)] pt-5">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--input-border)] bg-[var(--input-bg)]">
+                    {customer?.logo_url ? (
+                      <img src={customer.logo_url} alt="Company logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-[var(--subtext)]">No logo</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold uppercase text-[var(--subtext)]">Company logo</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={logoUploading}
+                        className="text-[13px] font-semibold text-[#e5231b] disabled:opacity-50"
+                      >
+                        {logoUploading ? 'Uploading...' : 'Upload logo'}
+                      </button>
+                      {customer?.logo_url && (
+                        <button
+                          onClick={handleRemoveLogo}
+                          disabled={logoUploading}
+                          className="text-[13px] font-semibold text-[var(--subtext)] disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    {logoError && <p className="mt-1 text-[11px] text-[var(--error-text)]">{logoError}</p>}
+                    <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </div>
+                </div>
+              )}
+
+              {!staffRole && (
+                <div className="mb-5">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">
+                    Support phone number
+                  </label>
+                  <input
+                    value={profileSupportPhone}
+                    onChange={(e) => setProfileSupportPhone(e.target.value)}
+                    placeholder="+234..."
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                  <p className="mt-1 text-[11px] text-[var(--subtext)]">
+                    Shown to customers on the Call, SMS and WhatsApp support tabs.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-3 text-sm">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Full name</label>
+                  <input
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Email</label>
+                  <div className="rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-[var(--subtext)]">
+                    {customer?.email ?? 'â€”'}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Phone</label>
+                  <input
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Currency</label>
+                    <select
+                      value={profileCurrency}
+                      onChange={(e) => setProfileCurrency(e.target.value)}
+                      className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                    >
+                      {CURRENCY_OPTIONS.map((c) => (
+                        <option key={c} value={c}>{c} ({symbolFor(c)})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Timezone</label>
+                    <select
+                      value={profileTimezone}
+                      onChange={(e) => setProfileTimezone(e.target.value)}
+                      className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                    >
+                      {TIMEZONE_OPTIONS.map((tz) => (
+                        <option key={tz} value={tz}>{tz}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {profileError && (
+                  <p className="text-[13px] text-[var(--error-text)]">{profileError}</p>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={profileSaving}
+                    className="rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-60"
+                  >
+                    {profileSaving ? 'Saving...' : 'Save changes'}
+                  </button>
+                  {profileSavedAt && (
+                    <span className="text-[11px] text-[var(--subtext)]">
+                      Saved {profileSavedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-[var(--border)] pt-4">
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(true);
+                    setPasswordError(null);
+                    setPasswordSuccess(false);
+                  }}
+                  className="text-[13px] font-semibold text-[#e5231b]"
+                >
+                  Change password
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === 'notes' && <NotesTab />}
+
+          {tab === 'support' && userId && (
+            <SupportTab userId={effectiveUserId ?? userId} customerName={customer?.name ?? null} supportPhone={customer?.support_phone ?? null} muted={muted} />
+          )}
+
+          {tab === 'calculator' && <CalculatorTab />}
+
+          {tab === 'utilities' && <UtilitiesTab defaultTaxRate={customer?.tax_rate ?? 7.5} />}
+
+          {tab === 'administrator' && !staffRole && customerId && (
+            <AdministratorTab customerId={customerId} />
+          )}
+        </div>
+      </main>
+
+      {/* change password modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-[380px] rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[var(--text)]">Change password</h3>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="text-[13px] font-semibold text-[var(--subtext)]"
+              >
+                Close
+              </button>
+            </div>
+
+            {passwordSuccess ? (
+              <div className="rounded-md border border-[var(--success-border)] bg-[var(--success-bg)] p-3.5 text-[13px] text-[var(--success-text)]">
+                Password updated.
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">New password</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase text-[var(--subtext)]">Confirm password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full rounded-sm border border-[var(--input-border)] bg-[var(--input-bg)] px-3.5 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[#e5231b]"
+                  />
+                </div>
+
+                {passwordError && (
+                  <div className="text-[13px] text-[var(--error-text)]">{passwordError}</div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="w-full rounded-sm bg-[#e5231b] px-5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                >
+                  {passwordSaving ? 'Saving...' : 'Save password'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {userId && <ChatWidget userId={effectiveUserId ?? userId} customerName={customer?.name ?? null} muted={muted} />}
+    </div>
+  );
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/customer-nav-link.tsx
+======================================================================
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
+import type { ReactNode } from 'react';
+
+export default function CustomerNavLink({
+  href,
+  compact = false,
+  children,
+}: {
+  href: string;
+  compact?: boolean;
+  children: ReactNode;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const target = new URL(href, 'http://local.invalid');
+  const samePath = pathname === target.pathname;
+  const targetView = target.searchParams.get('view');
+  const currentView = searchParams.get('view');
+  const active = samePath && (!targetView || targetView === currentView);
+
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={`group flex min-h-8 items-center gap-2 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+        active
+          ? 'bg-red-600 text-white'
+          : 'text-neutral-300 hover:bg-red-600 hover:text-white'
+      } ${compact ? 'ml-1 min-h-7 py-1.5 text-[11px]' : ''}`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/customer-sign-out-button.tsx
+======================================================================
+"use client";
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+export default function CustomerSignOutButton() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  async function signOut() {
+    if (loading) return;
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+    setLoading(false);
+    if (error) { console.error('Customer sign out failed:', error); return; }
+    router.replace('/customer/login');
+    router.refresh();
+  }
+  return <button type="button" onClick={signOut} disabled={loading} className="mt-2 inline-flex min-h-7 items-center rounded-md border border-neutral-800 px-2.5 py-1.5 text-[10px] font-semibold text-neutral-300 transition hover:border-red-700 hover:bg-red-950/40 hover:text-white disabled:opacity-60">{loading ? 'Signing outâ€¦' : 'Log out'}</button>;
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/workspace/layout.tsx
+======================================================================
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+export default async function CustomerWorkspaceLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/customer/login");
+
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let hasCustomerAccount = Boolean(customer);
+  if (!hasCustomerAccount) {
+    const { data: membership } = await supabase
+      .from("customer_team_members")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .eq("status", "Active")
+      .maybeSingle();
+    hasCustomerAccount = Boolean(membership);
+  }
+
+  if (!hasCustomerAccount) redirect("/customer/login");
+
+  // Fail closed until tenant-scoped RLS and module queries are verified.
+  if (process.env.CUSTOMER_ERP_TENANT_MODE !== "enabled") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#09090b] px-4 text-white">
+        <section className="w-full max-w-xl rounded-2xl border border-red-500/30 bg-white/[0.03] p-7">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-red-400">JAAD Logistics</p>
+          <h1 className="mt-3 text-2xl font-bold">Customer ERP workspace is being prepared</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">
+            The admin modules have been copied into the customer workspace. Before they can be enabled,
+            each module must be scoped to the signed-in business and protected by tenant-level database policies.
+            This safety lock prevents one customer from seeing another business&apos;s records.
+          </p>
+          <Link href="/customer/dashboard" className="mt-6 inline-flex rounded-full border border-white/20 px-4 py-2 text-sm hover:border-red-400">
+            â† Back to customer portal
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/workspace/page.tsx
+======================================================================
+import Link from "next/link";
+
+const sections = [
+  { href: "/customer/dashboard/workspace/shipments", label: "Shipments", description: "Bookings, dispatch, tracking and delivery" },
+  { href: "/customer/dashboard/workspace/customers", label: "Customers", description: "Customer records and account management" },
+  { href: "/customer/dashboard/workspace/drivers", label: "Drivers", description: "Driver profiles and performance" },
+  { href: "/customer/dashboard/workspace/fleet", label: "Fleet", description: "Vehicles, insurance and maintenance" },
+  { href: "/customer/dashboard/workspace/warehouse", label: "Warehouse", description: "Inventory and stock management" },
+  { href: "/customer/dashboard/workspace/finance", label: "Finance", description: "Invoices, expenses, purchase orders and finance" },
+  { href: "/customer/dashboard/workspace/hr", label: "HR", description: "Employees, recruitment, leave and HR records" },
+  { href: "/customer/dashboard/workspace/crm", label: "CRM & Leads", description: "Leads, assignments and follow-up" },
+  { href: "/customer/dashboard/workspace/support", label: "Support", description: "Tickets, live chat and customer communications" },
+  { href: "/customer/dashboard/workspace/reports", label: "Reports", description: "Operational and business reporting" },
+  { href: "/customer/dashboard/workspace/calendar", label: "Calendar", description: "Calendar and scheduled events" },
+  { href: "/customer/dashboard/workspace/clock-tracker", label: "Clock Tracker", description: "Staff time tracking" },
+  { href: "/customer/dashboard/workspace/ai-chat", label: "AI Chat", description: "AI assistant workspace" }
+];
+
+export default function CustomerERPWorkspacePage() {
+  return (
+    <main className="min-h-screen bg-[#09090b] px-4 py-8 text-white sm:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-red-400">JAAD Logistics</p>
+            <h1 className="text-3xl font-bold tracking-tight">ERP Workspace</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">Access your operational modules from one workspace.</p>
+          </div>
+          <Link href="/customer/dashboard" className="rounded-full border border-white/15 px-4 py-2 text-sm text-zinc-200 transition hover:border-red-500 hover:text-white">â† Back to customer portal</Link>
+        </div>
+        <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm leading-6 text-zinc-300">
+          <strong className="text-white">Customer workspace setup:</strong> these modules are ported from the admin app. Before enabling this workspace for real customer accounts, the database policies and queries must be tenant-scoped so each business can access only its own records.
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {sections.map((section) => (
+            <Link key={section.href} href={section.href} className="group rounded-xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-red-500/60 hover:bg-white/[0.06]">
+              <div className="mb-2 flex items-center justify-between"><h2 className="font-semibold text-white">{section.label}</h2><span className="text-red-400">â†’</span></div>
+              <p className="text-sm leading-6 text-zinc-400">{section.description}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+
+======================================================================
+FILE: src/app/customer/dashboard/workspace/settings/page.tsx
+======================================================================
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { getCustomerTenantContext } from '@/lib/customer-tenant';
+import InvoiceBrandingForm from './invoice-branding-form';
+
+export const dynamic = 'force-dynamic';
+
+export default async function InvoiceBrandingSettingsPage() {
+  const tenant = await getCustomerTenantContext();
+  if (!tenant) redirect('/customer/dashboard?subscription=required');
+  const supabase = await createClient();
+  const { data: branding } = await supabase.from('invoice_branding').select('legal_name,address,phone,email,website,logo_path').eq('company_id', tenant.companyId).maybeSingle();
+  let logoUrl: string | null = null;
+  if (branding?.logo_path) {
+    const { data } = await supabase.storage.from('jaad-invoice-logos').createSignedUrl(branding.logo_path, 3600);
+    logoUrl = data?.signedUrl ?? null;
+  }
+  return <div className="mx-auto max-w-3xl space-y-5">
+    <header><p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">Company settings</p><h2 className="mt-2 text-2xl font-bold">Invoice branding</h2><p className="mt-2 text-sm leading-6 text-neutral-500 dark:text-neutral-400">Your invoices use your company name, contact details and logo. JAAD's preinstalled company branding is not used on customer invoices.</p></header>
+    <InvoiceBrandingForm companyId={tenant.companyId} initial={{ legal_name: branding?.legal_name ?? tenant.companyName, address: branding?.address ?? '', phone: branding?.phone ?? '', email: branding?.email ?? '', website: branding?.website ?? '', logo_path: branding?.logo_path ?? null }} logoUrl={logoUrl} />
+    <p className="text-xs leading-5 text-neutral-500">Logo files are stored in a private bucket under your company ID. Other tenants cannot read your invoice logo through the application or storage policies.</p>
+  </div>;
+}
+
+
+======================================================================
+FILE: src/app/customer/layout(20261020-233512).tsx
+======================================================================
+import { redirect } from 'next/navigation';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/server';
+import { NAV } from '@/lib/nav';
+import NavMenu from '@/components/nav-menu';
+import SignOutButton from '@/components/sign-out-button';
+import DarkModeToggle from '@/components/dark-mode-toggle';
+import SoundToggle from '@/components/sound-toggle';
+import NotificationBell from '@/components/notification-bell';
+import ProfileMenu from '@/components/profile-menu';
+import PageTitle from '@/components/page-title';
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect('/admin/login');
+
+  const [{ data: profile }, { data: notifications }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('full_name, email, role_id, avatar_url, roles(name, permitted_modules)')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('notifications')
+      .select('id, message, read, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  // Supabase relationship joins may be returned as an object or an array.
+  const role = Array.isArray(profile?.roles) ? profile.roles[0] : profile?.roles;
+  const isSuperAdmin = role?.name === 'Super Admin';
+  const permittedModules = Array.isArray(role?.permitted_modules)
+    ? (role.permitted_modules as string[])
+    : [];
+  const fullName = profile?.full_name ?? '';
+
+  const filteredNav = isSuperAdmin
+    ? NAV
+    : NAV.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => permittedModules.includes(item.key)),
+      })).filter((group) => group.items.length > 0);
+
+  // A missing role or stale permitted_modules value must not make the whole
+  // navigation disappear. Render the full navigation as a recovery fallback;
+  // this is only navigation visibility, NOT authorization. Every protected page,
+  // route handler, and server action must independently enforce access.
+  const navToRender = filteredNav.length > 0 ? filteredNav : NAV;
+
+  return (
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-neutral-100 dark:bg-neutral-950 print:bg-white">
+      <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col bg-black text-neutral-300 print:hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b border-neutral-800 px-4 py-4">
+          <Image
+            src="/logo.png"
+            alt="JAAD Logistics"
+            width={32}
+            height={32}
+            className="rounded"
+            style={{ width: 32, height: 'auto' }}
+            priority
+          />
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-white">JAAD ERP</div>
+            <div className="text-[10px] uppercase tracking-widest text-neutral-400">Operations</div>
+          </div>
+        </div>
+
+        <nav
+          aria-label="Main navigation"
+          className="red-scrollbar min-h-0 flex-1 touch-pan-y overscroll-y-contain overflow-x-hidden overflow-y-auto px-2 py-3"
+        >
+          <style>{`
+            .red-scrollbar::-webkit-scrollbar { width: 8px; }
+            .red-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .red-scrollbar::-webkit-scrollbar-thumb { background-color: #dc2626 !important; border-radius: 9999px; }
+            .red-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #ef4444 !important; }
+            .red-scrollbar { scrollbar-color: #dc2626 transparent; }
+          `}</style>
+          <NavMenu groups={navToRender} />
+          {filteredNav.length === 0 && (
+            <p className="mx-2 mt-4 rounded-md border border-amber-700 bg-neutral-900 px-3 py-2 text-xs leading-5 text-neutral-200">
+              Your account has no matching navigation permissions. Navigation is shown so you can find modules; access must still be authorized by each page and server action. Please assign the correct role to this account.
+            </p>
+          )}
+        </nav>
+
+        <div className="shrink-0 border-t border-neutral-800 bg-black px-4 py-3 text-[11px] text-neutral-300">
+          <div className="truncate font-medium text-white">{fullName || user.email || 'Signed-in user'}</div>
+          <div className="mt-0.5 text-neutral-400">{role?.name ?? 'No role assigned'}</div>
+          <div className="mt-2">
+            <SignOutButton />
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white px-6 py-3 dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
+          <PageTitle />
+          <div className="flex items-center gap-2">
+            <SoundToggle />
+            <NotificationBell notifications={notifications ?? []} />
+            <DarkModeToggle />
+            <ProfileMenu
+              userId={user.id}
+              name={fullName}
+              role={role?.name ?? 'No role assigned'}
+              email={profile?.email ?? user.email ?? ''}
+              avatarUrl={profile?.avatar_url ?? null}
+            />
+          </div>
+        </header>
+        <main className="red-scrollbar min-h-0 flex-1 touch-pan-y overscroll-y-contain overflow-x-hidden overflow-y-auto p-7 dark:bg-neutral-950 print:p-0">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+
+======================================================================
+FILE: src/app/customer/page.tsx
+======================================================================
+import Homepage from "@/components/homepage/Homepage";
+
+export default function HomePage() {
+  return <Homepage />;
+}
+
+
+======================================================================
+FILE: src/lib/customer-tenant.ts
+======================================================================
+import 'server-only';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { hasFullCrmAccess, planAllowsModule, type CustomerModule, type JaadPlanCode } from '@/lib/billing/plans';
+
+export type CustomerTenantContext = {
+  userId: string;
+  companyId: string;
+  companyName: string;
+  planCode: JaadPlanCode;
+  subscriptionEndsAt: string;
+  isBillingOwner: boolean;
+  fullCrmAccess: boolean;
+};
+
+export async function getCustomerTenantContext(): Promise<CustomerTenantContext | null> {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return null;
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, company_id, status')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (profileError || !profile?.company_id || String(profile.status ?? 'Active').toLowerCase() !== 'active') return null;
+
+  const { data: company, error: companyError } = await supabase
+    .from('companies')
+    .select('id, name, owner_user_id')
+    .eq('id', profile.company_id)
+    .maybeSingle();
+  if (companyError || !company) return null;
+
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from('company_subscriptions')
+    .select('plan_code, status, current_period_end')
+    .eq('company_id', profile.company_id)
+    .maybeSingle();
+  if (subscriptionError || !subscription || subscription.status !== 'active' || !subscription.current_period_end) return null;
+  if (new Date(subscription.current_period_end).getTime() <= Date.now()) return null;
+  if (!['basic', 'standard', 'business', 'premium'].includes(String(subscription.plan_code))) return null;
+
+  return {
+    userId: user.id,
+    companyId: String(company.id),
+    companyName: String(company.name ?? 'Your company'),
+    planCode: subscription.plan_code as JaadPlanCode,
+    subscriptionEndsAt: String(subscription.current_period_end),
+    isBillingOwner: company.owner_user_id === user.id,
+    fullCrmAccess: hasFullCrmAccess(String(subscription.plan_code)),
+  };
+}
+
+export async function requireCustomerTenantContext() {
+  if (process.env.CUSTOMER_ERP_TENANT_MODE !== 'enabled') return null;
+  return getCustomerTenantContext();
+}
+
+export async function requireCustomerModule(module: CustomerModule) {
+  if (process.env.CUSTOMER_ERP_TENANT_MODE !== 'enabled') return { ok: false as const, reason: 'setup' as const };
+  const context = await getCustomerTenantContext();
+  if (!context) return { ok: false as const, reason: 'subscription' as const };
+  if (!planAllowsModule(context.planCode, module)) return { ok: false as const, reason: 'plan' as const, context };
+  return { ok: true as const, context };
+}
+
+export async function redirectIfNotCustomerModule(module: CustomerModule) {
+  const result = await requireCustomerModule(module);
+  if (result.ok) return result.context;
+  if (result.reason === 'setup') redirect('/customer/dashboard?setup=tenant-security');
+  if (result.reason === 'subscription') redirect('/packages?subscription=required');
+  redirect('/packages?upgrade=required');
+}
+
+
+======================================================================
+FILE: src/proxy.ts
+======================================================================
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+export async function proxy(request: NextRequest) {
+ const pathname=request.nextUrl.pathname;
+ const webhook=pathname.startsWith("/api/inbound-email")||pathname==="/api/twilio/voice"||pathname==="/api/twilio/status";
+ const publicAsset=pathname.startsWith("/documents/");
+ const publicPage=pathname==="/"||pathname==="/erp"||pathname.startsWith("/erp/")||pathname.startsWith("/admin/login")||pathname==="/customer/login"||pathname==="/customer/signup";
+ if(webhook||publicAsset||publicPage)return NextResponse.next({request});
+ let response=NextResponse.next({request});
+ const supabase=createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{cookies:{getAll(){return request.cookies.getAll()},setAll(cookiesToSet){cookiesToSet.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cookiesToSet.forEach(({name,value,options})=>response.cookies.set(name,value,options));}}});
+ const {data:{user}}=await supabase.auth.getUser();
+ if(!user){const url=request.nextUrl.clone();url.pathname=pathname.startsWith("/customer")?"/customer/login":"/admin/login";return NextResponse.redirect(url)}
+ if(pathname.startsWith("/admin/login")){const url=request.nextUrl.clone();url.pathname="/dashboard";return NextResponse.redirect(url)}
+ return response;
+}
+export const config={matcher:["/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]};
+
+
+======================================================================
+FILE: src/app/proxy.ts
+======================================================================
+
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+export async function proxy(request: NextRequest) {
+  // Webhook routes have no browser session (Resend, etc. call these directly),
+  // so they must skip the auth redirect entirely.
+  const pathname = request.nextUrl.pathname;
+  const isWebhookRoute =
+    pathname.startsWith('/api/inbound-email') ||
+    pathname === '/api/twilio/voice' ||
+    pathname === '/api/twilio/status' ||
+    pathname === '/api/billing/webhook' ||
+    pathname === '/api/billing/callback';
+
+  if (isWebhookRoute) {
+    return NextResponse.next({ request });
+  }
+
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Pages anyone can visit without being logged in: the homepage,
+  // both login pages, and customer signup. Everything else, including
+  // the customer dashboard, requires a logged-in session.
+  const isPublicRoute =
+    request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname.startsWith('/admin/login') ||
+    request.nextUrl.pathname === '/customer/login' ||
+    request.nextUrl.pathname === '/customer/signup' ||
+    request.nextUrl.pathname === '/customer/erp-signup';
+
+  if (!user && !isPublicRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = request.nextUrl.pathname.startsWith('/customer') ? '/customer/login' : '/admin/login';
+    return NextResponse.redirect(url);
+  }
+
+  if (user && request.nextUrl.pathname.startsWith('/admin/login')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+};
+
+
+======================================================================
+FILE: src/app/layout.tsx
+======================================================================
+import type { Metadata } from "next";
+import "./globals.css";
+import "./jaad-homepage.css";
+
+export const metadata: Metadata = {
+  title: "JAAD Logistics ERP",
+  description: "Operations ERP for JAAD Logistics",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full flex flex-col font-sans">{children}</body>
+    </html>
+  );
+}
+

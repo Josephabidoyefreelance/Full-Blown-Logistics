@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { submitPublicVote as voteEmployeePublic } from './actions';
+import VoteForm from '../../vote-form';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -56,9 +56,7 @@ export default async function EmployeeOfTheYearPublicProfile({
               <p className="mt-1 text-2xl font-bold">{employee.votes ?? 0}</p>
             </div>
           </div>
-          <form action={voteEmployeePublic.bind(null, employee.id)} className="mt-6">
-            <button type="submit" className="w-full rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700">Vote for {employee.name.split(' ')[0]}</button>
-          </form>
+          <VoteForm employeeId={employee.id} />
           <p className="mt-3 text-center text-xs text-neutral-500">Please vote fairly and respectfully. Votes are recorded by JAAD Logistics.</p>
         </div>
       </section>

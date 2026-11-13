@@ -1,14 +1,7 @@
-JAAD Logistics — Admin login visual refinement
+JAAD admin login flicker alignment fix
 
-Included replacement:
-  src/app/admin/login/page.tsx
+Replace only: src/app/admin/login/page.tsx
 
-Changes:
-- Removed the red outline around the full viewport.
-- Moved “Back to website” to the upper-left corner.
-- Centered and enlarged the JAAD logo in the dark panel.
-- Changed the three feature indicators to green.
-- Kept the existing admin login flow, Supabase password authentication, and Cloudflare Turnstile checks unchanged.
+The admin login page now uses the same centered shell/card/header structure and logo dimensions/priority behavior as the supplied customer login page. The admin authentication, Cloudflare Turnstile action, authorization checkbox, password fields, and redirect are preserved. No other application files are included.
 
-Important:
-This is a UI-only replacement. It does not fix the customer login “Failed to fetch” error shown in the screenshot. That error occurs while Supabase auth verifyOtp is being called and needs a separate network/configuration investigation; changing the page design cannot fix it.
+Back up your existing file first. This source change has not been browser-tested in your full app.

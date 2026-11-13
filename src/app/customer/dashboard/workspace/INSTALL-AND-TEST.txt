@@ -1,0 +1,5 @@
+CORRECTED: use server directive is first in all four files.
+Install at project root, overwriting only these four customer actions.ts files.
+Then run: npm run build
+This patch has NOT been build-tested in this environment (dependencies are not installed).
+Do not enable CUSTOMER_ERP_TENANT_MODE until the build and live isolation tests pass.

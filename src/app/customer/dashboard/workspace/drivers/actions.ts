@@ -1,8 +1,9 @@
 'use server';
 
+import { requireCustomerModule } from '@/lib/customer-tenant';
+
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { getCustomerTenantContext } from '@/lib/customer-tenant';
 
 const RATING_COLUMNS = [
   'communication_rating',
@@ -37,9 +38,13 @@ async function uploadFile(supabase: Awaited<ReturnType<typeof createClient>>, co
 }
 
 export async function updateDriverStatus(id: string, status: string) {
+  const tenantAccess = await requireCustomerModule('drivers');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!id || !STATUS_OPTIONS.includes(status)) return { error: 'Invalid driver status.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('drivers').update({ status }).eq('id', id);
+  const { error } = await supabase.from('drivers').update({ status }).eq('id', id).eq('company_id', tenantCompanyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/drivers');
   revalidatePath('/customer/dashboard/workspace');
@@ -47,10 +52,14 @@ export async function updateDriverStatus(id: string, status: string) {
 }
 
 export async function updateDriverCategoryRating(id: string, column: RatingColumn, rating: number) {
+  const tenantAccess = await requireCustomerModule('drivers');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!RATING_COLUMNS.includes(column)) return { error: 'Invalid rating category.' };
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) return { error: 'Rating must be between 1 and 5.' };
   const supabase = await createClient();
-  const { error } = await supabase.from('drivers').update({ [column]: rating }).eq('id', id);
+  const { error } = await supabase.from('drivers').update({ [column]: rating }).eq('id', id).eq('company_id', tenantCompanyId);
   if (error) return { error: error.message };
   revalidatePath('/customer/dashboard/workspace/drivers');
   revalidatePath('/customer/dashboard/workspace');
@@ -58,8 +67,10 @@ export async function updateDriverCategoryRating(id: string, column: RatingColum
 }
 
 export async function createDriver(formData: FormData) {
-  const tenant = await getCustomerTenantContext();
-  if (!tenant) return { error: 'An active company subscription is required.' };
+  const tenantAccess = await requireCustomerModule('drivers');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   const supabase = await createClient();
   const name = String(formData.get('name') ?? '').trim();
   const license_no = String(formData.get('license_no') ?? '').trim();
@@ -84,7 +95,7 @@ export async function createDriver(formData: FormData) {
 
   for (const [file, kind] of [[photo, 'photo'], [idDocument, 'id'], [licenseDocument, 'licence']] as const) {
     if (!file) continue;
-    const result = await uploadFile(supabase, tenant.companyId, driverId, file, kind);
+    const result = await uploadFile(supabase, tenantCompanyId, driverId, file, kind);
     if (result.error || !result.path) {
       for (const path of uploaded) await supabase.storage.from('driver-documents').remove([path]);
       return { error: result.error ?? 'Could not upload driver document.' };
@@ -97,6 +108,7 @@ export async function createDriver(formData: FormData) {
 
   const payload = {
     id: driverId,
+    company_id: tenantCompanyId,
     name,
     license_no,
     license_expiry: clean(formData.get('license_expiry')),
@@ -139,8 +151,14 @@ export async function createDriver(formData: FormData) {
 }
 
 export async function createDriverOnboardingLink(driverId: string) {
+  const tenantAccess = await requireCustomerModule('drivers');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!driverId) return { error: 'Driver is required.' };
   const supabase = await createClient();
+  const { data: ownedDriver } = await supabase.from('drivers').select('id').eq('id', driverId).eq('company_id', tenantCompanyId).maybeSingle();
+  if (!ownedDriver) return { error: 'Driver not found in your company.' };
   const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
   const { error } = await supabase.from('driver_onboarding_links').insert({ driver_id: driverId, token });
   if (error) return { error: error.message };
@@ -149,8 +167,13 @@ export async function createDriverOnboardingLink(driverId: string) {
 }
 
 export async function getDriverFileUrl(path: string | null) {
+  const tenantAccess = await requireCustomerModule('drivers');
+  if (!tenantAccess.ok) return { error: 'Customer subscription or module access required.' };
+  const tenantCompanyId = tenantAccess.context.companyId;
+
   if (!path) return { url: null };
   const supabase = await createClient();
+  if (!path.startsWith(`${tenantCompanyId}/`)) return { url: null, error: 'Document is not in your company.' };
   const { data, error } = await supabase.storage.from('driver-documents').createSignedUrl(path, 60 * 10);
   if (error) return { url: null, error: error.message };
   return { url: data.signedUrl };

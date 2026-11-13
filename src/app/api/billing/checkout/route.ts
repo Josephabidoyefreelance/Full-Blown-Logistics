@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { JAAD_PLANS, type JaadPlanCode } from '@/lib/billing/plans';
 import { createBillingAdminClient } from '@/lib/billing/flutterwave';
+import { getCustomerBillingWorkspace } from '@/lib/customer-billing-workspace';
 
 export const runtime = 'nodejs';
 
@@ -21,16 +22,16 @@ export async function POST(request: Request) {
   }
   const plan = JAAD_PLANS[body.planCode];
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, email, company_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (profileError || !profile?.company_id) {
-    return NextResponse.json({ error: 'Your account is not assigned to a company workspace. Contact your administrator.' }, { status: 409 });
-  }
-  const email = profile.email || user.email;
+  const workspace = await getCustomerBillingWorkspace();
+  if (!workspace) return NextResponse.json({
+    error: 'Select an authorized customer workspace before starting checkout.',
+  }, { status: 409 });
+  if (!workspace.isBillingOwner) return NextResponse.json({
+    error: 'Only the owner of this customer workspace can subscribe or renew.',
+  }, { status: 403 });
+  const email = user.email;
   if (!email) return NextResponse.json({ error: 'A valid billing email is required.' }, { status: 400 });
+  const company = workspace.company;
 
   let admin;
   try {
@@ -38,16 +39,14 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Billing is not configured on the server yet.' }, { status: 503 });
   }
-
-  const { data: company, error: companyError } = await admin
-    .from('companies')
-    .select('id, name, owner_user_id')
-    .eq('id', profile.company_id)
+  // Independently confirm the selected customer/company binding in trusted SQL.
+  const { data: binding, error: bindingError } = await admin
+    .from('jaad_customer_workspaces').select('company_id')
+    .eq('company_id', company.id).eq('customer_id', workspace.customerId)
     .maybeSingle();
-  if (companyError || !company) return NextResponse.json({ error: 'Your company workspace could not be found.' }, { status: 404 });
-  if (company.owner_user_id !== user.id) {
-    return NextResponse.json({ error: 'Only the company billing owner can choose or renew a package.' }, { status: 403 });
-  }
+  if (bindingError || !binding) return NextResponse.json({
+    error: 'Customer billing workspace is not provisioned.',
+  }, { status: 409 });
 
   const reference = `JAAD-${randomUUID().replaceAll('-', '')}`;
   const amountKobo = plan.priceNaira * 100;

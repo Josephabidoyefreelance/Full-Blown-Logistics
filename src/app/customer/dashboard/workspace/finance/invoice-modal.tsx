@@ -1,4 +1,5 @@
 'use client';
+import { useCustomerWorkspaceMoney } from '@/components/customer-workspace-preferences';
 
 import { useState } from 'react';
 
@@ -19,7 +20,7 @@ export default function InvoiceModal({
   date,
   status,
   autoOpen = false,
-  branding,
+  savedTaxRate, savedTaxAmount, savedTotalAmount,
 }: {
   invoiceNo: string;
   customerName: string;
@@ -27,13 +28,17 @@ export default function InvoiceModal({
   date: string;
   status: string;
   autoOpen?: boolean;
-  branding?: { legal_name: string; address: string; phone: string; email: string; website: string; logoUrl: string | null } | null;
+  savedTaxRate?: number | null;
+  savedTaxAmount?: number | null;
+  savedTotalAmount?: number | null;
 }) {
+  const { format: nairaFmt, currency, taxRate } = useCustomerWorkspaceMoney();
   const [open, setOpen] = useState(autoOpen);
-  const VAT_RATE = 0.075;
+  const rate = savedTaxRate ?? taxRate;
+  const VAT_RATE = rate / 100;
   const subtotal = amount;
-  const vat = Math.round(subtotal * VAT_RATE);
-  const total = subtotal + vat;
+  const vat = savedTaxAmount ?? Math.round(subtotal * VAT_RATE * 100) / 100;
+  const total = savedTotalAmount ?? subtotal + vat;
   const colors = statusColor(status);
 
   return (
@@ -67,18 +72,19 @@ export default function InvoiceModal({
 
             <div className="finance-print-area">
               <div className="flex items-center justify-between bg-black px-6 py-5">
-                {branding?.logoUrl ? (/* eslint-disable-next-line @next/next/no-img-element */ <img src={branding.logoUrl} alt={`${branding.legal_name || 'Company'} logo`} className="h-10 max-w-28 object-contain" />) : <div className="h-10 min-w-10" aria-hidden="true" />}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="JAAD Logistics" className="h-10 w-10 rounded" />
                 <div className="text-xl font-bold tracking-wide text-white">INVOICE</div>
               </div>
 
               <div className="p-6">
                 <div className="mb-6 flex items-start justify-between text-sm">
                   <div>
-                    <div className="font-bold text-neutral-900">{branding?.legal_name || 'Your company name'}</div>
-                    {branding?.address && <div className="whitespace-pre-line text-neutral-500">{branding.address}</div>}
-                    {branding?.phone && <div className="text-neutral-500">{branding.phone}</div>}
-                    {branding?.email && <div className="text-neutral-500">{branding.email}</div>}
-                    {branding?.website && <div className="text-neutral-500">{branding.website}</div>}
+                    <div className="font-bold text-neutral-900">JAAD LOGISTICS</div>
+                    <div className="text-neutral-500">Lagos State, Nigeria</div>
+                    <div className="text-neutral-500">+234-707-568-8573</div>
+                    <div className="text-neutral-500">admin@jaadlogistics.com.ng</div>
+                    <div className="text-neutral-500">www.jaadlogistics.com.ng</div>
                   </div>
                   <div className="text-right">
                     <div><span className="text-neutral-500">Invoice No.: </span><span className="font-semibold text-neutral-900">{invoiceNo}</span></div>
@@ -121,7 +127,7 @@ export default function InvoiceModal({
                       <span>{nairaFmt(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-neutral-600">
-                      <span>VAT, 7.5%</span>
+                      <span>VAT, {rate}%</span>
                       <span>{nairaFmt(vat)}</span>
                     </div>
                     <div className="flex justify-between border-t-2 border-neutral-900 pt-2 text-base font-bold">

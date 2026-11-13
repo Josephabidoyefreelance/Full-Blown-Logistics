@@ -1,0 +1,5 @@
+JAAD ERP multi-tenant scaffold added under (app)/erp/.
+Original uploaded (app) files were preserved and not rewritten.
+This is a folder structure and implementation gate, not proof tenant isolation is live.
+The archive lacks the full repository root and Supabase schema/migrations required to complete and verify the secure implementation.
+Read (app)/erp/README-MULTI-TENANT.md before wiring routes or applying migrations.

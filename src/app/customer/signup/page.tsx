@@ -7,18 +7,119 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import PolicyPdfLink from '@/components/PolicyPdfLink';
 
-const COUNTRY_CODES = [
-  { code: '+234', label: '🇳🇬 +234' },
-  { code: '+1', label: '🇺🇸 +1' },
-  { code: '+44', label: '🇬🇧 +44' },
-  { code: '+233', label: '🇬🇭 +233' },
-  { code: '+254', label: '🇰🇪 +254' },
-  { code: '+27', label: '🇿🇦 +27' },
-  { code: '+91', label: '🇮🇳 +91' },
-  { code: '+971', label: '🇦🇪 +971' },
-  { code: '+61', label: '🇦🇺 +61' },
-  { code: '+33', label: '🇫🇷 +33' },
+// All 54 UN-recognised African states, plus Western Sahara, and selected European countries,
+// and the non-European prefixes previously offered on this form.
+const AFRICAN_DIAL_CODES = [
+  { iso: 'DZ', name: 'Algeria', code: '+213' },
+  { iso: 'AO', name: 'Angola', code: '+244' },
+  { iso: 'BJ', name: 'Benin', code: '+229' },
+  { iso: 'BW', name: 'Botswana', code: '+267' },
+  { iso: 'BF', name: 'Burkina Faso', code: '+226' },
+  { iso: 'BI', name: 'Burundi', code: '+257' },
+  { iso: 'CV', name: 'Cabo Verde', code: '+238' },
+  { iso: 'CM', name: 'Cameroon', code: '+237' },
+  { iso: 'CF', name: 'Central African Republic', code: '+236' },
+  { iso: 'TD', name: 'Chad', code: '+235' },
+  { iso: 'KM', name: 'Comoros', code: '+269' },
+  { iso: 'CG', name: 'Republic of the Congo', code: '+242' },
+  { iso: 'CD', name: 'DR Congo', code: '+243' },
+  { iso: 'CI', name: "Côte d'Ivoire", code: '+225' },
+  { iso: 'DJ', name: 'Djibouti', code: '+253' },
+  { iso: 'EG', name: 'Egypt', code: '+20' },
+  { iso: 'GQ', name: 'Equatorial Guinea', code: '+240' },
+  { iso: 'ER', name: 'Eritrea', code: '+291' },
+  { iso: 'SZ', name: 'Eswatini', code: '+268' },
+  { iso: 'ET', name: 'Ethiopia', code: '+251' },
+  { iso: 'GA', name: 'Gabon', code: '+241' },
+  { iso: 'GM', name: 'Gambia', code: '+220' },
+  { iso: 'GH', name: 'Ghana', code: '+233' },
+  { iso: 'GN', name: 'Guinea', code: '+224' },
+  { iso: 'GW', name: 'Guinea-Bissau', code: '+245' },
+  { iso: 'KE', name: 'Kenya', code: '+254' },
+  { iso: 'LS', name: 'Lesotho', code: '+266' },
+  { iso: 'LR', name: 'Liberia', code: '+231' },
+  { iso: 'LY', name: 'Libya', code: '+218' },
+  { iso: 'MG', name: 'Madagascar', code: '+261' },
+  { iso: 'MW', name: 'Malawi', code: '+265' },
+  { iso: 'ML', name: 'Mali', code: '+223' },
+  { iso: 'MR', name: 'Mauritania', code: '+222' },
+  { iso: 'MU', name: 'Mauritius', code: '+230' },
+  { iso: 'MA', name: 'Morocco', code: '+212' },
+  { iso: 'MZ', name: 'Mozambique', code: '+258' },
+  { iso: 'NA', name: 'Namibia', code: '+264' },
+  { iso: 'NE', name: 'Niger', code: '+227' },
+  { iso: 'NG', name: 'Nigeria', code: '+234' },
+  { iso: 'RW', name: 'Rwanda', code: '+250' },
+  { iso: 'ST', name: 'São Tomé and Príncipe', code: '+239' },
+  { iso: 'SN', name: 'Senegal', code: '+221' },
+  { iso: 'SC', name: 'Seychelles', code: '+248' },
+  { iso: 'SL', name: 'Sierra Leone', code: '+232' },
+  { iso: 'SO', name: 'Somalia', code: '+252' },
+  { iso: 'ZA', name: 'South Africa', code: '+27' },
+  { iso: 'SS', name: 'South Sudan', code: '+211' },
+  { iso: 'SD', name: 'Sudan', code: '+249' },
+  { iso: 'TZ', name: 'Tanzania', code: '+255' },
+  { iso: 'TG', name: 'Togo', code: '+228' },
+  { iso: 'TN', name: 'Tunisia', code: '+216' },
+  { iso: 'UG', name: 'Uganda', code: '+256' },
+  { iso: 'ZM', name: 'Zambia', code: '+260' },
+  { iso: 'ZW', name: 'Zimbabwe', code: '+263' },
+  { iso: 'EH', name: 'Western Sahara', code: '+212' },
 ];
+const EUROPEAN_DIAL_CODES = [
+  { iso: 'GB', name: 'United Kingdom', code: '+44' },
+  { iso: 'IE', name: 'Ireland', code: '+353' },
+  { iso: 'FR', name: 'France', code: '+33' },
+  { iso: 'DE', name: 'Germany', code: '+49' },
+  { iso: 'ES', name: 'Spain', code: '+34' },
+  { iso: 'IT', name: 'Italy', code: '+39' },
+  { iso: 'NL', name: 'Netherlands', code: '+31' },
+  { iso: 'BE', name: 'Belgium', code: '+32' },
+  { iso: 'CH', name: 'Switzerland', code: '+41' },
+  { iso: 'SE', name: 'Sweden', code: '+46' },
+  { iso: 'NO', name: 'Norway', code: '+47' },
+  { iso: 'DK', name: 'Denmark', code: '+45' },
+  { iso: 'FI', name: 'Finland', code: '+358' },
+  { iso: 'PL', name: 'Poland', code: '+48' },
+  { iso: 'CZ', name: 'Czechia', code: '+420' },
+  { iso: 'AT', name: 'Austria', code: '+43' },
+  { iso: 'PT', name: 'Portugal', code: '+351' },
+  { iso: 'GR', name: 'Greece', code: '+30' },
+  { iso: 'RO', name: 'Romania', code: '+40' },
+  { iso: 'HU', name: 'Hungary', code: '+36' },
+  { iso: 'SK', name: 'Slovakia', code: '+421' },
+  { iso: 'SI', name: 'Slovenia', code: '+386' },
+  { iso: 'LT', name: 'Lithuania', code: '+370' },
+  { iso: 'LV', name: 'Latvia', code: '+371' },
+  { iso: 'EE', name: 'Estonia', code: '+372' },
+  { iso: 'HR', name: 'Croatia', code: '+385' },
+  { iso: 'IS', name: 'Iceland', code: '+354' },
+  { iso: 'LU', name: 'Luxembourg', code: '+352' },
+  { iso: 'MT', name: 'Malta', code: '+356' },
+  { iso: 'CY', name: 'Cyprus', code: '+357' },
+  { iso: 'BG', name: 'Bulgaria', code: '+359' },
+  { iso: 'UA', name: 'Ukraine', code: '+380' },
+  { iso: 'RS', name: 'Serbia', code: '+381' },
+  { iso: 'BA', name: 'Bosnia and Herzegovina', code: '+387' },
+  { iso: 'AL', name: 'Albania', code: '+355' },
+  { iso: 'ME', name: 'Montenegro', code: '+382' },
+  { iso: 'MK', name: 'North Macedonia', code: '+389' },
+  { iso: 'MD', name: 'Moldova', code: '+373' },
+  { iso: 'TR', name: 'Türkiye', code: '+90' },
+];
+const OTHER_DIAL_CODES = [
+  { iso: 'US', name: 'United States / Canada', code: '+1' },
+  { iso: 'IN', name: 'India', code: '+91' },
+  { iso: 'AE', name: 'United Arab Emirates', code: '+971' },
+  { iso: 'AU', name: 'Australia', code: '+61' },
+];
+const COUNTRY_CODES = [...AFRICAN_DIAL_CODES, ...EUROPEAN_DIAL_CODES, ...OTHER_DIAL_CODES];
+
+function dialLabel(iso: string, name: string, code: string) {
+  const flag = iso.toUpperCase().replace(/./g, (letter) =>
+    String.fromCodePoint(letter.charCodeAt(0) + 127397));
+  return `${flag} ${name} (${code})`;
+}
 
 function readErrorMessage(err: unknown, fallback: string) {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -37,7 +138,11 @@ export default function CustomerSignupPage() {
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [countryCode, setCountryCode] = useState('+234');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [countryIso, setCountryIso] = useState('NG');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [code, setCode] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +158,21 @@ export default function CustomerSignupPage() {
   async function sendCode() {
     if (!firstName.trim() || !lastName.trim() || !businessName.trim() || !email.trim() || !phone.trim()) {
       setError('Please fill in your business name, first name, last name, email, and phone number.');
+      return;
+    }
+    const prefix = COUNTRY_CODES.find((entry) => entry.iso === countryIso)?.code ?? '+234';
+    const digits = phone.replace(/[^0-9]/g, '');
+    const nationalNumber = countryIso === 'IT' ? digits : digits.replace(/^0+/, '');
+    if (!/^[+]\d{7,15}$/.test(`${prefix}${nationalNumber}`)) {
+      setError('Enter a valid phone number for the selected country.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Enter a password with at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('The passwords do not match.');
       return;
     }
     setError(null);
@@ -90,7 +210,17 @@ export default function CustomerSignupPage() {
     setLoading(true);
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-    const fullPhone = `${countryCode}${phone.trim().replace(/^0+/, '')}`;
+    const selectedCountry = COUNTRY_CODES.find((entry) => entry.iso === countryIso);
+    const dial = selectedCountry?.code ?? '+234';
+    const digits = phone.replace(/[^0-9]/g, '');
+    // Italian national numbers may start with a significant zero.
+    const nationalNumber = countryIso === 'IT' ? digits : digits.replace(/^0+/, '');
+    const fullPhone = `${dial}${nationalNumber}`;
+    if (!/^[+]\d{7,15}$/.test(fullPhone)) {
+      setLoading(false);
+      setError('Enter a valid phone number including the selected country code.');
+      return;
+    }
 
     let data: { user: { id: string } | null } = { user: null };
     let authError: { message: string } | null = null;
@@ -120,6 +250,15 @@ export default function CustomerSignupPage() {
     if (sessionError || !session?.access_token || session.user.id !== data.user.id) {
       setLoading(false);
       setError('Your email was verified, but a secure session could not be established. Please sign in again.');
+      return;
+    }
+
+    // Set the password only after the email OTP has established an authenticated session.
+    // Never send it to the company registration API or store it in browser storage.
+    const { error: passwordError } = await supabase.auth.updateUser({ password });
+    if (passwordError) {
+      setLoading(false);
+      setError(readErrorMessage(passwordError, 'Could not set your password. Please try again.'));
       return;
     }
 
@@ -153,6 +292,8 @@ export default function CustomerSignupPage() {
       if (session) sessionStorage.setItem('jaad_session_only', '1');
     }
 
+    setPassword('');
+    setConfirmPassword('');
     setLoading(false);
     router.push('/customer/dashboard'); // Existing customer-ERP lock and plan enforcement remain unchanged.
   }
@@ -233,13 +374,26 @@ export default function CustomerSignupPage() {
                     <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Phone number</label>
                     <div className="flex gap-2">
                       <select
-                        value={countryCode}
-                        onChange={(e) => setCountryCode(e.target.value)}
-                        className="rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-3 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                        aria-label="Phone country code"
+                        value={countryIso}
+                        onChange={(e) => setCountryIso(e.target.value)}
+                        className="max-w-[166px] rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-3 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       >
-                        {COUNTRY_CODES.map((c) => (
-                          <option key={c.code} value={c.code}>{c.label}</option>
-                        ))}
+                        <optgroup label="African countries">
+                          {AFRICAN_DIAL_CODES.map((c) => (
+                            <option key={c.iso} value={c.iso}>{dialLabel(c.iso, c.name, c.code)}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="European countries">
+                          {EUROPEAN_DIAL_CODES.map((c) => (
+                            <option key={c.iso} value={c.iso}>{dialLabel(c.iso, c.name, c.code)}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Other existing locations">
+                          {OTHER_DIAL_CODES.map((c) => (
+                            <option key={c.iso} value={c.iso}>{dialLabel(c.iso, c.name, c.code)}</option>
+                          ))}
+                        </optgroup>
                       </select>
                       <input
                         value={phone}
@@ -247,6 +401,50 @@ export default function CustomerSignupPage() {
                         placeholder="8012345678"
                         className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
                       />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Enter password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 pr-20 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="absolute right-3 inset-y-0 flex h-full items-center justify-center rounded bg-transparent px-2 text-xs font-semibold text-[#62626b] hover:text-[#e5231b]"
+                        style={{ position: 'absolute', top: 0, bottom: 0, height: '100%', transform: 'none', translate: 'none' }}
+                      >
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold text-[#0b0b0d]">Enter password again</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full rounded-[9px] border border-[#d8dbe2] bg-[#eaf1ff] px-5 py-3.5 pr-20 text-sm outline-none ring-1 ring-transparent transition focus:ring-[#e5231b]"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showConfirmPassword}
+                        onClick={() => setShowConfirmPassword((visible) => !visible)}
+                        className="absolute right-3 inset-y-0 flex h-full items-center justify-center rounded bg-transparent px-2 text-xs font-semibold text-[#62626b] hover:text-[#e5231b]"
+                        style={{ position: 'absolute', top: 0, bottom: 0, height: '100%', transform: 'none', translate: 'none' }}
+                      >
+                        {showConfirmPassword ? 'Hide' : 'Show'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -319,15 +517,18 @@ export default function CustomerSignupPage() {
             <p className="mt-6 text-center text-[13px] text-[#6c6c72]">
               Already have an account? <Link href="/customer/login" className="font-semibold text-[#e5231b] underline">Log In</Link>
             </p>
+            <p className="mt-2 text-center text-[12px]">
+              <Link href="/customer/reset-password" className="font-semibold text-[#e5231b] underline">Reset password</Link>
+            </p>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[12px] leading-relaxed text-white/60">
+        <div className="mt-6 text-center text-[12px] leading-relaxed text-white/60">
           By continuing, you agree to
           <br />
           <PolicyPdfLink title="Terms of Service" href="/documents/JAAD-LOGISTICS-Terms-of-Service.pdf" className="underline" /> and{' '}
           <PolicyPdfLink title="Privacy Policy" href="/documents/JAAD-LOGISTICS-Privacy-Policy.pdf" className="underline" />.
-        </p>
+        </div>
       </div>
     </div>
   );

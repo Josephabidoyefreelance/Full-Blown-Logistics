@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirectIfNotCustomerModule } from '@/lib/customer-tenant';
 import { PrioritySwitch, TicketStatusSwitch } from './switches';
 import LiveChatPanel from './live-chat-panel';
 import EmailPanel from './email-panel';
@@ -16,6 +17,7 @@ export default async function SupportPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const { view = 'tickets' } = await searchParams;
+  const tenant = await redirectIfNotCustomerModule('support');
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -26,40 +28,40 @@ export default async function SupportPage({
   }
 
   const tickets = view === 'tickets'
-    ? await supabase.from('tickets').select('id, ticket_no, customer_name, subject, message, priority, status, channel, opened_at, closed_at').order('opened_at', { ascending: false })
+    ? await supabase.from('tickets').select('id, ticket_no, customer_name, subject, message, priority, status, channel, opened_at, closed_at').eq('company_id', tenant.companyId).order('opened_at', { ascending: false })
     : null;
   const kb = view === 'kb'
-    ? await supabase.from('kb_articles').select('id, question, answer').order('created_at', { ascending: false })
+    ? await supabase.from('kb_articles').select('id, question, answer').eq('company_id', tenant.companyId).order('created_at', { ascending: false })
     : null;
 
   const chats = view === 'livechat'
-    ? await supabase.from('live_chats').select('id, customer_name, customer_email, customer_phone, status').order('created_at', { ascending: false })
+    ? await supabase.from('live_chats').select('id, customer_name, customer_email, customer_phone, status').eq('company_id', tenant.companyId).order('created_at', { ascending: false })
     : null;
   const chatMessages = view === 'livechat'
-    ? await supabase.from('live_chat_messages').select('id, chat_id, sender, message, created_at').order('created_at', { ascending: true })
+    ? await supabase.from('live_chat_messages').select('id, chat_id, sender, message, created_at').eq('company_id', tenant.companyId).order('created_at', { ascending: true })
     : null;
 
   const emails = view === 'email'
-    ? await supabase.from('support_emails').select('id, to_address, from_address, subject, body, status, direction, read, created_at, scheduled_at, attachments').order('created_at', { ascending: false })
+    ? await supabase.from('support_emails').select('id, to_address, from_address, subject, body, status, direction, read, created_at, scheduled_at, attachments').eq('company_id', tenant.companyId).order('created_at', { ascending: false })
     : null;
 
   const sms = view === 'sms'
-    ? await supabase.from('support_sms').select('id, to_number, message, status, created_at').order('created_at', { ascending: false })
+    ? await supabase.from('support_sms').select('id, to_number, message, status, created_at').eq('company_id', tenant.companyId).order('created_at', { ascending: false })
     : null;
 
   const calls = view === 'call'
-    ? await supabase.from('support_calls').select('id, number, status, created_at').order('created_at', { ascending: false })
+    ? await supabase.from('support_calls').select('id, number, status, created_at').eq('company_id', tenant.companyId).order('created_at', { ascending: false })
     : null;
 
   const whatsapp = view === 'whatsapp'
-    ? await supabase.from('support_whatsapp').select('id, to_number, message, direction, created_at').order('created_at', { ascending: true })
+    ? await supabase.from('support_whatsapp').select('id, to_number, message, direction, created_at').eq('company_id', tenant.companyId).order('created_at', { ascending: true })
     : null;
 
   const teamChat = view === 'teamchat'
-    ? await supabase.from('team_chat_messages').select('id, sender_name, message, created_at').order('created_at', { ascending: true })
+    ? await supabase.from('team_chat_messages').select('id, sender_name, message, created_at').eq('company_id', tenant.companyId).order('created_at', { ascending: true })
     : null;
   const staffList = view === 'teamchat'
-    ? await supabase.from('employees').select('name').not('name', 'is', null)
+    ? await supabase.from('employees').select('name').eq('company_id', tenant.companyId).not('name', 'is', null)
     : null;
 
   const open = (tickets?.data ?? []).filter((t) => t.status === 'Open');

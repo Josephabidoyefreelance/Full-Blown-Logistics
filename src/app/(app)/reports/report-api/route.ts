@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import PDFDocument from 'pdfkit';
 import * as XLSX from 'xlsx';
@@ -111,6 +111,7 @@ async function fetchRows(category: string) {
 
 export async function GET(request: Request) {
   const category = new URL(request.url).searchParams.get('category') ?? '';
+  if (!category) return NextResponse.json({ error: 'Missing report category.' }, { status: 400 });
   const format = new URL(request.url).searchParams.get('format') ?? 'csv';
 
   try {
@@ -127,7 +128,7 @@ export async function GET(request: Request) {
         .meta{color:#666;margin-bottom:18px}table{width:100%;border-collapse:collapse;table-layout:fixed}
         th{background:#dc2626;color:white;text-align:left}th,td{padding:7px;border:1px solid #ddd;overflow-wrap:anywhere}
         tr:nth-child(even){background:#f5f5f5}@media print{body{padding:0}h1{color:#111}}
-      </style></head><body><h1>JAAD ERP â€” ${htmlEscape(config.label)}</h1><div class="meta">Generated ${htmlEscape(new Date().toLocaleString())} Â· ${rows.length} record(s)</div><table><thead><tr>${headers}</tr></thead><tbody>${body || `<tr><td colspan="${config.columns.length}">No records found.</td></tr>`}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`;
+      </style></head><body><h1>JAAD ERP — ${htmlEscape(config.label)}</h1><div class="meta">Generated ${htmlEscape(new Date().toLocaleString())} · ${rows.length} record(s)</div><table><thead><tr>${headers}</tr></thead><tbody>${body || `<tr><td colspan="${config.columns.length}">No records found.</td></tr>`}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`;
       return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
@@ -155,4 +156,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Report generation failed.' }, { status: 500 });
   }
 }
-
